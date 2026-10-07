@@ -226,6 +226,11 @@ export function AccrualTable({
               onCheck={(v) => setSel(v ? [...sel, a.id] : sel.filter((x) => x !== a.id))}
               projectName={look.projectName(a.projectId)}
               userName={look.userName(a.userId)}
+              onDelete={
+                editable && (a.createdBy !== "system" || a.kind === "piece" || a.kind === "bonus")
+                  ? () => run((c) => act.deleteAccrual(c, a.id), "Hisoblash o'chirildi")
+                  : undefined
+              }
             />
           ))}
         </tbody>
@@ -253,6 +258,7 @@ function AccrualRow({
   onCheck,
   projectName,
   userName,
+  onDelete,
 }: {
   a: Accrual & { payStatus: "paid" | "partial" | "unpaid"; paid: number };
   showUser: boolean;
@@ -261,8 +267,10 @@ function AccrualRow({
   onCheck: (v: boolean) => void;
   projectName: string;
   userName: string;
+  onDelete?: () => void;
 }) {
   const st = STATUS[a.payStatus];
+  const [ask, setAsk] = useState(false);
   return (
     <tr className="hover:bg-fill">
       {selectable && <td className={td}>{!a.approved && <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} />}</td>}
@@ -289,6 +297,21 @@ function AccrualRow({
         <div className="flex flex-wrap gap-1">
           {a.amount > 0 && <Badge tone={st.t}>{st.l}</Badge>}
           {!a.approved && <Badge tone="amber">tasdiqlanmagan</Badge>}
+          {onDelete &&
+            (ask ? (
+              <span className="inline-flex items-center gap-1">
+                <Button size="sm" variant="primary" className="!h-6 !bg-red !px-2 !text-[12px]" onClick={onDelete}>
+                  O'chirish
+                </Button>
+                <Button size="sm" variant="ghost" className="!h-6 !px-2 !text-[12px]" onClick={() => setAsk(false)}>
+                  Yo'q
+                </Button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setAsk(true)} className="text-label3 hover:text-red" aria-label={`O'chirish: ${a.title}`} title="O'chirish">
+                <Icon name="trash" size={15} />
+              </button>
+            ))}
         </div>
       </td>
     </tr>

@@ -173,7 +173,7 @@ export function addOperationsHistory(s: ErpState, today: string): void {
         id: id("rep"),
         projectId: p.id,
         periodIndex: i,
-        fileLink: `https://drive.google.com/file/d/${p.id}-hisobot-${i + 1}`,
+        fileLink: `https://drive.google.com/file/d/demo-${p.id}-hisobot-${i + 1}`,
         reach: Math.round(paidViews * 1.35 + 15_000 + rand() * 20_000),
         followers,
         leads: adLeads + Math.round(5 + rand() * 15),
@@ -281,7 +281,7 @@ export function addOperationsHistory(s: ErpState, today: string): void {
     const lead: Lead = {
       id: id("lead"),
       name,
-      phone: `+998 9${Math.floor(rand() * 10)} ${String(100 + Math.floor(rand() * 899))} ${String(10 + Math.floor(rand() * 89))} ${String(10 + Math.floor(rand() * 89))}`,
+      phone: `+998 00 ${String(100 + Math.floor(rand() * 899))} ${String(10 + Math.floor(rand() * 89))} ${String(10 + Math.floor(rand() * 89))}`,
       source: src[0],
       service: pick(services),
       note: "",

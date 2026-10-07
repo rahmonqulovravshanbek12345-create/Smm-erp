@@ -221,9 +221,39 @@ function Info({ p }: { p: Project }) {
                 <span className="block text-xs text-label2">Belgilansa, bu loyiha uchun yangi post, syomka va TZ ochilmaydi (qo'lda boshqariladi)</span>
               </span>
             </label>
+            <CloseProject p={p} />
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+/** Mijoz bilan hamkorlik tugasa: loyiha yopiladi, yangi fakturalar chiqmaydi, ish to'xtaydi. */
+function CloseProject({ p }: { p: Project }) {
+  const { run, today } = useErp();
+  const [ask, setAsk] = useState(false);
+  const [date, setDate] = useState(today);
+  if (p.status === "closed") return <p className="text-sm text-label2">Loyiha yopilgan: {fmtDate(p.closedAt)}</p>;
+  if (!ask)
+    return (
+      <Button size="sm" variant="ghost" className="!px-0 !text-red" onClick={() => setAsk(true)}>
+        Loyihani yopish…
+      </Button>
+    );
+  return (
+    <div className="rounded-[14px] bg-red/10 p-3 text-sm">
+      <div className="font-semibold text-label">Loyihani yopish</div>
+      <p className="mt-0.5 text-xs text-label2">Yopilgan sanadan keyin yangi fakturalar chiqarilmaydi, ish to'xtaydi. Qarzlar va tarix saqlanadi.</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} className="!w-44 !py-1.5" aria-label="Yopilish sanasi" />
+        <Button size="sm" variant="primary" className="!bg-red" onClick={() => run((c) => act.closeProject(c, p.id, date), "Loyiha yopildi") && setAsk(false)}>
+          Yopish
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setAsk(false)}>
+          Bekor qilish
+        </Button>
+      </div>
     </div>
   );
 }

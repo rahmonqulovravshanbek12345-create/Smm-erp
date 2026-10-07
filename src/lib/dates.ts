@@ -83,12 +83,14 @@ export function relDays(date: string, today: string): string {
   return n > 0 ? `${n} kundan keyin` : `${-n} kun oldin`;
 }
 
+/** Hisoblab bo'lmagan qiymat (0 ga bo'lish va h.k.) ekranga "NaN" bo'lib chiqmasin. */
 export function fmtMoney(n: number): string {
-  return `${String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} so'm`;
+  return Number.isFinite(n) ? `${fmtNum(n)} so'm` : "—";
 }
 
 export function fmtNum(n: number): string {
-  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  if (!Number.isFinite(n)) return "—";
+  return String(Math.round(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
 const MONTHS_SHORT = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];

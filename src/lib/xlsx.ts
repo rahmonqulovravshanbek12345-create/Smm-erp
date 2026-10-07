@@ -42,7 +42,8 @@ function sheetXml(sh: SheetData): string {
     return Math.min(60, Math.max(10, longest + 2));
   });
   const cell = (ref: string, v: CellValue, style: number) => {
-    if (v === null || v === undefined || v === "") return `<c r="${ref}" s="${style}"/>`;
+    // Bo'sh qiymat va hisoblab bo'lmagan son (NaN/Infinity) — bo'sh katak, "NaN" matni chiqmasin
+    if (v === null || v === undefined || v === "" || (typeof v === "number" && !Number.isFinite(v))) return `<c r="${ref}" s="${style}"/>`;
     if (typeof v === "number" && Number.isFinite(v)) {
       // Pul summalari butun so'mgacha, kichik qiymatlar (foiz, koeffitsient) 2 xonagacha
       const val = Math.abs(v) >= 1000 ? Math.round(v) : Math.round(v * 100) / 100;

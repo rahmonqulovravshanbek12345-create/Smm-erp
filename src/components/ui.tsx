@@ -410,9 +410,23 @@ export function Modal({
   );
 }
 
+/** Namunaviy ma'lumotdagi havolalar ("demo-…", "demo_…") hech qayerga olib bormaydi — begona sahifa ochilmasin. */
+export const isDemoLink = (href: string) => /\/demo[-_]/i.test(href);
+
 export function LinkOut({ href, children }: { href?: string; children?: ReactNode }) {
   if (!href) return <span className="text-label3">—</span>;
   const url = /^https?:\/\//.test(href) ? href : `https://${href}`;
+  if (isDemoLink(url)) {
+    return (
+      <span
+        className="inline-flex max-w-full cursor-help items-center gap-1 break-all font-medium text-accent"
+        title="Namunaviy havola: haqiqiy tizimda shu manzil (Google Drive yoki ijtimoiy tarmoq) ochiladi"
+      >
+        {children ?? href.replace(/^https?:\/\//, "")}
+        <span className="rounded-full bg-fill px-1.5 text-[10px] font-semibold uppercase tracking-wide text-label3">demo</span>
+      </span>
+    );
+  }
   return (
     <a
       href={url}

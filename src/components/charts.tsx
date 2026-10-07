@@ -12,6 +12,7 @@ export const VIZ = {
 
 /** Qisqa pul formati: 12,4 mln / 850 ming. */
 export function fmtShort(n: number): string {
+  if (!Number.isFinite(n)) return "—";
   const a = Math.abs(n);
   const sign = n < 0 ? "−" : "";
   if (a >= 1e9) return `${sign}${(a / 1e9).toFixed(1).replace(".", ",")} mlrd`;

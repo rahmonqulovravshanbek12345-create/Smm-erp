@@ -463,7 +463,7 @@ export function acceptTask(c: Ctx, id: string) {
   const a = wt ? accruePiece(c, t.assigneeId, wt, t.projectId, `${projectName(c, t.projectId)}: ${t.title}`, `task:${t.id}`) : null;
   // Kechikkan ish uchun jarima (sozlamada yoqilgan bo'lsa)
   const pct = c.s.settings.latePenaltyPct;
-  if (a && pct > 0 && t.deadline < c.today) {
+  if (a && pct > 0 && t.deadline < c.today && !c.s.accruals.some((x) => x.sourceId === `late:${t.id}`)) {
     const amount = -Math.round((a.amount * pct) / 100);
     c.s.accruals.push({
       id: newId("acr"),
@@ -771,5 +771,3 @@ export function submitReport(
   c.notify([p?.marketologId, ...financeIds(c)], `${p?.name}: ${data.periodIndex + 1}-davr oylik hisoboti topshirildi`, `/loyiha/${data.projectId}`);
   c.log(`${p?.name}: oylik hisobot topshirildi`, `/loyiha/${data.projectId}`);
 }
-
-export const defaultDeadline = (today: string) => addDays(today, 2);

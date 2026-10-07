@@ -404,7 +404,15 @@ function Logo({ small }: { small?: boolean }) {
       </span>
       <span className="leading-tight">
         <span className={`block font-bold tracking-tight text-label ${small ? "text-[16px]" : "text-[17px]"}`}>SMM Studio</span>
-        <span className="block text-[12px] font-medium text-label2">Agentlik ERP</span>
+        <span className="flex items-center gap-1.5 text-[12px] font-medium text-label2">
+          Agentlik ERP
+          <span
+            className="rounded-full bg-orange/15 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-orange"
+            title="Namunaviy ma'lumotlar bilan demo versiya"
+          >
+            demo
+          </span>
+        </span>
       </span>
     </A>
   );
@@ -427,7 +435,7 @@ function AccountButton({ me, onClick, open }: { me: User; onClick: () => void; o
   );
 }
 
-const ROLE_ORDER: Role[] = ["marketolog", "operator", "smm", "targetolog", "syomka", "montajyor", "dizayner", "moliya", "admin"];
+const ROLE_ORDER: Role[] = ["rahbar", "marketolog", "operator", "smm", "targetolog", "syomka", "montajyor", "dizayner", "moliya", "admin"];
 
 function AccountMenu({
   users,

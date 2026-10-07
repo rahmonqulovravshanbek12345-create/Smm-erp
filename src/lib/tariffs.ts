@@ -176,7 +176,7 @@ export function agencyStats(s: ErpState, today: string) {
   };
 }
 
-/** Natijalar: birinchi oy va oxirgi oy taqqoslanadi (lid narxi, oylik lidlar). */
+/** Natijalar: birinchi oy va oxirgi oy taqqoslanadi (lid narxi, oylik lidlar); faqat yaxshilanganlari. */
 export function caseStudies(s: ErpState, today: string, limit = 3) {
   const out: { project: Project; leadsPerMonth: number; cplFrom: number; cplTo: number; months: number }[] = [];
   for (const p of s.projects) {
@@ -195,7 +195,11 @@ export function caseStudies(s: ErpState, today: string, limit = 3) {
       months: Math.max(1, Math.round(tr.length / 30)),
     });
   }
-  return out.sort((a, b) => b.leadsPerMonth - a.leadsPerMonth).slice(0, limit);
+  // Taklifda faqat natija yaxshilangan holatlar ko'rsatiladi (lid narxi pasaygan)
+  return out
+    .filter((c) => c.cplTo < c.cplFrom)
+    .sort((a, b) => b.leadsPerMonth - a.leadsPerMonth)
+    .slice(0, limit);
 }
 
 /** Taklif matnining standart boshlanishi. */

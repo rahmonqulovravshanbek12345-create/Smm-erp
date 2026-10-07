@@ -28,8 +28,10 @@ export function numberToWords(value: number): string {
   return `${value < 0 ? "minus " : ""}${groups.join(" ")}`;
 }
 
-/** "o'n besh million so'm 00 tiyin" — bosh harf bilan. */
+/** "O'n besh million so'm 00 tiyin" — bosh harf bilan; tiyin raqamda (hujjatlardagi odatiy shakl). */
 export function moneyWords(value: number): string {
-  const s = `${numberToWords(value)} so'm 00 tiyin`;
+  const cents = Math.round(Math.abs(value) * 100);
+  const whole = Math.floor(cents / 100) * Math.sign(value || 1);
+  const s = `${numberToWords(whole)} so'm ${String(cents % 100).padStart(2, "0")} tiyin`;
   return s.charAt(0).toUpperCase() + s.slice(1);
 }

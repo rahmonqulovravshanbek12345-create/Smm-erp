@@ -209,13 +209,19 @@ export function invoiceRevenueByMonth(s: ErpState, inv: Invoice, today: string):
   return out;
 }
 
-/** Bugungi kungacha tan olinmagan (kelgusi davrga tegishli) faktura qismi. */
-function unrecognized(s: ErpState, inv: Invoice, today: string): number {
+/**
+ * Bugungi kungacha tan olinmagan (kelgusi davrga tegishli) faktura qismi.
+ * invoiceRevenueByMonth bilan bir xil qoida: bugungi kun ham ko'rsatilgan xizmat kuni hisoblanadi.
+ */
+export function unrecognizedRevenue(s: ErpState, inv: Invoice, today: string): number {
   const per = invoicePeriod(s, inv);
   if (!per) return inv.amount;
-  if (today <= per.start) return inv.amount;
-  if (today >= per.end) return 0;
-  return (inv.amount * diffDays(per.end, today)) / diffDays(per.end, per.start);
+  const total = diffDays(per.end, per.start);
+  if (total <= 0) return per.start <= today ? 0 : inv.amount;
+  const servedUntil = addDays(today, 1);
+  if (servedUntil <= per.start) return inv.amount;
+  if (servedUntil >= per.end) return 0;
+  return (inv.amount * diffDays(per.end, servedUntil)) / total;
 }
 
 // ---------- Ish haqi ----------
@@ -722,7 +728,7 @@ export function receivables(s: ErpState, today: string): ReceivableRow[] {
           else row.d60plus += out;
         }
         // Olingan avans: to'lov hozirgacha ko'rsatilgan xizmatdan oshgan qismi (kelgusi davr daromadi).
-        row.advance += Math.max(0, paid - (inv.amount - unrecognized(s, inv, today)));
+        row.advance += Math.max(0, paid - (inv.amount - unrecognizedRevenue(s, inv, today)));
       }
       row.balance = row.invoiced - row.paid;
       return row;
