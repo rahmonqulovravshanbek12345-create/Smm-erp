@@ -1,12 +1,12 @@
 // Mijozga ko'rsatish uchun namunaviy ma'lumotlar. Barcha sanalar bugungi kunga nisbatan
 // hisoblanadi, shuning uchun demo istalgan kuni ochilganda ham "jonli" ko'rinadi.
-import { addDays, addMonths, monthKey, shiftMonthKey } from "./dates";
+import { addDays, addMonths, diffDays, monthKey } from "./dates";
+import { addFinanceHistory } from "./seed-finance";
 import type {
   DocBlock,
   DocState,
   ErpState,
   Lead,
-  Payment,
   Platform,
   Post,
   PostFormat,
@@ -19,7 +19,7 @@ import type {
   User,
 } from "./types";
 
-export const SEED_VERSION = 3;
+export const SEED_VERSION = 5;
 
 export function buildSeed(today: string): ErpState {
   const d = (n: number) => addDays(today, n);
@@ -28,7 +28,8 @@ export function buildSeed(today: string): ErpState {
   const id = (p: string) => `${p}_${(++seq).toString(36)}`;
 
   const users: User[] = [
-    { id: "u_admin", name: "Ravshanbek (admin)", role: "admin", active: true },
+    { id: "u_boss", name: "Sherzod Alimov", role: "rahbar", phone: "+998 90 000 11 22", active: true },
+    { id: "u_admin", name: "Tizim administratori", role: "admin", active: true },
     { id: "u_op1", name: "Dilnoza Yusupova", role: "operator", phone: "+998 90 111 22 33", active: true },
     { id: "u_op2", name: "Jasur Aliyev", role: "operator", phone: "+998 93 222 33 44", active: true },
     { id: "u_mk", name: "Aziza Karimova", role: "marketolog", phone: "+998 97 333 44 55", active: true },
@@ -71,9 +72,15 @@ export function buildSeed(today: string): ErpState {
   const P1 = "p_mebel";
   const P2 = "p_gym";
   const P3 = "p_dent";
-  const p1Start = d(-20);
-  const p2Start = d(-35);
-  const p2Cur = addMonths(p2Start, 1);
+  const P4 = "p_baraka";
+  const P5 = "p_moda";
+  const P6 = "p_burger";
+  // Joriy davr boshlanishlari bugunga nisbatan; birinchi reklama sanasi shundan oylar oldin.
+  const p1Start = addMonths(d(-20), -5);
+  const p2Start = addMonths(d(-5), -3);
+  const p4Start = addMonths(d(-12), -4);
+  const p5Start = addMonths(d(-3), -5);
+  const p6Start = addMonths(d(-15), -1);
 
   const projects: Project[] = [
     {
@@ -84,19 +91,21 @@ export function buildSeed(today: string): ErpState {
       phone: "+998 90 555 12 12",
       industry: "Mebel ishlab chiqarish",
       links: "instagram.com/sharq.mebel\nt.me/sharqmebel",
-      contractNo: "SH-2026/041",
-      contractDate: d(-27),
+      contractNo: "SH-2026/018",
+      contractDate: addDays(p1Start, -7),
       tariff: "Standart (Instagram + Telegram + target)",
-      monthlyFee: 6_000_000,
+      monthlyFee: 15_000_000,
       prepayType: 100,
       marketologId: "u_mk",
       smmId: "u_smm1",
       targetologId: "u_tg",
       periodStart: p1Start,
       pauseWork: false,
+      status: "active",
+      adBudgetUsd: 600,
       docs: docs(["brief", "strategy", "competitors", "swot", "audience"], mebelDocs),
-      handedOffAt: at(-23),
-      createdAt: at(-27),
+      handedOffAt: `${addDays(p1Start, -3)}T10:00:00.000Z`,
+      createdAt: `${addDays(p1Start, -7)}T10:00:00.000Z`,
     },
     {
       id: P2,
@@ -106,19 +115,21 @@ export function buildSeed(today: string): ErpState {
       phone: "+998 91 777 45 45",
       industry: "Fitnes",
       links: "instagram.com/fitlife.uz",
-      contractNo: "SH-2026/033",
-      contractDate: d(-42),
+      contractNo: "SH-2026/027",
+      contractDate: addDays(p2Start, -7),
       tariff: "Biznes (Instagram + target)",
-      monthlyFee: 5_000_000,
+      monthlyFee: 12_000_000,
       prepayType: 50,
       marketologId: "u_mk",
       smmId: "u_smm2",
       targetologId: "u_tg",
       periodStart: p2Start,
       pauseWork: false,
+      status: "active",
+      adBudgetUsd: 400,
       docs: docs(["brief", "strategy", "competitors", "swot", "audience"], gymDocs),
-      handedOffAt: at(-38),
-      createdAt: at(-42),
+      handedOffAt: `${addDays(p2Start, -3)}T10:00:00.000Z`,
+      createdAt: `${addDays(p2Start, -7)}T10:00:00.000Z`,
     },
     {
       id: P3,
@@ -128,19 +139,102 @@ export function buildSeed(today: string): ErpState {
       phone: "+998 99 404 40 40",
       industry: "Stomatologiya",
       links: "instagram.com/dentplus.tashkent",
-      contractNo: "SH-2026/052",
+      contractNo: "SH-2026/041",
       contractDate: d(-3),
       tariff: "Start (Instagram)",
-      monthlyFee: 4_000_000,
+      monthlyFee: 8_000_000,
       prepayType: 50,
       marketologId: "u_mk",
       smmId: "u_smm1",
       pauseWork: false,
+      status: "active",
       docs: docs(["brief"], {
         brief: "Dent Plus — oilaviy stomatologiya. Maqsad: implant va breket xizmatlariga yozilishni oshirish.",
         strategy: "Ustunlar: shifokor bilan tanishuv, oldin/keyin, narxlar shaffofligi…",
       }),
       createdAt: at(-3),
+    },
+    {
+      id: P4,
+      name: "Baraka Market",
+      leadId: "l_baraka",
+      contactName: "Ulug'bek Sobirov",
+      phone: "+998 95 300 70 70",
+      industry: "Supermarketlar tarmog'i",
+      links: "instagram.com/barakamarket.uz\nt.me/barakamarket",
+      contractNo: "SH-2026/022",
+      contractDate: addDays(p4Start, -6),
+      tariff: "Premium (Instagram + Telegram + target + syomka)",
+      monthlyFee: 18_000_000,
+      prepayType: 100,
+      marketologId: "u_mk",
+      smmId: "u_smm2",
+      targetologId: "u_tg",
+      periodStart: p4Start,
+      pauseWork: false,
+      status: "active",
+      adBudgetUsd: 1000,
+      docs: docs(["brief", "strategy", "competitors", "swot", "audience"], {
+        brief: "Baraka Market — 7 filialli supermarketlar tarmog'i. Maqsad: haftalik aksiyalarni tanitish, ilovaga yuklab olishni oshirish.",
+        strategy: "Ustunlar: haftalik aksiyalar, retseptlar, yangi mahsulotlar, filial hayoti.",
+        competitors: "Korzinka, Makro, Havas — kontent ko'p, lekin bir xil.",
+        swot: "S: narxlar raqobatbardosh. W: brend tanilishi past. O: yetkazib berish xizmati. T: yirik tarmoqlar.",
+        audience: "25–50 yosh, oila boshlari, Toshkent shahri.",
+      }),
+      handedOffAt: `${addDays(p4Start, -2)}T10:00:00.000Z`,
+      createdAt: `${addDays(p4Start, -6)}T10:00:00.000Z`,
+    },
+    {
+      id: P5,
+      name: "Moda House",
+      leadId: "l_moda",
+      contactName: "Kamola Usmonova",
+      phone: "+998 97 121 21 21",
+      industry: "Kiyim do'koni",
+      links: "instagram.com/modahouse.uz",
+      contractNo: "SH-2026/015",
+      contractDate: addDays(p5Start, -5),
+      tariff: "Standart (Instagram + target)",
+      monthlyFee: 9_000_000,
+      prepayType: 100,
+      marketologId: "u_mk",
+      smmId: "u_smm1",
+      targetologId: "u_tg",
+      periodStart: p5Start,
+      pauseWork: true,
+      status: "closed",
+      closedAt: addMonths(p5Start, 3),
+      docs: docs(["brief", "strategy", "competitors", "swot", "audience"], {
+        brief: "Moda House — ayollar kiyimi do'koni. Shartnoma 3 oydan keyin to'xtatildi (mijoz byudjetni qisqartirdi).",
+      }),
+      handedOffAt: `${addDays(p5Start, -2)}T10:00:00.000Z`,
+      createdAt: `${addDays(p5Start, -5)}T10:00:00.000Z`,
+    },
+    {
+      id: P6,
+      name: "Burger House",
+      leadId: "l_burger",
+      contactName: "Davron Qosimov",
+      phone: "+998 93 555 66 77",
+      industry: "Fast-food",
+      links: "instagram.com/burgerhouse.tash",
+      contractNo: "SH-2026/036",
+      contractDate: addDays(p6Start, -6),
+      tariff: "Biznes (Instagram + target)",
+      monthlyFee: 12_000_000,
+      prepayType: 50,
+      marketologId: "u_mk",
+      smmId: "u_smm1",
+      targetologId: "u_tg",
+      periodStart: p6Start,
+      pauseWork: false,
+      status: "active",
+      adBudgetUsd: 500,
+      docs: docs(["brief", "strategy", "competitors", "swot", "audience"], {
+        brief: "Burger House — 3 filialli fast-food. Maqsad: yetkazib berish buyurtmalarini oshirish.",
+      }),
+      handedOffAt: `${addDays(p6Start, -3)}T10:00:00.000Z`,
+      createdAt: `${addDays(p6Start, -6)}T10:00:00.000Z`,
     },
   ];
 
@@ -162,7 +256,7 @@ export function buildSeed(today: string): ErpState {
       format,
       topic,
       script: extra.script ?? "",
-      assigneeId: projectId === P2 ? "u_smm2" : "u_smm1",
+      assigneeId: projects.find((x) => x.id === projectId)?.smmId ?? "u_smm1",
       status,
       forTarget: extra.forTarget ?? false,
       publishedAt: status === "published" ? date : undefined,
@@ -202,6 +296,45 @@ export function buildSeed(today: string): ErpState {
   addPost(P2, d(15), "image", "Korporativ abonement taklifi", "plan");
   addPost(P2, d(19), "video", "Hovuz zonasi", "plan");
   addPost(P2, d(23), "ai", "AI post: ish stoli yonida 5 daqiqalik mashq", "plan", { platform: "telegram" });
+
+  // Baraka Market va Burger House — joriy davr rejasi avtomatik to'ldiriladi
+  const genPlan = (pid: string, start: string, items: [PostFormat, string][], lateIdx = -1) =>
+    items.forEach(([format, topic], i) => {
+      const date = addDays(start, Math.round((i * 29) / items.length) + 1);
+      const rel = diffDays(date, today);
+      const status: PostStatus =
+        i === lateIdx ? "design" : rel < 0 ? "published" : rel === 0 ? "approved" : rel <= 2 ? "client" : rel <= 4 ? "internal" : rel <= 7 ? (format === "video" ? "editing" : "design") : "plan";
+      addPost(pid, date, format, topic, status, { forTarget: i % 4 === 0, platform: i % 5 === 3 ? "telegram" : "instagram" });
+    });
+  genPlan(P4, d(-12), [
+    ["video", "Haftalik aksiya: -30% sut mahsulotlari"],
+    ["image", "Karusel: 5 ta tejamkor xarid maslahati"],
+    ["video", "Yangi filial — Sergeli"],
+    ["ai", "AI post: haftalik menyu g'oyalari"],
+    ["video", "Retsept: 15 daqiqada palov"],
+    ["image", "Mobil ilova — bonus ballar"],
+    ["video", "Mijoz bilan intervyu"],
+    ["image", "Dam olish kunlari aksiyasi"],
+    ["video", "Yetkazib berish qanday ishlaydi"],
+    ["image", "Mevalar — fermadan to'g'ridan-to'g'ri"],
+    ["video", "Xodimlar kuni — sahna ortida"],
+    ["ai", "AI post: maktab uchun xarid ro'yxati"],
+    ["image", "Kuzgi narxlar pasayishi"],
+  ]);
+  genPlan(P6, d(-15), [
+    ["video", "Yangi burger: Double Cheese"],
+    ["image", "Kombo menyu −20%"],
+    ["video", "Oshxona — qanday tayyorlanadi"],
+    ["image", "Mijozlar fikri karuseli"],
+    ["video", "Kuryer bilan bir kun"],
+    ["ai", "AI post: burger tarixi"],
+    ["video", "Talabalar uchun aksiya"],
+    ["image", "Yangi filial — Chilonzor"],
+    ["video", "Challenge: 1 daqiqada burger"],
+    ["image", "Kechki menyu"],
+    ["video", "Sous retsepti siri"],
+    ["image", "Dam olish kunlari oilaviy set"],
+  ], 3);
 
   // ---------- Syomka ----------
   const shoots: Shoot[] = [
@@ -382,6 +515,8 @@ export function buildSeed(today: string): ErpState {
     for (const [pid, base] of [
       [P1, 150_000],
       [P2, 120_000],
+      [P4, 260_000],
+      [P6, 130_000],
     ] as const) {
       if (pid === P1 && i === 1) continue;
       const k = 0.85 + ((i * 7 + base / 10_000) % 30) / 100;
@@ -399,64 +534,6 @@ export function buildSeed(today: string): ErpState {
       });
     }
   }
-
-  // ---------- To'lovlar ----------
-  const payments: Payment[] = [
-    {
-      id: "pay_p1_pre",
-      projectId: P1,
-      kind: "prepay",
-      periodIndex: 0,
-      amount: 6_000_000,
-      dueDate: d(-27),
-      transactions: [{ id: id("tx"), date: d(-26), amount: 6_000_000, note: "Bank o'tkazmasi" }],
-    },
-    {
-      id: "pay_p2_pre",
-      projectId: P2,
-      kind: "prepay",
-      periodIndex: 0,
-      amount: 2_500_000,
-      dueDate: d(-42),
-      transactions: [{ id: id("tx"), date: d(-41), amount: 2_500_000, note: "Naqd" }],
-    },
-    {
-      id: "pay_p2_rem",
-      projectId: P2,
-      kind: "remainder",
-      periodIndex: 0,
-      amount: 2_500_000,
-      dueDate: d(-20),
-      transactions: [{ id: id("tx"), date: d(-19), amount: 2_500_000, note: "Naqd" }],
-    },
-    {
-      id: "pay_p2_m1",
-      projectId: P2,
-      kind: "monthly",
-      periodIndex: 1,
-      amount: 5_000_000,
-      dueDate: p2Cur,
-      transactions: [{ id: id("tx"), date: addDays(p2Cur, 1), amount: 2_000_000, note: "Qisman, qolgani keyinroq" }],
-    },
-    {
-      id: "pay_p3_pre",
-      projectId: P3,
-      kind: "prepay",
-      periodIndex: 0,
-      amount: 2_000_000,
-      dueDate: d(2),
-      transactions: [],
-    },
-    {
-      id: "pay_p3_rem",
-      projectId: P3,
-      kind: "remainder",
-      periodIndex: 0,
-      amount: 2_000_000,
-      dueDate: "",
-      transactions: [],
-    },
-  ];
 
   // ---------- CRM ----------
   const lead = (l: Partial<Lead> & Pick<Lead, "id" | "name" | "phone" | "stage">): Lead => ({
@@ -500,15 +577,16 @@ export function buildSeed(today: string): ErpState {
     lead({ id: "l_mebel", name: "Sharq Mebel", phone: "+998 90 555 12 12", stage: "contract", projectId: P1, createdAt: at(-35) }),
     lead({ id: "l_gym", name: "FitLife Gym", phone: "+998 91 777 45 45", stage: "contract", projectId: P2, operatorId: "u_op2", createdAt: at(-50) }),
     lead({ id: "l_dent", name: "Dent Plus klinikasi", phone: "+998 99 404 40 40", stage: "contract", projectId: P3, createdAt: at(-9) }),
+    lead({ id: "l_baraka", name: "Baraka Market", phone: "+998 95 300 70 70", stage: "contract", projectId: P4, operatorId: "u_op2", source: "Tavsiya", createdAt: `${addDays(p4Start, -20)}T09:00:00.000Z` }),
+    lead({ id: "l_moda", name: "Moda House", phone: "+998 97 121 21 21", stage: "contract", projectId: P5, source: "Instagram", createdAt: `${addDays(p5Start, -18)}T09:00:00.000Z` }),
+    lead({ id: "l_burger", name: "Burger House", phone: "+998 93 555 66 77", stage: "contract", projectId: P6, operatorId: "u_op2", source: "Meta Ads", createdAt: `${addDays(p6Start, -15)}T09:00:00.000Z` }),
     lead({ id: "l_6", name: "Shirin Tort", phone: "+998 94 100 20 30", stage: "unfit", rejectReason: "Byudjet to'g'ri kelmadi (1 mln so'mgacha)", createdAt: at(-12) }),
     lead({ id: "l_7", name: "Noma'lum", phone: "+998 00 000 00 00", stage: "lowquality", operatorId: "u_op2", rejectReason: "Raqam noto'g'ri, javob bermadi", createdAt: at(-4) }),
   ];
 
-  const prevMonth = shiftMonthKey(monthKey(today), -1);
-
-  return {
+  const state: ErpState = {
     version: SEED_VERSION,
-    currentUserId: "u_mk",
+    currentUserId: "u_boss",
     users,
     leads,
     projects,
@@ -516,7 +594,6 @@ export function buildSeed(today: string): ErpState {
     shoots,
     tasks,
     targetReports,
-    payments,
     reports: [
       {
         id: "rep_1",
@@ -531,11 +608,6 @@ export function buildSeed(today: string): ErpState {
         submittedAt: at(-5),
       },
     ],
-    salaries: [
-      { id: "sal_1", userId: "u_smm1", month: prevMonth, amount: 6_000_000, note: "Oylik" },
-      { id: "sal_2", userId: "u_smm2", month: prevMonth, amount: 5_500_000, note: "Oylik" },
-      { id: "sal_3", userId: "u_dz", month: prevMonth, amount: 4_500_000, note: "Oylik + bonus" },
-    ],
     notifications: [
       { id: "n_1", userId: "u_mk", text: "Yangi uchrashuv belgilandi: Grand Tour turagentligi, ertaga 15:00", href: "/crm", at: at(-1), read: false, telegram: "demo" },
       { id: "n_2", userId: "u_mk", text: "Tasdiqlash so'rovi: Showroom bo'ylab tur (Sharq Mebel)", href: "/tasdiqlash", at: at(0, 7), read: false, telegram: "demo" },
@@ -549,9 +621,25 @@ export function buildSeed(today: string): ErpState {
       { id: "a_2", at: at(-2, 9), userId: "u_smm1", text: "Showroom bo'ylab tur: ichki tasdiqqa yuborildi", href: "/kontent" },
       { id: "a_3", at: at(-3, 16), userId: "u_mk", text: "Dent Plus klinikasi: loyiha kartasi yaratildi (lid → loyiha)", href: `/loyiha/${P3}` },
     ],
+    accounts: [],
+    articles: [],
+    transactions: [],
+    invoices: [],
+    vendors: [],
+    bills: [],
+    payProfiles: [],
+    accruals: [],
+    budget: [],
     settings: {
-      montajPrice: 250_000,
+      companyName: "SMM Studio MChJ",
+      usdRate: 12_650,
+      payday: 10,
+      latePenaltyPct: 0,
+      payrollStart: monthKey(addMonths(today, -5)),
       telegram: { enabled: true, botToken: "" },
     },
   };
+
+  addFinanceHistory(state, today);
+  return state;
 }

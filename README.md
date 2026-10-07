@@ -13,12 +13,25 @@ brauzerda (localStorage) saqlanadi va namunaviy ma'lumotlar bilan to'ldirilgan.
 | **Loyiha kartasi** | Mijoz, shartnoma, tarif, jamoa; marketolog bloklari (Brif, Strategiya, Konkurent analiz, SWOT, Auditoriya) va uzatish tugmasi; kontent reja; vazifalar; moliya; oylik hisobot; «Ishni to'xtatish» opsiyasi |
 | **Kontent reja** | Oylik kalendar va ro'yxat, post statuslari, avtomatik «Kechikdi», ichki tasdiq → mijoz tasdig'i → joylandi |
 | **Syomka / Montaj / Dizayn / Target** | Har rolga alohida oyna: faqat o'z vazifalari, TZ, Google Drive havolalari, deadline, qabul qilish/qaytarish; targetolog kunlik hisoboti (qo'lda yoki Meta'dan import) |
-| **Moliya** | Oldindan to'lov (100%/50%, qoldiq sanasi qo'lda), hisob davrlari (birinchi reklamadan), qisman to'lov, qarz va kechikkan kunlar, montajyor oyligi avtomatik |
+| **Moliya** | Moliyaviy panel (KPI, grafiklar, avtomatik xulosalar), kirim-chiqim jurnali (so'm + USD, o'tkazmalar), hisob-fakturalar, foyda va zarar (oyma-oy va loyihalar kesimida), pul oqimi (Cash Flow), debitorlik/kreditorlik (muddatlar bo'yicha), akt-sverka (mijoz va xodim, chop etiladi), to'lov kalendari (prognoz qoldiq), reja-fakt |
+| **Ish haqi** | Har xodimga sxema: ishbay (montaj, dizayn, syomka), loyiha bo'yicha oylik, fiks oylik, bonus/jarima. Avtomatik hisoblash, tasdiqlash, to'lov (FIFO), vedomost, stavkalar |
+| **Xodim kabineti** | «Mening kunim» — bugungi ishlar; «Mening hisobim» — nima uchun qancha hisoblandi, to'landi, qoldi |
+| **Jarayon** | «Qanday ishlaydi» sxemasi, loyiha yo'li (8 bosqich + keyingi qadam), post yo'li |
 | **Bildirishnomalar** | Tizim ichida + Telegram bot (Admin'da token va chat ID kiritilsa, haqiqiy xabar ketadi) |
 | **Admin** | Xodimlar, rollar, huquqlar matritsasi, montaj narxi, demo'ni qayta tiklash |
 
 Dizayn — Apple «Liquid Glass» uslubida: shisha panellar, yorug'/qorong'i rejim (tizimga ergashadi),
 telefonda pastki tab bar va sheet oynalar.
+
+## Hisob siyosati
+
+- Foyda va zarar — **hisoblash usulida**: daromad xizmat davri kunlariga taqsimlanadi, ish haqi hisoblangan sanada, ta'minotchi xarajati hujjat sanasida.
+- Pul oqimi — faqat haqiqiy kirim-chiqim.
+- Mijozning reklama byudjeti — **tranzit** (daromad ham, xarajat ham emas).
+- Aylanma soliq avtomatik hisoblanmaydi — to'langanda chiqim sifatida kiritiladi.
+- Valyuta: so'm va USD (tranzaksiya kunidagi kurs).
+
+Kod: hisob-kitob yadrosi — `src/lib/finance.ts`, namunaviy 6 oylik tarix — `src/lib/seed-finance.ts`.
 
 Chap pastdagi akkaunt menyusidagi **«Demo: kim sifatida kirish»** orqali rolni almashtirib, har bir xodim nimani
 ko'rishini ko'rsatish mumkin.

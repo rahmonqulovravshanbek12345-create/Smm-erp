@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Badge, Banner, Button, Card, CardHeader, Field, Input, PageHeader, Select } from "../components/ui";
-import { fmtMoney } from "../lib/dates";
 import { ROLE_DUTIES, ROLE_LABELS } from "../lib/labels";
 import { ACCESS_LABELS, MATRIX_VIEW, access } from "../lib/permissions";
 import { newId, useErp } from "../lib/store";
@@ -170,19 +169,56 @@ export function Admin() {
         <Card>
           <CardHeader title="Sozlamalar" />
           <div className="space-y-4 p-4">
-            <Field label="Bitta montaj narxi (so'm)" hint={`Montajyor oyligi = qabul qilingan montajlar soni × ${fmtMoney(state.settings.montajPrice)}`}>
+            <Field label="Kompaniya nomi (akt-sverka va vedomostlar uchun)">
               <Input
-                type="number"
-                step={10000}
-                defaultValue={state.settings.montajPrice}
+                defaultValue={state.settings.companyName}
                 onBlur={(e) =>
                   run((c) => {
-                    c.s.settings.montajPrice = Math.max(0, Number(e.target.value) || 0);
-                  }, "Narx saqlandi")
+                    c.s.settings.companyName = e.target.value.trim() || c.s.settings.companyName;
+                  }, "Saqlandi")
                 }
-                className="!w-48"
               />
             </Field>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="USD kursi (so'm)" hint="Yangi tranzaksiyalar uchun taklif">
+                <Input
+                  type="number"
+                  defaultValue={state.settings.usdRate}
+                  onBlur={(e) =>
+                    run((c) => {
+                      c.s.settings.usdRate = Math.max(1, Number(e.target.value) || c.s.settings.usdRate);
+                    }, "Kurs saqlandi")
+                  }
+                />
+              </Field>
+              <Field label="Ish haqi kuni" hint="Oyning nechanchi kuni">
+                <Input
+                  type="number"
+                  min={1}
+                  max={28}
+                  defaultValue={state.settings.payday}
+                  onBlur={(e) =>
+                    run((c) => {
+                      c.s.settings.payday = Math.min(28, Math.max(1, Number(e.target.value) || 10));
+                    }, "Saqlandi")
+                  }
+                />
+              </Field>
+              <Field label="Kechikish jarimasi, %" hint="0 — o'chirilgan">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  defaultValue={state.settings.latePenaltyPct}
+                  onBlur={(e) =>
+                    run((c) => {
+                      c.s.settings.latePenaltyPct = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                    }, "Saqlandi")
+                  }
+                />
+              </Field>
+            </div>
+            <p className="text-[12px] text-label3">Xodimlar stavkalari: Moliya → Ish haqi → Stavkalar.</p>
             <div className="border-t border-sep pt-4">
               <div className="mb-1 text-sm text-label">Demo ma'lumotlarni tiklash</div>
               <p className="mb-2 text-xs text-label2">Mijozga ko'rsatishdan oldin barcha o'zgarishlarni o'chirib, boshlang'ich holatga qaytaradi.</p>

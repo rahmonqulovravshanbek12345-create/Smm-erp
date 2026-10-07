@@ -13,6 +13,7 @@ export type Tone = "gray" | "green" | "amber" | "red" | "blue" | "violet";
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
+  rahbar: "Rahbar (direktor)",
   operator: "Call operator",
   marketolog: "Marketolog",
   smm: "SMM menejer",
@@ -33,6 +34,7 @@ export const ROLE_DUTIES: Record<Role, string> = {
   dizayner: "Post va oblojka dizayni",
   moliya: "To'lovlar, qarzlar",
   admin: "Foydalanuvchi va huquqlar",
+  rahbar: "Moliyaviy natija, strategik qarorlar",
 };
 
 export const LEAD_STAGES: { id: LeadStage; label: string; tone: Tone }[] = [
@@ -104,7 +106,8 @@ export const PAYMENT_STATUS: Record<"pending" | "paid" | "partial" | "overdue", 
 export const PAYMENT_KIND_LABELS = {
   prepay: "Oldindan to'lov",
   remainder: "Qoldiq to'lov",
-  monthly: "Oylik to'lov",
+  monthly: "Oylik abonent",
+  extra: "Qo'shimcha xizmat",
 };
 
 export function postStatusMeta(id: PostStatus) {

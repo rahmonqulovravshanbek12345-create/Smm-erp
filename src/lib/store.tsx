@@ -2,13 +2,15 @@
 // u bildirishnoma, faoliyat tarixi va Telegram xabarlarini bir joyda boshqaradi.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { nowISO, todayISO } from "./dates";
-import { syncPayments } from "./rules";
+import { syncAll } from "./store-sync";
 import { buildSeed, SEED_VERSION } from "./seed";
 import type { ErpState, User } from "./types";
 
 const STORAGE_KEY = "smm-erp-demo";
 
 export const newId = (prefix = "id") => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+
+export { syncAll };
 
 interface Outgoing {
   notificationId: string;
@@ -68,7 +70,7 @@ async function sendTelegram(token: string, chatId: string, text: string): Promis
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ErpState>(() => {
     const s = load();
-    syncPayments(s, todayISO(), () => newId("pay"));
+    syncAll(s, todayISO());
     return s;
   });
   const [toast, setToast] = useState<string | null>(null);
@@ -146,7 +148,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         showToast(e instanceof Error ? `⚠ ${e.message}` : "Xatolik");
         return false;
       }
-      syncPayments(s, ctx.today, () => newId("pay"));
+      syncAll(s, ctx.today);
       stateRef.current = s;
       setState(s);
       if (outbox.length) deliver(token, outbox);
@@ -158,7 +160,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const reset = useCallback(() => {
     const s = buildSeed(todayISO());
-    syncPayments(s, todayISO(), () => newId("pay"));
+    syncAll(s, todayISO());
     setState(s);
     showToast("Demo ma'lumotlar qayta tiklandi");
   }, [showToast]);

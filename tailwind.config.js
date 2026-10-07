@@ -25,6 +25,10 @@ export default {
         pink: rgb("--pink"),
         yellow: rgb("--yellow"),
         gray: rgb("--gray"),
+        viz1: rgb("--viz-1"),
+        viz2: rgb("--viz-2"),
+        viz3: rgb("--viz-3"),
+        vizneg: rgb("--viz-neg"),
       },
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", "SF Pro Text", "Inter", "Segoe UI", "system-ui", "sans-serif"],

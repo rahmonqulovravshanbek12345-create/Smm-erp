@@ -10,7 +10,9 @@ import { currentPeriod, isPostLate, periodLabel, periodPosts, projectDebt, workB
 import { useErp, useLookup } from "../lib/store";
 import type { DocBlock, Project } from "../lib/types";
 import { ContentPlan } from "./Content";
-import { PaymentsTable } from "./Finance";
+import { ProjectJourney } from "../components/ProjectJourney";
+import { Invoices } from "./finance/Invoices";
+import { ProjectFinance } from "./finance/ProjectFinance";
 
 export function Projects() {
   const { state, me, run, today } = useErp();
@@ -131,12 +133,18 @@ export function ProjectCard({ id }: { id: string }) {
         </Banner>
       )}
       {blocked && !debt.amount && <Banner tone="amber">{blocked}</Banner>}
+      <ProjectJourney project={p} />
       <Tabs value={tab} onChange={setTab} tabs={tabs} />
       {tab === "info" && <Info p={p} />}
       {tab === "marketing" && <Marketing p={p} />}
       {tab === "content" && <ContentPlan projectId={p.id} />}
       {tab === "tasks" && <ProjectTasks p={p} />}
-      {tab === "finance" && <PaymentsTable projectId={p.id} editable={canEditFinance(me.role)} />}
+      {tab === "finance" && (
+        <>
+          <ProjectFinance project={p} />
+          <Invoices projectId={p.id} />
+        </>
+      )}
       {tab === "report" && <Reports p={p} />}
     </>
   );

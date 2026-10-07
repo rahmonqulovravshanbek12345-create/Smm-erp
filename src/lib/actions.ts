@@ -1,9 +1,10 @@
 // Biznes amallari. Har biri Ctx oladi: holatni o'zgartiradi, bildirishnoma yuboradi va tarixga yozadi.
-import { addDays, fmtDate, fmtDateShort, nowISO } from "./dates";
+import { addDays, diffDays, fmtDate, fmtDateShort, fmtMoney, nowISO } from "./dates";
+import { ART, accountOf, articleOf, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
 import { DOC_BLOCKS, LEAD_STAGES, POST_STATUSES, TASK_KIND_LABELS } from "./labels";
 import { postStage, workBlockedReason } from "./rules";
 import { newId, type Ctx } from "./store";
-import type { DocBlock, Lead, LeadStage, Post, PostStatus, Project, Shoot, Task, TargetReport } from "./types";
+import type { Bill, BudgetLine, DocBlock, Lead, LeadStage, PayProfile, Post, PostStatus, Project, Shoot, Task, TargetReport, Transaction, WorkType } from "./types";
 
 const stageLabel = (s: LeadStage) => LEAD_STAGES.find((x) => x.id === s)?.label ?? s;
 const projectName = (c: Ctx, id: string) => c.s.projects.find((p) => p.id === id)?.name ?? "—";
@@ -13,6 +14,16 @@ const marketologsOf = (c: Ctx, projectId: string) => {
   return [p?.marketologId, ...c.s.users.filter((u) => u.role === "marketolog" && u.active).map((u) => u.id)];
 };
 const financeIds = (c: Ctx) => c.s.users.filter((u) => u.role === "moliya" && u.active).map((u) => u.id);
+
+/** Ishbay hisoblash yozuvi (takrorlanmaydi) va xodimga xabar. */
+function accruePiece(c: Ctx, userId: string, wt: WorkType, projectId: string | undefined, title: string, sourceId: string) {
+  if (c.s.accruals.some((a) => a.sourceId === sourceId)) return null;
+  const a = pieceAccrual(c.s, userId, wt, { projectId, date: c.today, sourceId, title, createdBy: "system", id: newId("acr") });
+  if (!a) return null;
+  c.s.accruals.push(a);
+  c.notify([userId], `Hisoblandi: ${title} — ${fmtMoney(a.amount)}`, "/hisobim");
+  return a;
+}
 
 function assertWorkAllowed(c: Ctx, projectId: string) {
   const p = findProject(c, projectId);
@@ -101,26 +112,30 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
   const id = newId("prj");
   const docs = Object.fromEntries(DOC_BLOCKS.map((b) => [b.id, { content: "", status: "progress" }])) as Project["docs"];
   const { prepayDueDate, remainderDueDate, ...rest } = input;
-  c.s.projects.push({ ...rest, id, leadId, pauseWork: false, docs, createdAt: nowISO() });
+  c.s.projects.push({ ...rest, id, leadId, pauseWork: false, status: "active", docs, createdAt: nowISO() });
   const prepay = Math.round((input.monthlyFee * input.prepayType) / 100);
-  c.s.payments.push({
-    id: newId("pay"),
+  c.s.invoices.push({
+    id: newId("inv"),
+    number: nextInvoiceNumber(c.s),
     projectId: id,
     kind: "prepay",
     periodIndex: 0,
     amount: prepay,
+    issueDate: input.contractDate,
     dueDate: prepayDueDate || input.contractDate,
-    transactions: [],
+    note: `Oldindan to'lov (${input.prepayType}%)`,
   });
   if (input.prepayType === 50) {
-    c.s.payments.push({
-      id: newId("pay"),
+    c.s.invoices.push({
+      id: newId("inv"),
+      number: nextInvoiceNumber(c.s),
       projectId: id,
       kind: "remainder",
       periodIndex: 0,
       amount: input.monthlyFee - prepay,
+      issueDate: input.contractDate,
       dueDate: remainderDueDate,
-      transactions: [],
+      note: "Qoldiq to'lov (50%)",
     });
   }
   if (leadId) {
@@ -130,10 +145,23 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
       l.stage = "contract";
       l.projectId = id;
       l.history.unshift({ id: newId("c"), at: nowISO(), userId: c.me.id, text: `Bosqich: ${stageLabel(from)} → Shartnoma bo'ldi` });
+      // Operatorga shartnoma bonusi (stavkasi bo'lsa)
+      const a = pieceAccrual(c.s, l.operatorId, "shartnoma", {
+        projectId: id,
+        date: input.contractDate,
+        sourceId: `lead:${l.id}`,
+        title: `Shartnoma bonusi: ${input.name}`,
+        createdBy: c.me.id,
+        id: newId("acr"),
+      });
+      if (a && !c.s.accruals.some((x) => x.sourceId === a.sourceId)) {
+        c.s.accruals.push(a);
+        c.notify([l.operatorId], `Bonus hisoblandi: ${input.name} shartnomasi uchun ${fmtMoney(a.amount)}`, "/hisobim");
+      }
     }
   }
   c.notify([input.marketologId, input.smmId], `Yangi loyiha: ${input.name} (shartnoma ${input.contractNo})`, `/loyiha/${id}`);
-  c.notify(financeIds(c), `${input.name}: oldindan to'lovni (${input.prepayType}%) qayd eting`, "/moliya");
+  c.notify(financeIds(c), `${input.name}: oldindan to'lovni (${input.prepayType}%) qayd eting`, "/moliya/fakturalar");
   c.log(`${input.name}: loyiha kartasi yaratildi${leadId ? " (lid → loyiha)" : ""}`, `/loyiha/${id}`);
   return id;
 }
@@ -278,6 +306,7 @@ export function handFootage(c: Ctx, shootId: string, link: string) {
     }
   }
   for (const pid of sh.postIds) advance(c.s.posts.find((x) => x.id === pid), "editing");
+  accruePiece(c, sh.operatorId, "syomka", sh.projectId, `${project?.name}: syomka (${sh.location})`, `shoot:${sh.id}`);
   c.notify([...editors], `Kadrlar topshirildi: ${project?.name} — ${sh.footageLink}`, "/montaj");
   c.notify([project?.smmId], `Syomka tugadi, kadrlar montajyorga topshirildi: ${project?.name}`, "/syomka");
   c.log(`${project?.name}: kadrlar montajyorga topshirildi`, "/syomka");
@@ -325,6 +354,27 @@ export function acceptTask(c: Ctx, id: string) {
   t.returnNote = undefined;
   c.notify([t.assigneeId], `Qabul qilindi: ${t.title}`, taskHref(t));
   c.log(`${t.title}: qabul qilindi`, taskHref(t));
+  const wt = taskWorkType(t);
+  const a = wt ? accruePiece(c, t.assigneeId, wt, t.projectId, `${projectName(c, t.projectId)}: ${t.title}`, `task:${t.id}`) : null;
+  // Kechikkan ish uchun jarima (sozlamada yoqilgan bo'lsa)
+  const pct = c.s.settings.latePenaltyPct;
+  if (a && pct > 0 && t.deadline < c.today) {
+    const amount = -Math.round((a.amount * pct) / 100);
+    c.s.accruals.push({
+      id: newId("acr"),
+      userId: t.assigneeId,
+      projectId: t.projectId,
+      date: c.today,
+      kind: "penalty",
+      sourceId: `late:${t.id}`,
+      title: `Jarima ${pct}%: «${t.title}» ${diffDays(c.today, t.deadline)} kun kechikdi`,
+      qty: 1,
+      rate: amount,
+      amount,
+      approved: false,
+      createdBy: "system",
+    });
+  }
 }
 
 export function returnTask(c: Ctx, id: string, note: string) {
@@ -377,30 +427,140 @@ export function importFromMeta(c: Ctx, projectId: string, date: string) {
 
 // ---------- Moliya ----------
 
-export function addPaymentTx(c: Ctx, paymentId: string, amount: number, date: string, note: string) {
-  const pay = c.s.payments.find((x) => x.id === paymentId);
-  if (!pay || amount <= 0) throw new Error("Summani kiriting");
-  pay.transactions.push({ id: newId("tx"), date, amount, note });
-  const p = findProject(c, pay.projectId);
-  const paid = pay.transactions.reduce((a, t) => a + t.amount, 0);
-  if (pay.kind === "prepay" && paid >= pay.amount && p) {
+export function setInvoiceDue(c: Ctx, invoiceId: string, dueDate: string) {
+  const inv = c.s.invoices.find((x) => x.id === invoiceId);
+  if (!inv) return;
+  inv.dueDate = dueDate;
+  c.log(`${inv.number}: to'lov sanasi ${fmtDate(dueDate)}`, "/moliya/fakturalar");
+}
+
+/** Mijoz to'lovi fakturaga bog'lanadi. USD hisobga tushsa — kurs bilan. */
+export function recordClientPayment(c: Ctx, invoiceId: string, o: { amount: number; date: string; accountId: string; rate?: number; note: string }) {
+  const inv = c.s.invoices.find((x) => x.id === invoiceId);
+  if (!inv) throw new Error("Faktura topilmadi");
+  if (!(o.amount > 0)) throw new Error("Summani kiriting");
+  c.s.transactions.push({
+    id: newId("tx"),
+    date: o.date,
+    accountId: o.accountId,
+    dir: "in",
+    amount: o.amount,
+    rate: o.rate,
+    articleId: ART.client,
+    projectId: inv.projectId,
+    invoiceId,
+    note: o.note,
+    createdBy: c.me.id,
+  });
+  const p = findProject(c, inv.projectId);
+  if (inv.kind === "prepay" && p && invoicePaid(c.s, inv) >= inv.amount - 1) {
     c.notify([p.marketologId, p.smmId], `${p.name}: oldindan to'lov keldi — ish boshlanadi`, `/loyiha/${p.id}`);
   }
-  c.log(`${p?.name}: to'lov qayd etildi ${amount.toLocaleString("ru-RU")} so'm`, "/moliya");
+  c.log(`${p?.name}: to'lov qabul qilindi — ${inv.number}, ${fmtMoney(txUZS(c.s, c.s.transactions[c.s.transactions.length - 1]!))}`, "/moliya/fakturalar");
 }
 
-export function setPaymentDue(c: Ctx, paymentId: string, dueDate: string) {
-  const pay = c.s.payments.find((x) => x.id === paymentId);
-  if (!pay) return;
-  pay.dueDate = dueDate;
-  c.log(`${projectName(c, pay.projectId)}: to'lov sanasi ${fmtDate(dueDate)}`, "/moliya");
+/** Qo'shimcha xizmat uchun faktura (masalan, alohida syomka). */
+export function createExtraInvoice(c: Ctx, o: { projectId: string; amount: number; issueDate: string; dueDate: string; note: string }) {
+  if (!(o.amount > 0)) throw new Error("Summani kiriting");
+  c.s.invoices.push({ id: newId("inv"), number: nextInvoiceNumber(c.s), kind: "extra", periodIndex: 0, ...o });
+  c.log(`${projectName(c, o.projectId)}: qo'shimcha xizmat fakturasi ${fmtMoney(o.amount)}`, "/moliya/fakturalar");
 }
 
-export function saveSalary(c: Ctx, userId: string, month: string, amount: number, note: string) {
-  const ex = c.s.salaries.find((x) => x.userId === userId && x.month === month);
-  if (ex) Object.assign(ex, { amount, note });
-  else c.s.salaries.push({ id: newId("sal"), userId, month, amount, note });
-  c.log(`Oylik kiritildi: ${c.s.users.find((u) => u.id === userId)?.name}`, "/moliya");
+/** Erkin kirim yoki chiqim (xarajat, soliq, dividend, tranzit va h.k.). */
+export function addTransaction(c: Ctx, t: Omit<Transaction, "id" | "createdBy">) {
+  if (!(t.amount > 0)) throw new Error("Summani kiriting");
+  const art = c.s.articles.find((a) => a.id === t.articleId);
+  if (!art) throw new Error("Moddani tanlang");
+  c.s.transactions.push({ ...t, dir: art.dir, id: newId("tx"), createdBy: c.me.id });
+  c.log(`${art.dir === "in" ? "Kirim" : "Chiqim"}: ${art.name} — ${fmtMoney(txUZS(c.s, c.s.transactions[c.s.transactions.length - 1]!))}`, "/moliya/kirim-chiqim");
+}
+
+/** Hisoblar o'rtasida o'tkazma (valyuta ayirboshlash ham). */
+export function addTransfer(c: Ctx, o: { from: string; to: string; amountFrom: number; amountTo: number; rate?: number; date: string; note: string }) {
+  if (o.from === o.to) throw new Error("Turli hisoblarni tanlang");
+  if (!(o.amountFrom > 0) || !(o.amountTo > 0)) throw new Error("Summani kiriting");
+  const tid = newId("trf");
+  const base = { date: o.date, transferId: tid, note: o.note, createdBy: c.me.id };
+  c.s.transactions.push({ ...base, id: newId("tx"), accountId: o.from, dir: "out", amount: o.amountFrom, rate: o.rate, articleId: ART.transferOut });
+  c.s.transactions.push({ ...base, id: newId("tx"), accountId: o.to, dir: "in", amount: o.amountTo, rate: o.rate, articleId: ART.transferIn });
+  c.log(`O'tkazma: ${accountOf(c.s, o.from)?.name} → ${accountOf(c.s, o.to)?.name}`, "/moliya/kirim-chiqim");
+}
+
+export function deleteTransaction(c: Ctx, id: string) {
+  const t = c.s.transactions.find((x) => x.id === id);
+  if (!t) return;
+  c.s.transactions = c.s.transactions.filter((x) => x.id !== id && (!t.transferId || x.transferId !== t.transferId));
+  c.log(`Tranzaksiya o'chirildi: ${t.note || articleOf(c.s, t.articleId)?.name}`, "/moliya/kirim-chiqim");
+}
+
+export function addBill(c: Ctx, b: Omit<Bill, "id">) {
+  if (!(b.amount > 0)) throw new Error("Summani kiriting");
+  c.s.bills.push({ ...b, id: newId("bill") });
+  c.log(`Xarajat hujjati: ${c.s.vendors.find((v) => v.id === b.vendorId)?.name} — ${fmtMoney(b.amount)}`, "/moliya/debitor");
+}
+
+export function payBill(c: Ctx, billId: string, o: { amount: number; date: string; accountId: string; rate?: number }) {
+  const b = c.s.bills.find((x) => x.id === billId);
+  if (!b) return;
+  if (!(o.amount > 0)) throw new Error("Summani kiriting");
+  c.s.transactions.push({ id: newId("tx"), date: o.date, accountId: o.accountId, dir: "out", amount: o.amount, rate: o.rate, articleId: b.articleId, vendorId: b.vendorId, billId, projectId: b.projectId, note: b.note, createdBy: c.me.id });
+  c.log(`To'landi: ${c.s.vendors.find((v) => v.id === b.vendorId)?.name} — ${b.note}`, "/moliya/debitor");
+}
+
+/** Xodimga to'lov yoki avans. FIFO bo'yicha eng eski hisoblashlarni yopadi. */
+export function payEmployee(c: Ctx, o: { userId: string; amount: number; date: string; accountId: string; rate?: number; note: string }) {
+  if (!(o.amount > 0)) throw new Error("Summani kiriting");
+  c.s.transactions.push({ id: newId("tx"), date: o.date, accountId: o.accountId, dir: "out", amount: o.amount, rate: o.rate, articleId: ART.payroll, userId: o.userId, note: o.note, createdBy: c.me.id });
+  const user = c.s.users.find((u) => u.id === o.userId);
+  c.notify([o.userId], `Sizga to'lov: ${fmtMoney(txUZS(c.s, c.s.transactions[c.s.transactions.length - 1]!))}${o.note ? ` — ${o.note}` : ""}`, "/hisobim");
+  c.log(`Ish haqi to'landi: ${user?.name} — ${fmtMoney(o.amount)}`, "/moliya/ish-haqi");
+}
+
+/** Qo'lda hisoblash: bonus (+), jarima yoki ushlab qolish (−), boshqa. */
+export function addManualAccrual(c: Ctx, o: { userId: string; projectId?: string; date: string; kind: "bonus" | "penalty" | "manual"; amount: number; title: string }) {
+  if (!o.amount) throw new Error("Summani kiriting");
+  if (!o.title.trim()) throw new Error("Izoh yozing");
+  const amount = o.kind === "penalty" ? -Math.abs(o.amount) : Math.abs(o.amount);
+  c.s.accruals.push({ id: newId("acr"), userId: o.userId, projectId: o.projectId || undefined, date: o.date, kind: o.kind, title: o.title.trim(), qty: 1, rate: amount, amount, approved: false, createdBy: c.me.id });
+  c.notify([o.userId], `${amount > 0 ? "Hisoblandi" : "Ushlab qolindi"}: ${o.title.trim()} (${fmtMoney(amount)})`, "/hisobim");
+  c.log(`Ish haqi ${amount > 0 ? "qo'shimcha" : "jarima"}: ${c.s.users.find((u) => u.id === o.userId)?.name} ${fmtMoney(amount)}`, "/moliya/ish-haqi");
+}
+
+export function approveAccruals(c: Ctx, ids: string[]) {
+  let n = 0;
+  for (const a of c.s.accruals) if (ids.includes(a.id) && !a.approved) (a.approved = true), n++;
+  if (n) c.log(`${n} ta hisoblash tasdiqlandi`, "/moliya/ish-haqi");
+}
+
+export function deleteAccrual(c: Ctx, id: string) {
+  const a = c.s.accruals.find((x) => x.id === id);
+  if (!a) return;
+  if (a.createdBy === "system" && a.kind !== "piece" && a.kind !== "bonus") throw new Error("Avtomatik davriy hisoblashni o'chirib bo'lmaydi");
+  c.s.accruals = c.s.accruals.filter((x) => x.id !== id);
+  c.log(`Hisoblash o'chirildi: ${a.title}`, "/moliya/ish-haqi");
+}
+
+export function savePayProfile(c: Ctx, prof: PayProfile) {
+  const i = c.s.payProfiles.findIndex((p) => p.userId === prof.userId);
+  if (i >= 0) c.s.payProfiles[i] = prof;
+  else c.s.payProfiles.push(prof);
+  c.log(`Stavkalar yangilandi: ${c.s.users.find((u) => u.id === prof.userId)?.name}`, "/moliya/ish-haqi");
+}
+
+export function setBudget(c: Ctx, month: string, line: BudgetLine["line"], amount: number) {
+  const b = c.s.budget.find((x) => x.month === month && x.line === line);
+  if (b) b.amount = amount;
+  else c.s.budget.push({ month, line, amount });
+}
+
+export function closeProject(c: Ctx, projectId: string, date: string) {
+  const p = findProject(c, projectId);
+  if (!p) return;
+  p.status = "closed";
+  p.closedAt = date;
+  p.pauseWork = true;
+  c.notify([p.marketologId, p.smmId, p.targetologId, ...financeIds(c)], `${p.name}: loyiha yopildi (${fmtDate(date)}) — yangi fakturalar chiqarilmaydi`, `/loyiha/${p.id}`);
+  c.log(`${p.name}: loyiha yopildi`, `/loyiha/${p.id}`);
 }
 
 export function submitReport(

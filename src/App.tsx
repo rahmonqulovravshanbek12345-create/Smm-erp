@@ -11,7 +11,19 @@ import { Approvals } from "./pages/Approvals";
 import { Content } from "./pages/Content";
 import { Crm } from "./pages/Crm";
 import { Dashboard } from "./pages/Dashboard";
-import { Finance } from "./pages/Finance";
+import { Budget } from "./pages/finance/Budget";
+import { CashFlow } from "./pages/finance/CashFlow";
+import { FinDashboard } from "./pages/finance/FinDashboard";
+import { Invoices } from "./pages/finance/Invoices";
+import { PayCalendar } from "./pages/finance/PayCalendar";
+import { Payroll } from "./pages/finance/Payroll";
+import { Pnl } from "./pages/finance/Pnl";
+import { Receivables } from "./pages/finance/Receivables";
+import { Recon } from "./pages/finance/Recon";
+import { Transactions } from "./pages/finance/Transactions";
+import { MyAccount } from "./pages/MyAccount";
+import { MyDay } from "./pages/MyDay";
+import { Process } from "./pages/Process";
 import { Activity, Notifications } from "./pages/Notifications";
 import { ProjectCard, Projects } from "./pages/Projects";
 import { Shoots } from "./pages/Shoots";
@@ -27,11 +39,14 @@ interface NavItem {
   color: ChipColor;
 }
 
-const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
+const NAV_GROUPS: { title?: string; collapsible?: string; items: NavItem[] }[] = [
   {
     items: [
+      { module: "myday", path: "/mening", label: "Mening kunim", short: "Kunim", icon: "sun", color: "orange" },
+      { module: "myaccount", path: "/hisobim", label: "Mening hisobim", short: "Hisobim", icon: "wallet", color: "green" },
       { module: "dashboard", path: "/", label: "Nazorat paneli", short: "Panel", icon: "gauge", color: "blue" },
       { module: "notifications", path: "/bildirishnomalar", label: "Bildirishnomalar", short: "Xabarlar", icon: "bell", color: "red" },
+      { module: "process", path: "/jarayon", label: "Qanday ishlaydi", short: "Jarayon", icon: "sparkle", color: "indigo" },
     ],
   },
   {
@@ -53,9 +68,24 @@ const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
     ],
   },
   {
+    title: "Moliya",
+    collapsible: "/moliya",
+    items: [
+      { module: "finance", path: "/moliya", label: "Moliyaviy panel", short: "Moliya", icon: "sparkle", color: "green" },
+      { module: "finance", path: "/moliya/kirim-chiqim", label: "Kirim-chiqim", short: "Kassa", icon: "list", color: "blue" },
+      { module: "finance", path: "/moliya/fakturalar", label: "Hisob-fakturalar", short: "Faktura", icon: "send", color: "teal" },
+      { module: "finance", path: "/moliya/pnl", label: "Foyda va zarar", short: "P&L", icon: "gauge", color: "indigo" },
+      { module: "finance", path: "/moliya/cashflow", label: "Pul oqimi", short: "Cash Flow", icon: "history", color: "purple" },
+      { module: "finance", path: "/moliya/debitor", label: "Debitor / Kreditor", short: "Qarzlar", icon: "users", color: "orange" },
+      { module: "finance", path: "/moliya/akt", label: "Akt-sverka", short: "Akt", icon: "checkSeal", color: "gray" },
+      { module: "finance", path: "/moliya/kalendar", label: "To'lov kalendari", short: "Kalendar", icon: "calendar", color: "red" },
+      { module: "payroll", path: "/moliya/ish-haqi", label: "Ish haqi", short: "Ish haqi", icon: "wallet", color: "green" },
+      { module: "finance", path: "/moliya/reja", label: "Reja-fakt", short: "Reja", icon: "target", color: "pink" },
+    ],
+  },
+  {
     title: "Boshqaruv",
     items: [
-      { module: "finance", path: "/moliya", label: "Moliya", short: "Moliya", icon: "wallet", color: "green" },
       { module: "activity", path: "/tarix", label: "Faoliyat tarixi", short: "Tarix", icon: "history", color: "indigo" },
       { module: "admin", path: "/admin", label: "Sozlamalar", short: "Sozlamalar", icon: "gear", color: "gray" },
     ],
@@ -63,11 +93,36 @@ const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
 ];
 
 const ALL_NAV = NAV_GROUPS.flatMap((g) => g.items);
-const TAB_PRIORITY: Module[] = ["dashboard", "crm", "content", "approvals", "montaj", "dizayn", "shoots", "target", "finance", "projects", "notifications"];
+const TAB_PRIORITY: string[] = ["/mening", "/", "/moliya", "/crm", "/kontent", "/tasdiqlash", "/montaj", "/dizayn", "/syomka", "/target", "/loyihalar", "/hisobim"];
 
-function route(path: string): { module: Module; node: ReactNode } {
+function route(full: string): { module: Module; node: ReactNode } {
+  const path = full.split("?")[0]!;
   if (path.startsWith("/loyiha/")) return { module: "projects", node: <ProjectCard id={path.slice(8)} /> };
   switch (path) {
+    case "/mening":
+      return { module: "myday", node: <MyDay /> };
+    case "/hisobim":
+      return { module: "myaccount", node: <MyAccount /> };
+    case "/jarayon":
+      return { module: "process", node: <Process /> };
+    case "/moliya/kirim-chiqim":
+      return { module: "finance", node: <Transactions /> };
+    case "/moliya/fakturalar":
+      return { module: "finance", node: <Invoices /> };
+    case "/moliya/pnl":
+      return { module: "finance", node: <Pnl /> };
+    case "/moliya/cashflow":
+      return { module: "finance", node: <CashFlow /> };
+    case "/moliya/debitor":
+      return { module: "finance", node: <Receivables /> };
+    case "/moliya/akt":
+      return { module: "finance", node: <Recon /> };
+    case "/moliya/kalendar":
+      return { module: "finance", node: <PayCalendar /> };
+    case "/moliya/ish-haqi":
+      return { module: "payroll", node: <Payroll /> };
+    case "/moliya/reja":
+      return { module: "finance", node: <Budget /> };
     case "/crm":
       return { module: "crm", node: <Crm /> };
     case "/loyihalar":
@@ -85,7 +140,7 @@ function route(path: string): { module: Module; node: ReactNode } {
     case "/target":
       return { module: "target", node: <Target /> };
     case "/moliya":
-      return { module: "finance", node: <Finance /> };
+      return { module: "finance", node: <FinDashboard /> };
     case "/bildirishnomalar":
       return { module: "notifications", node: <Notifications /> };
     case "/tarix":
@@ -97,8 +152,11 @@ function route(path: string): { module: Module; node: ReactNode } {
   }
 }
 
-const isActive = (item: NavItem, path: string) =>
-  item.path === "/" ? path === "/" : path.startsWith(item.path) || (item.path === "/loyihalar" && path.startsWith("/loyiha/"));
+const isActive = (item: NavItem, full: string) => {
+  const path = full.split("?")[0]!;
+  if (item.path === "/" || item.path === "/moliya") return path === item.path;
+  return path.startsWith(item.path) || (item.path === "/loyihalar" && path.startsWith("/loyiha/"));
+};
 
 // ---------- Mavzu (yorug' / qorong'i / tizim) ----------
 
@@ -155,9 +213,8 @@ export function App() {
 
   const unread = state.notifications.filter((n) => n.userId === me.id && !n.read).length + alertsFor(state, me, today).length;
   const visible = (item: NavItem) => canView(me.role, item.module);
-  const tabs = TAB_PRIORITY.map((m) => ALL_NAV.find((n) => n.module === m)!)
+  const tabs = TAB_PRIORITY.map((p) => ALL_NAV.find((n) => n.path === p)!)
     .filter(visible)
-    .filter((n) => n.module !== "notifications")
     .slice(0, 4);
 
   const switchUser = (id: string) => {
@@ -173,7 +230,9 @@ export function App() {
   const navList = (compact = false) => (
     <nav className="flex flex-col gap-4">
       {NAV_GROUPS.map((g, gi) => {
-        const items = g.items.filter(visible);
+        const all = g.items.filter(visible);
+        // Yig'iladigan guruh: bo'limga kirilmaganda faqat birinchi band ko'rinadi.
+        const items = g.collapsible && !compact && !path.startsWith(g.collapsible) ? all.slice(0, 1) : all;
         if (!items.length) return null;
         return (
           <div key={gi}>
@@ -191,7 +250,8 @@ export function App() {
                   >
                     <IconChip name={n.icon} color={n.color} size={28} />
                     <span className="flex-1 truncate">{n.label}</span>
-                    {n.module === "notifications" && unread > 0 && (
+                    {g.collapsible && items.length === 1 && all.length > 1 && <Icon name="chevronRight" size={14} className="text-label3" />}
+                {n.module === "notifications" && unread > 0 && (
                       <span className="min-w-[22px] rounded-full bg-red px-1.5 text-center text-[12px] font-bold leading-[20px] text-white">{unread}</span>
                     )}
                   </A>

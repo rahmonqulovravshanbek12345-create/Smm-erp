@@ -3,6 +3,7 @@
 
 export type Role =
   | "admin"
+  | "rahbar"
   | "operator"
   | "marketolog"
   | "smm"
@@ -80,6 +81,11 @@ export interface Project {
   periodStart?: string;
   /** "Ishni to'xtatish" opsiyasi (qo'lda): belgilansa, yangi vazifalar ochilmaydi. */
   pauseWork: boolean;
+  /** Yopilgan loyiha uchun yangi fakturalar chiqarilmaydi. */
+  status: "active" | "closed";
+  closedAt?: string;
+  /** Mijozning oylik reklama byudjeti (USD, tranzit). */
+  adBudgetUsd?: number;
   docs: Record<DocBlock, DocState>;
   handedOffAt?: string;
   createdAt: string;
@@ -173,22 +179,139 @@ export interface TargetReport {
 }
 
 // ---------- Moliya ----------
+// Hisob yuritish tamoyillari:
+//  • Foyda va zarar — hisoblash usulida: daromad xizmat ko'rsatilgan davrga, ish haqi hisoblangan sanaga.
+//  • Pul oqimi (Cash Flow) — faqat haqiqiy kirim-chiqim tranzaksiyalaridan.
+//  • Mijozning reklama byudjeti — tranzit: daromad ham, xarajat ham emas.
+//  • Aylanma soliq avtomatik hisoblanmaydi — to'langanda chiqim sifatida kiritiladi.
 
-export interface PaymentTx {
+export type Currency = "UZS" | "USD";
+
+export interface Account {
+  id: string;
+  name: string;
+  kind: "cash" | "bank" | "card";
+  currency: Currency;
+  /** Tizim yuritila boshlagan kundagi qoldiq. */
+  opening: number;
+}
+
+/**
+ * revenue — daromad; direct — to'g'ridan-to'g'ri (loyiha) xarajat; overhead — doimiy xarajat;
+ * tax — soliq; transit — mijoz reklama byudjeti; investing — jihoz; financing — egasi/kredit;
+ * payroll — xodimga to'lov (hisoblangan ish haqini yopadi); client — mijoz to'lovi (fakturani yopadi);
+ * vendor — ta'minotchiga to'lov (xarajat hujjatini yopadi).
+ */
+export type ArticleGroup =
+  | "revenue"
+  | "direct"
+  | "overhead"
+  | "tax"
+  | "transit"
+  | "investing"
+  | "financing"
+  | "payroll"
+  | "client"
+  | "vendor"
+  | "transfer";
+
+export interface Article {
+  id: string;
+  name: string;
+  group: ArticleGroup;
+  dir: "in" | "out";
+}
+
+export interface Transaction {
   id: string;
   date: string;
+  accountId: string;
+  dir: "in" | "out";
+  /** Hisob valyutasida. */
   amount: number;
+  /** USD hisoblar uchun: 1 USD necha so'm (tranzaksiya kunidagi kurs). */
+  rate?: number;
+  articleId: string;
+  projectId?: string;
+  userId?: string;
+  vendorId?: string;
+  invoiceId?: string;
+  billId?: string;
+  transferId?: string;
+  note: string;
+  createdBy: string;
+}
+
+export interface Invoice {
+  id: string;
+  number: string;
+  projectId: string;
+  kind: "prepay" | "remainder" | "monthly" | "extra";
+  /** Qaysi xizmat davri uchun (0 — birinchi davr). */
+  periodIndex: number;
+  amount: number;
+  issueDate: string;
+  /** Bo'sh — sana hali kelishilmagan (qoldiq to'lov uchun). */
+  dueDate: string;
   note: string;
 }
 
-export interface Payment {
+export interface Vendor {
   id: string;
-  projectId: string;
-  kind: "prepay" | "remainder" | "monthly";
-  periodIndex: number;
+  name: string;
+  kind: string;
+}
+
+/** Ta'minotchidan kelgan xarajat hujjati (ijara, servis obunasi va h.k.). */
+export interface Bill {
+  id: string;
+  vendorId: string;
+  articleId: string;
+  projectId?: string;
   amount: number;
+  date: string;
   dueDate: string;
-  transactions: PaymentTx[];
+  note: string;
+}
+
+export type WorkType = "montaj" | "dizayn_post" | "dizayn_cover" | "syomka" | "shartnoma";
+
+/** Xodimning ish haqi sxemasi. Bir nechtasi birga bo'lishi mumkin. */
+export interface PayProfile {
+  userId: string;
+  /** Fiks oylik (har oy oxirida hisoblanadi). */
+  fixed: number;
+  /** Har bir loyiha uchun oylik (loyiha davri yopilganda hisoblanadi). */
+  perProject: number;
+  /** Ishbay stavkalar (ish qabul qilinganda hisoblanadi). */
+  rates: Partial<Record<WorkType, number>>;
+}
+
+export type AccrualKind = "piece" | "project" | "fixed" | "bonus" | "penalty" | "manual";
+
+/** Hisoblangan ish haqi yozuvi. Manfiy summa — jarima yoki ushlab qolish. */
+export interface Accrual {
+  id: string;
+  userId: string;
+  projectId?: string;
+  date: string;
+  kind: AccrualKind;
+  workType?: WorkType;
+  /** Takrorlanmaslik uchun manba: vazifa, syomka, davr va h.k. */
+  sourceId?: string;
+  title: string;
+  qty: number;
+  rate: number;
+  amount: number;
+  approved: boolean;
+  createdBy: string;
+}
+
+/** Oylik reja (byudjet) — moddalar guruhi bo'yicha. */
+export interface BudgetLine {
+  month: string;
+  line: "revenue" | "direct" | "overhead";
+  amount: number;
 }
 
 export interface MonthlyReport {
@@ -202,14 +325,6 @@ export interface MonthlyReport {
   summary: string;
   authorId: string;
   submittedAt: string;
-}
-
-export interface Salary {
-  id: string;
-  userId: string;
-  month: string;
-  amount: number;
-  note: string;
 }
 
 // ---------- Tizim ----------
@@ -234,8 +349,15 @@ export interface Activity {
 }
 
 export interface Settings {
-  /** Bitta qabul qilingan montaj narxi (so'm). */
-  montajPrice: number;
+  companyName: string;
+  /** Joriy USD kursi (yangi tranzaksiyalar uchun taklif). */
+  usdRate: number;
+  /** Ish haqi to'lanadigan kun (oyning nechanchi kuni). */
+  payday: number;
+  /** Kechikkan ish uchun jarima foizi (0 — o'chirilgan). */
+  latePenaltyPct: number;
+  /** Fiks oyliklar va loyiha oyliklari qaysi oydan boshlab hisoblanadi. */
+  payrollStart: string;
   telegram: {
     enabled: boolean;
     /** Bot tokeni faqat shu brauzerda saqlanadi; bo'sh bo'lsa xabarlar demo rejimda ko'rsatiladi. */
@@ -253,9 +375,16 @@ export interface ErpState {
   shoots: Shoot[];
   tasks: Task[];
   targetReports: TargetReport[];
-  payments: Payment[];
   reports: MonthlyReport[];
-  salaries: Salary[];
+  accounts: Account[];
+  articles: Article[];
+  transactions: Transaction[];
+  invoices: Invoice[];
+  vendors: Vendor[];
+  bills: Bill[];
+  payProfiles: PayProfile[];
+  accruals: Accrual[];
+  budget: BudgetLine[];
   notifications: Notification[];
   activity: Activity[];
   settings: Settings;

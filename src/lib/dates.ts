@@ -103,3 +103,14 @@ export function fmtMoney(n: number): string {
 export function fmtNum(n: number): string {
   return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
+
+const MONTHS_SHORT = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
+
+/** "2026-10" → "Okt" */
+export function monthShort(key: string): string {
+  return MONTHS_SHORT[Number(key.slice(5, 7)) - 1] ?? key;
+}
+
+export function monthEnd(key: string): string {
+  return addDays(`${shiftMonthKey(key, 1)}-01`, -1);
+}

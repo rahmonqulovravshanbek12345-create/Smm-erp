@@ -184,7 +184,11 @@ export function Stat({
         </div>
       )}
       <div>
-        <div className={`tabular text-[26px] font-bold leading-none tracking-tight sm:text-[30px] ${tone ? STAT_TONE[tone] : "text-label"}`}>{value}</div>
+        <div
+          className={`tabular font-bold leading-none tracking-tight ${typeof value === "string" && value.length > 12 ? "text-[20px] sm:text-[22px]" : "text-[26px] sm:text-[30px]"} ${tone ? STAT_TONE[tone] : "text-label"}`}
+        >
+          {value}
+        </div>
         <div className="mt-1.5 text-[13px] font-medium text-label2">{label}</div>
       </div>
     </Card>

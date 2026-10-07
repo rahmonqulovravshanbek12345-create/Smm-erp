@@ -36,6 +36,10 @@
   --wall-2: rgb(175 82 222 / 0.22);
   --wall-3: rgb(255 45 85 / 0.16);
   --wall-4: rgb(48 176 199 / 0.24);
+  --viz-1: 42 120 214;
+  --viz-2: 235 104 52;
+  --viz-3: 27 175 122;
+  --viz-neg: 227 73 72;
   --island: 0 0 0;
   color-scheme: light;
 }
@@ -70,6 +74,10 @@
     --wall-2: rgb(191 90 242 / 0.26);
     --wall-3: rgb(255 55 95 / 0.18);
     --wall-4: rgb(64 200 224 / 0.2);
+    --viz-1: 57 135 229;
+    --viz-2: 217 89 38;
+    --viz-3: 25 158 112;
+    --viz-neg: 230 103 103;
     color-scheme: dark;
   }
 }
@@ -103,6 +111,10 @@
   --wall-2: rgb(191 90 242 / 0.26);
   --wall-3: rgb(255 55 95 / 0.18);
   --wall-4: rgb(64 200 224 / 0.2);
+  --viz-1: 57 135 229;
+  --viz-2: 217 89 38;
+  --viz-3: 25 158 112;
+  --viz-neg: 230 103 103;
   color-scheme: dark;
 }
 
@@ -181,6 +193,26 @@
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .wallpaper {
+    display: none;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .print-area {
+    box-shadow: none !important;
+    border: none !important;
+    background: #fff !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 }
 

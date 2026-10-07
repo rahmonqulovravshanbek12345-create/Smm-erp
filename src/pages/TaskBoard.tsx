@@ -6,7 +6,8 @@ import * as act from "../lib/actions";
 import { fmtDate, fmtMoney, fmtMonth, monthKey, relDays } from "../lib/dates";
 import { TASK_STATUSES } from "../lib/labels";
 import { access, canEdit } from "../lib/permissions";
-import { acceptedMontajCount, isTaskLate } from "../lib/rules";
+import { employeeBalance } from "../lib/finance";
+import { isTaskLate } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
 import type { Task } from "../lib/types";
 
@@ -24,7 +25,9 @@ export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
     .sort((a, b) => a.deadline.localeCompare(b.deadline));
 
   const month = monthKey(today);
-  const accepted = acceptedMontajCount(state, me.id, month);
+  const myMonth = state.accruals.filter((a) => a.userId === me.id && monthKey(a.date) === month);
+  const accepted = myMonth.filter((a) => a.workType === "montaj" || a.workType === "dizayn_post" || a.workType === "dizayn_cover").length;
+  const earned = myMonth.reduce((x, a) => x + a.amount, 0);
   const late = tasks.filter((t) => isTaskLate(t, today)).length;
 
   return (
@@ -45,12 +48,8 @@ export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Stat icon="list" color="blue" label="Ochiq vazifalar" value={tasks.filter((t) => t.status !== "accepted").length} />
           <Stat icon="clock" color="red" label="Kechikkan" value={late} tone={late ? "red" : "green"} />
-          {kind === "montaj" && (
-            <>
-              <Stat icon="check" color="green" label={`Qabul qilingan montaj (${fmtMonth(month)})`} value={accepted} tone="green" />
-              <Stat icon="wallet" color="teal" label={`Oylik: ${accepted} × ${fmtMoney(state.settings.montajPrice)}`} value={fmtMoney(accepted * state.settings.montajPrice)} tone="green" />
-            </>
-          )}
+          <Stat icon="check" color="green" label={`Qabul qilingan ishlar (${fmtMonth(month)})`} value={accepted} tone="green" href="/hisobim" />
+          <Stat icon="wallet" color="teal" label={`Shu oy hisoblandi · qoldiq ${fmtMoney(employeeBalance(state, me.id))}`} value={fmtMoney(earned)} tone="green" href="/hisobim" />
         </div>
       )}
 

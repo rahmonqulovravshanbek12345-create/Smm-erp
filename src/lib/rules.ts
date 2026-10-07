@@ -1,6 +1,11 @@
 // Avtomatik qoidalar: kechikish, hisob davri, to'lov holati, qarz, ogohlantirishlar.
-import { addDays, addMonths, diffDays, fmtDate, fmtMoney, monthKey } from "./dates";
-import type { ErpState, Payment, Post, PostStatus, Project, Task, User } from "./types";
+import { addDays, diffDays, fmtDate, fmtMoney, monthKey } from "./dates";
+import { invoiceStatus, prepayPaid, projectDebt } from "./finance";
+import { currentPeriod, type Period } from "./period";
+import type { ErpState, Post, PostStatus, Project, Task, User } from "./types";
+
+export { periodAt, currentPeriod, periodLabel, type Period } from "./period";
+export { projectDebt, prepayPaid, type Debt } from "./finance";
 
 // ---------- Kontent va vazifalar ----------
 
@@ -33,102 +38,11 @@ export function isTaskOpen(t: Task): boolean {
   return t.kind === "target" ? !t.launchedAt : t.status !== "accepted";
 }
 
-// ---------- Hisob davri ----------
-
-export interface Period {
-  index: number;
-  start: string;
-  end: string;
-}
-
-export function periodAt(p: Project, index: number): Period | null {
-  if (!p.periodStart) return null;
-  return { index, start: addMonths(p.periodStart, index), end: addMonths(p.periodStart, index + 1) };
-}
-
-/** Birinchi reklama sanasidan boshlanib, keyingi oyning shu sanasida yopiladigan joriy davr. */
-export function currentPeriod(p: Project, today: string): Period | null {
-  if (!p.periodStart || p.periodStart > today) return null;
-  let i = 0;
-  while (addMonths(p.periodStart, i + 1) <= today) i++;
-  return periodAt(p, i);
-}
-
-export function periodLabel(per: Period): string {
-  return `${per.index + 1}-davr (${fmtDate(per.start)} – ${fmtDate(per.end)})`;
-}
-
-// ---------- To'lovlar ----------
-
-export type PayStatus = "pending" | "paid" | "partial" | "overdue";
-
-export const paidSum = (pay: Payment) => pay.transactions.reduce((a, t) => a + t.amount, 0);
-
-export function paymentStatus(pay: Payment, today: string): PayStatus {
-  const paid = paidSum(pay);
-  if (paid >= pay.amount) return "paid";
-  if (pay.dueDate && pay.dueDate < today) return "overdue";
-  if (paid > 0) return "partial";
-  return "pending";
-}
-
-export function projectPayments(s: ErpState, projectId: string): Payment[] {
-  return s.payments
-    .filter((p) => p.projectId === projectId)
-    .sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
-}
-
-export function prepayPaid(s: ErpState, projectId: string): boolean {
-  const pre = s.payments.find((p) => p.projectId === projectId && p.kind === "prepay");
-  return !pre || paidSum(pre) >= pre.amount;
-}
-
-export interface Debt {
-  amount: number;
-  days: number;
-}
-
-/** Muddati o'tgan to'lovlar bo'yicha qarz summasi va eng uzoq kechikish (kun). */
-export function projectDebt(s: ErpState, projectId: string, today: string): Debt {
-  let amount = 0;
-  let days = 0;
-  for (const pay of s.payments) {
-    if (pay.projectId !== projectId || paymentStatus(pay, today) !== "overdue") continue;
-    amount += pay.amount - paidSum(pay);
-    days = Math.max(days, diffDays(today, pay.dueDate));
-  }
-  return { amount, days };
-}
-
 /** Yangi vazifa ochish mumkinmi: oldindan to'lov kelgan va ish qo'lda to'xtatilmagan bo'lishi kerak. */
 export function workBlockedReason(s: ErpState, p: Project): string | null {
   if (p.pauseWork) return "Loyiha sozlamasida ish to'xtatilgan — yangi vazifalar ochilmaydi.";
   if (!prepayPaid(s, p.id)) return "Oldindan to'lov hali kelmagan — ish to'lovdan keyin boshlanadi.";
   return null;
-}
-
-/**
- * Davr boshlangach keyingi davrlar uchun oylik to'lovlarni yaratadi.
- * To'lov davr tugashidan 3 kun oldin ro'yxatda paydo bo'ladi (eslatma bilan bir vaqtda).
- */
-export function syncPayments(s: ErpState, today: string, newId: () => string): void {
-  for (const p of s.projects) {
-    if (!p.periodStart) continue;
-    for (let i = 1; addMonths(p.periodStart, i) <= addDays(today, 3); i++) {
-      const exists = s.payments.some((x) => x.projectId === p.id && x.kind === "monthly" && x.periodIndex === i);
-      if (!exists) {
-        s.payments.push({
-          id: newId(),
-          projectId: p.id,
-          kind: "monthly",
-          periodIndex: i,
-          amount: p.monthlyFee,
-          dueDate: addMonths(p.periodStart, i),
-          transactions: [],
-        });
-      }
-    }
-  }
 }
 
 // ---------- Reja bajarilishi ----------
@@ -147,17 +61,9 @@ export function periodPosts(s: ErpState, p: Project, today: string): { per: Peri
 
 /** Reklama ishlayotgan loyihada kechagi kunlik hisobot kiritilmagan bo'lsa — belgi. */
 export function targetReportMissing(s: ErpState, p: Project, today: string): boolean {
-  if (!p.targetologId || !p.periodStart || p.periodStart >= today) return false;
+  if (!p.targetologId || !p.periodStart || p.periodStart >= today || p.status === "closed") return false;
   const y = addDays(today, -1);
   return !s.targetReports.some((r) => r.projectId === p.id && r.date === y);
-}
-
-// ---------- Montajyor oyligi ----------
-
-export function acceptedMontajCount(s: ErpState, userId: string, month: string): number {
-  return s.tasks.filter(
-    (t) => t.kind === "montaj" && t.assigneeId === userId && t.status === "accepted" && t.acceptedAt?.startsWith(month),
-  ).length;
 }
 
 // ---------- Vaqtga bog'liq ogohlantirishlar ----------
@@ -173,7 +79,7 @@ export interface Alert {
 export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
   const out: Alert[] = [];
   const name = (id: string) => s.projects.find((p) => p.id === id)?.name ?? "—";
-  const boss = me.role === "marketolog" || me.role === "admin";
+  const boss = me.role === "marketolog" || me.role === "admin" || me.role === "rahbar";
 
   for (const sh of s.shoots) {
     if (sh.status === "planned" && sh.operatorId === me.id && diffDays(sh.date, today) === 1) {
@@ -215,10 +121,12 @@ export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
         const left = diffDays(per.end, today);
         if (left <= 3) out.push({ id: `per-${p.id}-${per.index}`, text: `${p.name}: davr tugashiga ${left} kun qoldi — keyingi oy to'lovi`, href: "/moliya", tone: "amber" });
       }
-      for (const pay of s.payments) {
-        if (pay.projectId !== p.id || paymentStatus(pay, today) === "paid" || paymentStatus(pay, today) === "overdue") continue;
-        if (pay.dueDate && diffDays(pay.dueDate, today) <= 3 && pay.kind !== "monthly") {
-          out.push({ id: `pay-${pay.id}`, text: `${p.name}: to'lov muddati yaqin (${fmtDate(pay.dueDate)})`, href: "/moliya", tone: "amber" });
+      for (const inv of s.invoices) {
+        if (inv.projectId !== p.id) continue;
+        const st = invoiceStatus(s, inv, today);
+        if (st === "paid" || st === "overdue" || !inv.dueDate || inv.kind === "monthly") continue;
+        if (diffDays(inv.dueDate, today) <= 3) {
+          out.push({ id: `pay-${inv.id}`, text: `${p.name}: to'lov muddati yaqin (${fmtDate(inv.dueDate)})`, href: "/moliya/fakturalar", tone: "amber" });
         }
       }
     }

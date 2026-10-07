@@ -7,6 +7,7 @@ import { isPostLate, workBlockedReason } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
 import type { Platform, Post, PostFormat, PostStatus, TaskKind } from "../lib/types";
 import { PostBadge, TaskBadge } from "./bits";
+import { PostJourney } from "./ProjectJourney";
 import { Banner, Button, Field, Input, LinkOut, Modal, Select, Textarea, userOptions } from "./ui";
 
 // ---------- Post kartasi ----------
@@ -85,6 +86,7 @@ export function PostModal({
       }
     >
       {!existing && blocked && <Banner tone="red">{blocked}</Banner>}
+      {existing && <PostJourney post={existing} today={today} />}
       {existing && (
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <PostBadge post={existing} today={today} />

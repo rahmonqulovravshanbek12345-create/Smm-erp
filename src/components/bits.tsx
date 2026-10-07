@@ -1,7 +1,8 @@
 import { fmtMoney } from "../lib/dates";
 import { LATE, PAYMENT_STATUS, postStatusMeta, taskStatusMeta } from "../lib/labels";
-import { isPostLate, isTaskLate, paymentStatus, type Debt } from "../lib/rules";
-import type { Payment, Post, Task } from "../lib/types";
+import type { PayStatus } from "../lib/finance";
+import { isPostLate, isTaskLate, type Debt } from "../lib/rules";
+import type { Post, Task } from "../lib/types";
 import { Badge } from "./ui";
 
 export function PostBadge({ post, today }: { post: Post; today: string }) {
@@ -33,8 +34,8 @@ export function TaskBadge({ task, today }: { task: Task; today: string }) {
   );
 }
 
-export function PayBadge({ pay, today }: { pay: Payment; today: string }) {
-  const m = PAYMENT_STATUS[paymentStatus(pay, today)];
+export function PayBadge({ status }: { status: PayStatus }) {
+  const m = PAYMENT_STATUS[status];
   return <Badge tone={m.tone}>{m.label}</Badge>;
 }
 

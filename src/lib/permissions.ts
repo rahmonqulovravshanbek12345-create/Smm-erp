@@ -15,7 +15,11 @@ export type Module =
   | "finance"
   | "notifications"
   | "activity"
-  | "admin";
+  | "admin"
+  | "myday"
+  | "myaccount"
+  | "process"
+  | "payroll";
 
 /**
  * none — ko'rinmaydi; own — faqat o'ziga tegishli; view — ko'rish;
@@ -54,10 +58,16 @@ const MATRIX: Record<Module, Partial<Record<Role, Access>>> = {
   },
   activity: { marketolog: "view" },
   admin: {},
+  myday: { operator: "own", marketolog: "own", smm: "own", targetolog: "own", syomka: "own", montajyor: "own", dizayner: "own", moliya: "own" },
+  myaccount: { operator: "own", marketolog: "own", smm: "own", targetolog: "own", syomka: "own", montajyor: "own", dizayner: "own", moliya: "own" },
+  process: { operator: "view", marketolog: "view", smm: "view", targetolog: "view", syomka: "view", montajyor: "view", dizayner: "view", moliya: "view" },
+  payroll: { moliya: "full", marketolog: "view" },
 };
 
 export function access(role: Role, mod: Module): Access {
-  if (role === "admin") return "full";
+  if (role === "admin") return mod === "myday" || mod === "myaccount" ? "none" : "full";
+  // Rahbar hamma narsani ko'radi va boshqaradi (tizim sozlamalaridan tashqari).
+  if (role === "rahbar") return mod === "admin" || mod === "myday" || mod === "myaccount" ? "none" : "full";
   return MATRIX[mod][role] ?? "none";
 }
 
@@ -68,7 +78,7 @@ export const canEdit = (role: Role, mod: Module) => {
 };
 
 /** Moliya loyiha kartasining moliya qismini to'liq tahrirlaydi. */
-export const canEditFinance = (role: Role) => role === "admin" || role === "moliya";
+export const canEditFinance = (role: Role) => role === "admin" || role === "moliya" || role === "rahbar";
 
 /** Matritsa jadvalini ko'rsatish uchun (Admin sahifasi). */
 export const MATRIX_VIEW: { module: Module; label: string }[] = [
@@ -81,6 +91,7 @@ export const MATRIX_VIEW: { module: Module; label: string }[] = [
   { module: "dizayn", label: "Dizayn" },
   { module: "target", label: "Target" },
   { module: "finance", label: "Moliya" },
+  { module: "payroll", label: "Ish haqi (barcha xodimlar)" },
   { module: "dashboard", label: "Nazorat paneli" },
 ];
 
@@ -95,7 +106,7 @@ export const ACCESS_LABELS: Record<Access, string> = {
 
 /** "Har xodim faqat o'z vazifalari va o'z loyihalarini ko'radi. Marketolog va admin hammasini ko'radi." */
 export function seesEverything(user: User): boolean {
-  return user.role === "admin" || user.role === "marketolog" || user.role === "moliya";
+  return user.role === "admin" || user.role === "rahbar" || user.role === "marketolog" || user.role === "moliya";
 }
 
 export function visibleProjects(s: ErpState, user: User): Project[] {
@@ -114,19 +125,11 @@ export function homeFor(role: Role): string {
     case "admin":
     case "marketolog":
       return "/";
-    case "operator":
-      return "/crm";
-    case "smm":
-      return "/kontent";
-    case "targetolog":
-      return "/target";
-    case "syomka":
-      return "/syomka";
-    case "montajyor":
-      return "/montaj";
-    case "dizayner":
-      return "/dizayn";
+    case "rahbar":
+      return "/moliya";
     case "moliya":
       return "/moliya";
+    default:
+      return "/mening";
   }
 }
