@@ -30,6 +30,17 @@ export default {
         viz3: rgb("--viz-3"),
         vizneg: rgb("--viz-neg"),
       },
+      // text-* uchun to'qroq (kontrastli) variant, bg-* yorqin rangda qoladi
+      textColor: {
+        accent: rgb("--accent-ink"),
+        green: rgb("--green-ink"),
+        red: rgb("--red-ink"),
+        orange: rgb("--orange-ink"),
+        purple: rgb("--purple-ink"),
+        teal: rgb("--teal-ink"),
+        pink: rgb("--pink-ink"),
+        indigo: rgb("--indigo-ink"),
+      },
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", "SF Pro Text", "Inter", "Segoe UI", "system-ui", "sans-serif"],
         display: ["-apple-system", "BlinkMacSystemFont", "SF Pro Display", "Inter", "Segoe UI", "system-ui", "sans-serif"],

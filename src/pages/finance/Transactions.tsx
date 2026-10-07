@@ -120,6 +120,7 @@ export function Transactions() {
         <div className="flex flex-wrap gap-2 px-5 pb-3">
           <MonthSelect value={month} onChange={setMonth} />
           <Select
+            aria-label="Modda guruhi bo'yicha filtr"
             value={group}
             onChange={(e) => setGroup(e.target.value)}
             className="!w-52 !py-1.5 !text-[13px]"

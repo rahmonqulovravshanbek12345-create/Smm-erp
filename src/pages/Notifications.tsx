@@ -95,7 +95,13 @@ export function Activity() {
     <>
       <PageHeader title="Faoliyat tarixi" sub="Kim, qachon, nimani o'zgartirdi" />
       <div className="mb-4">
-        <Select value={userId} onChange={(e) => setUserId(e.target.value)} className="!w-64" options={userOptions(state.users, "Barcha xodimlar")} />
+        <Select
+          aria-label="Xodim bo'yicha filtr"
+          value={userId}
+          onChange={(e) => setUserId(e.target.value)}
+          className="!w-64"
+          options={userOptions(state.users, "Barcha xodimlar")}
+        />
       </div>
       <Card>
         <ul className="divide-y divide-sep">

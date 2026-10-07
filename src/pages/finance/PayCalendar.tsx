@@ -23,6 +23,7 @@ export function PayCalendar() {
         sub="Kutilayotgan kirim va rejadagi chiqimlar bo'yicha kunma-kun pul qoldig'i"
         actions={
           <Select
+            aria-label="Prognoz muddati"
             value={horizon}
             onChange={(e) => setHorizon(e.target.value)}
             className="!w-40 !py-1.5 !text-[13px]"
@@ -71,7 +72,7 @@ export function PayCalendar() {
             {cal.days.map((d) => {
               const dt = new Date(`${d.date}T00:00:00`);
               return (
-                <li key={d.date} className="grid gap-3 px-5 py-3 sm:grid-cols-[160px_1fr_150px]">
+                <li key={d.date} className="grid grid-cols-[minmax(0,1fr)] gap-3 px-5 py-3 sm:grid-cols-[160px_minmax(0,1fr)_150px]">
                   <div>
                     <div className="font-semibold text-label">{fmtDate(d.date)}</div>
                     <div className="text-[12px] text-label3">

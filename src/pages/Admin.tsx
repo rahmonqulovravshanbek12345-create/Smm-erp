@@ -78,6 +78,7 @@ export function Admin() {
                     <td className="px-4 py-2 text-label">{u.name}</td>
                     <td className="px-4 py-2">
                       <Select
+                        aria-label={`${u.name}: rol`}
                         value={u.role}
                         disabled={u.id === me.id}
                         onChange={(e) =>
@@ -95,6 +96,7 @@ export function Admin() {
                       <Input
                         key={u.telegramChatId ?? ""}
                         defaultValue={u.telegramChatId ?? ""}
+                        aria-label={`${u.name}: Telegram chat ID`}
                         placeholder="masalan 123456789"
                         onBlur={(e) =>
                           e.target.value !== (u.telegramChatId ?? "") &&

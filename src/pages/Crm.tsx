@@ -79,6 +79,7 @@ export function Crm() {
       <div className="mb-4 flex flex-wrap gap-2">
         <Input placeholder="Qidirish: ism, telefon…" value={q} onChange={(e) => setQ(e.target.value)} className="!w-64" />
         <Select
+          aria-label="Operator bo'yicha filtr"
           value={op}
           onChange={(e) => setOp(e.target.value)}
           className="!w-56"

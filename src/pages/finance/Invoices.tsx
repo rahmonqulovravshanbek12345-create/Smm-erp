@@ -48,6 +48,7 @@ export function Invoices({ projectId }: { projectId?: string }) {
           right={
             <div className="flex flex-wrap gap-2">
               <Select
+                aria-label="Holat bo'yicha filtr"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as typeof status)}
                 className="!w-44 !py-1.5 !text-[13px]"
@@ -58,6 +59,7 @@ export function Invoices({ projectId }: { projectId?: string }) {
                 ]}
               />
               <Select
+                aria-label="Mijoz bo'yicha filtr"
                 value={project}
                 onChange={(e) => setProject(e.target.value)}
                 className="!w-44 !py-1.5 !text-[13px]"
@@ -110,6 +112,7 @@ export function Invoices({ projectId }: { projectId?: string }) {
                     {editable && !inv.dueDate ? (
                       <Input
                         type="date"
+                        aria-label={`${inv.number}: to'lov sanasini belgilash`}
                         value=""
                         onChange={(e) => run((c) => act.setInvoiceDue(c, inv.id, e.target.value), "Sana saqlandi")}
                         className="!w-36 !py-1 !text-xs"

@@ -76,7 +76,7 @@ export function MonthSelect({ value, onChange, back = 11, forward = 0 }: { value
     const m = shiftMonthKey(cur, i);
     opts.push({ value: m, label: fmtMonth(m) });
   }
-  return <Select value={value} onChange={(e) => onChange(e.target.value)} options={opts} className="!w-44 !py-1.5 !text-[13px]" />;
+  return <Select aria-label="Oy" value={value} onChange={(e) => onChange(e.target.value)} options={opts} className="!w-44 !py-1.5 !text-[13px]" />;
 }
 
 export function Note({ children }: { children: ReactNode }) {

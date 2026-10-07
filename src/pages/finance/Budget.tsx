@@ -59,6 +59,7 @@ export function Budget() {
                     {editable && l.id !== "operating" ? (
                       <Input
                         type="number"
+                        aria-label={`${l.label}: reja`}
                         step={1000000}
                         defaultValue={p || ""}
                         key={`${month}-${l.id}`}

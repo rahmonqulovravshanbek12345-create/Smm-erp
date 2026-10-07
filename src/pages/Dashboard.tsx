@@ -212,6 +212,7 @@ export function Dashboard() {
             sub="Kimda nechta ish turibdi va kim kechiktirmoqda"
             right={
               <Select
+                aria-label="Rol bo'yicha filtr"
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value as "" | Role)}
                 className="!w-44 !py-1 !text-xs"

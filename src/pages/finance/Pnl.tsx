@@ -62,6 +62,7 @@ export function Pnl() {
           />
           {view === "months" && (
             <Select
+              aria-label="Loyiha bo'yicha"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               className="!w-48 !py-1.5 !text-[13px]"
@@ -69,6 +70,7 @@ export function Pnl() {
             />
           )}
           <Select
+            aria-label="Davr"
             value={span}
             onChange={(e) => setSpan(e.target.value)}
             className="!w-40 !py-1.5 !text-[13px]"

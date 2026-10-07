@@ -34,6 +34,7 @@ export function Content() {
       />
       <div className="mb-4">
         <Select
+          aria-label="Loyiha"
           value={projectId}
           onChange={(e) => setProjectId(e.target.value)}
           className="!w-64"

@@ -328,12 +328,14 @@ function Accruals({ editable }: { editable: boolean }) {
       <div className="flex flex-wrap gap-2 px-5 pb-3 pt-4">
         <MonthSelect value={month} onChange={setMonth} />
         <Select
+          aria-label="Xodim bo'yicha filtr"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
           className="!w-52 !py-1.5 !text-[13px]"
           options={[{ value: "", label: "Barcha xodimlar" }, ...state.users.filter((u) => u.role !== "admin").map((u) => ({ value: u.id, label: u.name }))]}
         />
         <Select
+          aria-label="Hisoblash turi bo'yicha filtr"
           value={kind}
           onChange={(e) => setKind(e.target.value)}
           className="!w-44 !py-1.5 !text-[13px]"

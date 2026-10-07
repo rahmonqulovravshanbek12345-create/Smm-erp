@@ -110,6 +110,7 @@ export function Proposals() {
             sub="Qatorni bosing — mijozga ko'rsatiladigan taklif ochiladi"
             right={
               <Select
+                aria-label="Holat bo'yicha filtr"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value as typeof filter)}
                 className="!w-44 !py-1.5 !text-[13px]"
@@ -519,6 +520,7 @@ export function ProposalPage({ id }: { id: string }) {
           {editable && p.status === "sent" && (
             <>
               <Select
+                aria-label="Qabul qilingan tarif"
                 value={acceptId}
                 onChange={(e) => setAcceptId(e.target.value)}
                 className="!w-36 !py-1.5 !text-[13px]"

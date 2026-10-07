@@ -36,7 +36,8 @@ export function addSalesHistory(s: ErpState, today: string) {
   // Ofisga kelgan, lekin shartnoma bo'lmagan lidlar: taklif yuborilgan, ko'pi rad etilgan.
   let k = 0;
   for (const l of s.leads) {
-    if (l.projectId || (l.maxStep ?? 0) < 3 || !l.meeting) continue;
+    // l_4 (Kids Academy) uchun taklif quyida alohida yoziladi — ikki marta chiqmasin
+    if (l.projectId || l.id === "l_4" || (l.maxStep ?? 0) < 3 || !l.meeting) continue;
     k++;
     const date = addDays(l.meeting.date, 1);
     if (date > today) continue;

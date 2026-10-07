@@ -333,8 +333,8 @@ export function App() {
         <Logo small />
         <div className="flex items-center gap-2">
           <IconButton icon="bell" label="Bildirishnomalar" badge={unread} onClick={() => navigate("/bildirishnomalar")} />
-          <button type="button" onClick={() => setAccount(true)} aria-label="Akkaunt" className="rounded-full transition active:scale-95">
-            <Avatar name={me.name} size={40} />
+          <button type="button" onClick={() => setAccount(true)} aria-label={`Akkaunt: ${me.name}`} className="rounded-full transition active:scale-95">
+            <Avatar name={me.name} size={40} decorative />
           </button>
         </div>
       </header>
@@ -518,6 +518,9 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
   return (
     <div className="fixed inset-0 z-40 flex animate-fade-in items-end bg-black/25 lg:hidden" onMouseDown={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className="glass-strong max-h-[85vh] w-full animate-sheet-up overflow-y-auto rounded-t-[30px] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+20px)]"
         onMouseDown={(e) => e.stopPropagation()}
       >

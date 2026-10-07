@@ -43,15 +43,35 @@ ko'rishini ko'rsatish mumkin.
 
 ## Ishga tushirish
 
+Node.js 22.12+ kerak.
+
 ```bash
 npm install
 npm run dev      # http://localhost:5173
 npm run build    # dist/index.html — bitta mustaqil fayl
+npm run preview  # build'ni GitHub Pages kabi /Smm-erp/ prefiksi ostida ochadi: http://127.0.0.1:4173/Smm-erp/
 ```
+
+## Sifat nazorati
+
+| Buyruq          | Nima tekshiradi                                                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check` | TypeScript, ESLint, Prettier va unit testlar (Vitest)                                                                                                                           |
+| `npm test`      | Hisob-kitob unit testlari: P&L, pul oqimi, debitorlik, ish haqi (FIFO), to'lov kalendari, sotuv analitikasi, mijoz hisoboti, tariflar, integratsiyalar, Excel, summa so'z bilan |
+| `npm run e2e`   | Playwright: GitHub Pages prefiksi, 10 rol × barcha sahifalar, asosiy biznes oqimlari, xavfsizlik (XSS), mobil/planshet/desktop, accessibility (axe, yorug' va qorong'i rejim)   |
+
+E2E dan oldin `npm run build` qiling; birinchi marta `npx playwright install chromium` kerak bo'ladi.
+GitHub Actions: `CI` har push'da hammasini ishga tushiradi, `GitHub Pages` esa testlar o'tgandagina joylaydi.
 
 `dist/index.html` faylini mijozga to'g'ridan-to'g'ri yuborish yoki istalgan bepul hostingga
 (GitHub Pages, Vercel, Netlify) joylash mumkin. `main` branchga push qilinganda GitHub Pages
 workflow saytni avtomatik yangilaydi (Settings → Pages → Source: **GitHub Actions**).
+
+## Demo ma'lumotlar
+
+Barcha mijozlar, xodimlar, summalar va hujjatlar to'qima. Telefon raqamlari mavjud bo'lmagan `+998 00` kodida,
+Google Drive va ijtimoiy tarmoq havolalari `demo` belgisi bilan ko'rsatiladi va hech qayerga olib bormaydi.
+Sahifa qidiruv tizimlariga ochilmagan (`noindex`).
 
 ## Demo cheklovlari (haqiqiy versiyada server bilan hal qilinadi)
 

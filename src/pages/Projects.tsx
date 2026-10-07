@@ -163,7 +163,7 @@ function Info({ p }: { p: Project }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="p-4">
-        <h3 className="mb-2 text-sm font-semibold text-label">Mijoz</h3>
+        <h2 className="mb-2 text-sm font-semibold text-label">Mijoz</h2>
         {row("Kontakt", p.contactName)}
         {row("Telefon", p.phone)}
         {row("Soha", p.industry)}
@@ -178,13 +178,13 @@ function Info({ p }: { p: Project }) {
               ))}
           </span>,
         )}
-        <h3 className="mb-2 mt-4 text-sm font-semibold text-label">Jamoa</h3>
+        <h2 className="mb-2 mt-4 text-sm font-semibold text-label">Jamoa</h2>
         {row("Marketolog", look.userName(p.marketologId))}
         {row("SMM menejer", look.userName(p.smmId))}
         {row("Targetolog", look.userName(p.targetologId))}
       </Card>
       <Card className="p-4">
-        <h3 className="mb-2 text-sm font-semibold text-label">Shartnoma</h3>
+        <h2 className="mb-2 text-sm font-semibold text-label">Shartnoma</h2>
         {row(
           "Raqam / sana",
           <span>

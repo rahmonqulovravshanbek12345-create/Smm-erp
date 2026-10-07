@@ -22,6 +22,12 @@ describe("Tariflar", () => {
 });
 
 describe("Tijorat takliflari", () => {
+  it("demo: bitta lidda bir vaqtda faqat bitta ochiq taklif, raqamlar takrorlanmaydi", () => {
+    const s = demoState();
+    const open = s.proposals.filter((p) => p.status === "sent" || p.status === "draft").map((p) => p.leadId);
+    expect(new Set(open).size).toBe(open.length);
+    expect(new Set(s.proposals.map((p) => p.number)).size).toBe(s.proposals.length);
+  });
   it("raqamlash yil bo'yicha ketma-ket", () => {
     const s = demoState();
     const n = s.proposals.length;

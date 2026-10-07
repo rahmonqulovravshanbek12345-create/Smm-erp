@@ -3,6 +3,7 @@
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
+import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../dist/", import.meta.url));
@@ -37,8 +38,14 @@ createServer(async (req, res) => {
   }
   try {
     if (!(await stat(file)).isFile()) throw new Error("not a file");
-    res.writeHead(200, { "Content-Type": TYPES[extname(file)] ?? "application/octet-stream" });
-    res.end(await readFile(file));
+    const type = TYPES[extname(file)] ?? "application/octet-stream";
+    const body = await readFile(file);
+    if (/text|javascript|json|svg/.test(type) && /gzip/.test(req.headers["accept-encoding"] ?? "")) {
+      res.writeHead(200, { "Content-Type": type, "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
+      return res.end(gzipSync(body));
+    }
+    res.writeHead(200, { "Content-Type": type });
+    res.end(body);
   } catch {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("404");

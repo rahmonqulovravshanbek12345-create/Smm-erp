@@ -116,7 +116,7 @@ export function IconButton({ icon, label, onClick, badge }: { icon: IconName; la
     <button
       type="button"
       onClick={onClick}
-      aria-label={label}
+      aria-label={badge ? `${label}: ${badge} ta yangi` : label}
       className="glass relative flex h-10 w-10 items-center justify-center rounded-full text-label transition active:scale-95"
     >
       <Icon name={icon} size={19} />
@@ -139,7 +139,7 @@ export function CardHeader({ title, right, sub, icon }: { title: ReactNode; righ
       <div className="flex min-w-0 items-center gap-2.5">
         {icon && <IconChip name={icon.name} color={icon.color} size={26} />}
         <div className="min-w-0">
-          <h3 className="text-[17px] font-semibold tracking-tight text-label">{title}</h3>
+          <h2 className="text-[17px] font-semibold tracking-tight text-label">{title}</h2>
           {sub && <p className="mt-0.5 text-[13px] text-label2">{sub}</p>}
         </div>
       </div>
@@ -237,10 +237,10 @@ export function Ring({
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = max ? Math.min(1, value / max) : 0;
-  const cls = { green: "text-green", red: "text-red", orange: "text-orange", accent: "text-accent" }[color];
+  // Halqa — grafika: yorqin tizim rangi (foiz baribir matn bilan yozilgan)
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className={`-rotate-90 ${cls}`}>
+      <svg width={size} height={size} className="-rotate-90" style={{ color: `rgb(var(--${color}))` }}>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeOpacity={0.18} strokeWidth={stroke} />
         <circle
           cx={size / 2}
@@ -269,7 +269,8 @@ const AVATAR_GRADIENTS = [
   "from-[#FF2D55] to-[#AF52DE]",
 ];
 
-export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
+/** decorative — bosh harflar CSS orqali chiziladi (tugma nomi aria-label'dan olinadi). */
+export function Avatar({ name, size = 32, decorative }: { name: string; size?: number; decorative?: boolean }) {
   const initials = name
     .replace(/\(.*?\)/g, "")
     .split(/\s+/)
@@ -281,10 +282,12 @@ export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
   const g = AVATAR_GRADIENTS[[...name].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVATAR_GRADIENTS.length];
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br font-semibold text-white ${g}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br font-semibold text-white ${g} ${decorative ? "before:content-[attr(data-initials)]" : ""}`}
       style={{ width: size, height: size, fontSize: size * 0.38 }}
+      data-initials={decorative ? initials : undefined}
+      aria-hidden={decorative || undefined}
     >
-      {initials}
+      {decorative ? null : initials}
     </span>
   );
 }

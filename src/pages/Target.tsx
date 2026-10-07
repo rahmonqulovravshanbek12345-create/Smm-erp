@@ -143,6 +143,7 @@ export function Target() {
               title="Kunlik hisobot"
               right={
                 <Select
+                  aria-label="Loyiha"
                   value={projectId}
                   onChange={(e) => setProjectId(e.target.value)}
                   className="!w-48 !py-1 !text-xs"

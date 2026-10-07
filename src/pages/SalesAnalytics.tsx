@@ -56,6 +56,7 @@ export function SalesAnalytics() {
               ]}
             />
             <Select
+              aria-label="Davr"
               value={span}
               onChange={(e) => setSpan(e.target.value)}
               className="!w-40"

@@ -72,6 +72,7 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
         </A>
         <div className="flex flex-wrap gap-2">
           <Select
+            aria-label="Hisobot davri"
             value={String(idx)}
             onChange={(e) => navigate(`/hisobot/${projectId}/${e.target.value}`)}
             className="!w-64 !py-1.5 !text-[13px]"
