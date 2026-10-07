@@ -1,0 +1,172 @@
+import { useState } from "react";
+import { TaskBadge } from "../components/bits";
+import { TaskModal } from "../components/forms";
+import { Badge, Banner, Button, Card, Input, LinkOut, PageHeader, Stat } from "../components/ui";
+import * as act from "../lib/actions";
+import { fmtDate, fmtMoney, fmtMonth, monthKey, relDays } from "../lib/dates";
+import { TASK_STATUSES } from "../lib/labels";
+import { access, canEdit } from "../lib/permissions";
+import { acceptedMontajCount, isTaskLate } from "../lib/rules";
+import { useErp, useLookup } from "../lib/store";
+import type { Task } from "../lib/types";
+
+export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
+  const { state, me, today } = useErp();
+  const look = useLookup();
+  const [creating, setCreating] = useState(false);
+  const own = access(me.role, kind) === "own";
+  const editable = canEdit(me.role, kind);
+
+  const tasks = state.tasks
+    .filter((t) => t.kind === kind)
+    .filter((t) => !own || t.assigneeId === me.id)
+    .filter((t) => me.role !== "smm" || look.project(t.projectId)?.smmId === me.id)
+    .sort((a, b) => a.deadline.localeCompare(b.deadline));
+
+  const month = monthKey(today);
+  const accepted = acceptedMontajCount(state, me.id, month);
+  const late = tasks.filter((t) => isTaskLate(t, today)).length;
+
+  return (
+    <>
+      <PageHeader
+        title={own ? (kind === "montaj" ? "Montajyor oynasi" : "Dizayner oynasi") : kind === "montaj" ? "Montaj vazifalari" : "Dizayn vazifalari"}
+        sub={own ? "Faqat sizga berilgan vazifalar: TZ, ssenariy, kadrlar havolasi, deadline" : "SMM menejer tayyor ishni qabul qiladi yoki qaytaradi"}
+        actions={
+          editable && (
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              + {kind === "montaj" ? "Montaj" : "Dizayn"} TZ
+            </Button>
+          )
+        }
+      />
+
+      {own && (
+        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Stat label="Ochiq vazifalar" value={tasks.filter((t) => t.status !== "accepted").length} />
+          <Stat label="Kechikkan" value={late} tone={late ? "red" : "green"} />
+          {kind === "montaj" && (
+            <>
+              <Stat label={`Qabul qilingan montaj (${fmtMonth(month)})`} value={accepted} tone="green" />
+              <Stat label={`Oylik: ${accepted} × ${fmtMoney(state.settings.montajPrice)}`} value={fmtMoney(accepted * state.settings.montajPrice)} tone="green" />
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="scrollbar-thin -mx-4 flex gap-3 overflow-x-auto px-4 pb-4 sm:mx-0 sm:px-0">
+        {TASK_STATUSES.map((st) => {
+          const col = tasks.filter((t) => t.status === st.id);
+          return (
+            <div key={st.id} className="flex w-72 shrink-0 flex-col rounded-xl border border-white/[0.07] bg-ink-900/60 2xl:w-auto 2xl:min-w-0 2xl:flex-1">
+              <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2.5">
+                <Badge tone={st.tone}>{st.label}</Badge>
+                <span className="text-xs text-mist-400">{col.length}</span>
+              </div>
+              <div className="flex min-h-[120px] flex-col gap-2 p-2">
+                {col.map((t) => (
+                  <TaskCard key={t.id} task={t} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {creating && <TaskModal kind={kind} onClose={() => setCreating(false)} />}
+    </>
+  );
+}
+
+function TaskCard({ task: t }: { task: Task }) {
+  const { me, run, today } = useErp();
+  const look = useLookup();
+  const [link, setLink] = useState(t.resultLink ?? "");
+  const [note, setNote] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const isAssignee = t.assigneeId === me.id || me.role === "admin";
+  const isReviewer = me.role === "admin" || (me.role === "smm" && look.project(t.projectId)?.smmId === me.id);
+  const late = isTaskLate(t, today);
+
+  return (
+    <Card className={`p-3 ${late ? "border-red-500/40" : ""}`}>
+      <button type="button" className="w-full text-left" onClick={() => setExpanded((v) => !v)}>
+        <div className="text-sm font-medium text-white">{t.title}</div>
+        <div className="mt-0.5 text-xs text-mist-400">
+          {look.projectName(t.projectId)} · {look.userName(t.assigneeId)}
+          {t.designType && ` · ${t.designType === "cover" ? "oblojka" : "post"}`}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <TaskBadge task={t} today={today} />
+          <span className={`text-xs ${late ? "text-red-300" : "text-mist-400"}`}>
+            ⏱ {fmtDate(t.deadline)} ({relDays(t.deadline, today)})
+          </span>
+        </div>
+      </button>
+
+      {t.returnNote && t.status === "returned" && <div className="mt-2 rounded-md bg-red-500/10 px-2 py-1.5 text-xs text-red-200">Qaytarildi: {t.returnNote}</div>}
+
+      {expanded && (
+        <div className="mt-3 space-y-2 border-t border-white/[0.06] pt-3 text-xs">
+          {t.brief && (
+            <div>
+              <div className="text-mist-400">TZ</div>
+              <p className="whitespace-pre-line text-mist-100">{t.brief}</p>
+            </div>
+          )}
+          {t.script && (
+            <div>
+              <div className="text-mist-400">Ssenariy</div>
+              <p className="whitespace-pre-line text-mist-100">{t.script}</p>
+            </div>
+          )}
+          {t.kind === "montaj" && (
+            <div>
+              <span className="text-mist-400">Kadrlar: </span>
+              {t.footageLink ? <LinkOut href={t.footageLink} /> : <span className="text-amber-300">syomka operatoridan kutilmoqda</span>}
+            </div>
+          )}
+          {t.files && (
+            <div>
+              <span className="text-mist-400">Fayllar: </span>
+              <LinkOut href={t.files} />
+            </div>
+          )}
+          {t.resultLink && (
+            <div>
+              <span className="text-mist-400">Natija: </span>
+              <LinkOut href={t.resultLink} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {isAssignee && (t.status === "new" || t.status === "returned") && (
+        <Button size="sm" className="mt-3 w-full" onClick={() => run((c) => act.startTask(c, t.id), "Jarayonda")}>
+          ▶ Boshlash
+        </Button>
+      )}
+      {isAssignee && t.status === "progress" && (
+        <div className="mt-3 space-y-1.5">
+          <Input placeholder="Tayyor ish havolasi (Google Drive)" value={link} onChange={(e) => setLink(e.target.value)} className="!py-1.5 !text-xs" />
+          <Button size="sm" variant="primary" className="w-full" onClick={() => run((c) => act.submitTask(c, t.id, link), "Tekshiruvga topshirildi")}>
+            Tayyor — tekshiruvga
+          </Button>
+        </div>
+      )}
+      {isReviewer && t.status === "review" && (
+        <div className="mt-3 space-y-1.5">
+          <Input placeholder="Qaytarish sababi" value={note} onChange={(e) => setNote(e.target.value)} className="!py-1.5 !text-xs" />
+          <div className="flex gap-1.5">
+            <Button size="sm" variant="danger" className="flex-1" onClick={() => run((c) => act.returnTask(c, t.id, note), "Qaytarildi")}>
+              Qaytarish
+            </Button>
+            <Button size="sm" variant="primary" className="flex-1" onClick={() => run((c) => act.acceptTask(c, t.id), "Qabul qilindi")}>
+              ✓ Qabul
+            </Button>
+          </div>
+        </div>
+      )}
+      {t.status === "review" && !isReviewer && isAssignee && <Banner tone="amber">SMM menejer tekshiryapti</Banner>}
+    </Card>
+  );
+}
