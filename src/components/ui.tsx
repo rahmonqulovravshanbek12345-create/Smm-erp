@@ -1,30 +1,65 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import type { Tone } from "../lib/labels";
 
-// ---------- Hash router (bitta HTML faylda ham ishlaydi) ----------
+// ---------- Router ----------
+// Joriy sahifa xotirada saqlanadi va imkon bo'lsa manzildagi #hash bilan sinxronlanadi.
+// Shu tufayli sayt bitta HTML fayl sifatida ham, iframe ichida ham ishlaydi.
 
 function readPath() {
-  const h = window.location.hash.replace(/^#/, "");
-  return h.startsWith("/") ? h : "/";
+  try {
+    const h = window.location.hash.replace(/^#/, "");
+    return h.startsWith("/") ? h : "/";
+  } catch {
+    return "/";
+  }
+}
+
+let currentPath = readPath();
+const listeners = new Set<() => void>();
+const emit = () => listeners.forEach((l) => l());
+
+function subscribe(l: () => void) {
+  listeners.add(l);
+  const onHash = () => {
+    const p = readPath();
+    if (p !== currentPath) {
+      currentPath = p;
+      emit();
+    }
+  };
+  window.addEventListener("hashchange", onHash);
+  return () => {
+    listeners.delete(l);
+    window.removeEventListener("hashchange", onHash);
+  };
 }
 
 export function usePath(): string {
-  const [path, setPath] = useState(readPath);
-  useEffect(() => {
-    const on = () => setPath(readPath());
-    window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
-  }, []);
-  return path;
+  return useSyncExternalStore(subscribe, () => currentPath);
 }
 
 export function navigate(path: string) {
-  window.location.hash = path;
+  if (path === currentPath) return;
+  currentPath = path;
+  try {
+    window.location.hash = path;
+  } catch {
+    // manzilni o'zgartirib bo'lmasa ham, ilova ichida sahifa almashadi
+  }
+  emit();
 }
 
 export function A({ href, className = "", children }: { href: string; className?: string; children: ReactNode }) {
   return (
-    <a href={`#${href}`} className={className}>
+    <a
+      href={`#${href}`}
+      className={className}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+        e.preventDefault();
+        navigate(href);
+      }}
+    >
       {children}
     </a>
   );

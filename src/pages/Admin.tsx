@@ -12,6 +12,7 @@ export function Admin() {
   const { state, me, run, reset, showToast } = useErp();
   const [nu, setNu] = useState({ name: "", role: "smm" as Role });
   const [testing, setTesting] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const tg = state.settings.telegram;
 
   const testTelegram = async () => {
@@ -185,9 +186,21 @@ export function Admin() {
             <div className="border-t border-white/[0.06] pt-4">
               <div className="mb-1 text-sm text-white">Demo ma'lumotlarni tiklash</div>
               <p className="mb-2 text-xs text-mist-400">Mijozga ko'rsatishdan oldin barcha o'zgarishlarni o'chirib, boshlang'ich holatga qaytaradi.</p>
-              <Button variant="danger" onClick={() => window.confirm("Barcha o'zgarishlar o'chiriladi. Davom etasizmi?") && reset()}>
-                Demo'ni qayta tiklash
-              </Button>
+              {confirmReset ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-red-300">Barcha o'zgarishlar o'chiriladi.</span>
+                  <Button variant="danger" onClick={() => { reset(); setConfirmReset(false); }}>
+                    Ha, tiklash
+                  </Button>
+                  <Button variant="ghost" onClick={() => setConfirmReset(false)}>
+                    Bekor qilish
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="danger" onClick={() => setConfirmReset(true)}>
+                  Demo'ni qayta tiklash
+                </Button>
+              )}
             </div>
           </div>
         </Card>
