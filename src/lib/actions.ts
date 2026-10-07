@@ -6,6 +6,9 @@ import { postStage, workBlockedReason } from "./rules";
 import { newId, type Ctx } from "./store";
 import type { Bill, BudgetLine, DocBlock, Lead, LeadStage, PayProfile, Post, PostStatus, Project, Shoot, Task, TargetReport, Transaction, WorkType } from "./types";
 
+/** Voronka bosqichi raqami (rad etilgan bosqichlar avvalgi eng yuqori bosqichni saqlaydi). */
+export const FUNNEL_STEP: Partial<Record<LeadStage, number>> = { new: 0, waiting: 1, meeting: 2, visited: 3, contract: 4 };
+
 const stageLabel = (s: LeadStage) => LEAD_STAGES.find((x) => x.id === s)?.label ?? s;
 const projectName = (c: Ctx, id: string) => c.s.projects.find((p) => p.id === id)?.name ?? "—";
 const findProject = (c: Ctx, id: string) => c.s.projects.find((p) => p.id === id);
@@ -41,7 +44,7 @@ export function saveLead(c: Ctx, data: Omit<Lead, "id" | "history" | "createdAt"
     c.log(`${l.name}: lid ma'lumotlari yangilandi`, "/crm");
     return;
   }
-  const lead: Lead = { ...data, id: newId("lead"), stage: "new", history: [], createdAt: nowISO() };
+  const lead: Lead = { ...data, id: newId("lead"), stage: "new", maxStep: 0, history: [], createdAt: nowISO() };
   c.s.leads.unshift(lead);
   c.notify([lead.operatorId], `Yangi lid: ${lead.name} (${lead.phone})`, "/crm");
   c.log(`Yangi lid qo'shildi: ${lead.name}`, "/crm");
@@ -51,6 +54,7 @@ export function addContact(c: Ctx, leadId: string, text: string, nextContactDate
   const l = c.s.leads.find((x) => x.id === leadId);
   if (!l || !text.trim()) return;
   l.history.unshift({ id: newId("c"), at: nowISO(), userId: c.me.id, text: text.trim() });
+  l.maxStep = Math.max(l.maxStep ?? 0, 1);
   if (nextContactDate !== undefined) l.nextContactDate = nextContactDate || undefined;
   c.log(`${l.name}: aloqa tarixi to'ldirildi`, "/crm");
 }
@@ -80,6 +84,7 @@ export function moveLead(
   }
   const from = l.stage;
   l.stage = stage;
+  l.maxStep = Math.max(l.maxStep ?? 0, FUNNEL_STEP[stage] ?? 0);
   l.history.unshift({
     id: newId("c"),
     at: nowISO(),
@@ -143,6 +148,7 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
     if (l) {
       const from = l.stage;
       l.stage = "contract";
+      l.maxStep = 4;
       l.projectId = id;
       l.history.unshift({ id: newId("c"), at: nowISO(), userId: c.me.id, text: `Bosqich: ${stageLabel(from)} → Shartnoma bo'ldi` });
       // Operatorga shartnoma bonusi (stavkasi bo'lsa)

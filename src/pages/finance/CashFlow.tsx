@@ -5,6 +5,7 @@ import { fmtMoney, fmtNum, monthKey, monthShort } from "../../lib/dates";
 import { accountBalance, cashFlow, lastMonths, transitBalance } from "../../lib/finance";
 import { useErp } from "../../lib/store";
 import { FinNav, Money, Note, TableWrap, td, tdr, th, thr } from "./common";
+import { ExportButton } from "../../components/ExportButton";
 
 export function CashFlow() {
   const { state, today } = useErp();
@@ -17,7 +18,31 @@ export function CashFlow() {
 
   return (
     <>
-      <PageHeader title="Pul oqimi (Cash Flow)" sub="Faqat haqiqiy kirim va chiqimlar — qayerdan keldi, qayerga ketdi" />
+      <PageHeader
+        title="Pul oqimi (Cash Flow)"
+        sub="Faqat haqiqiy kirim va chiqimlar — qayerdan keldi, qayerga ketdi"
+        actions={
+          <ExportButton
+            filename={`cash-flow-${today}`}
+            sheets={() => [
+              {
+                name: "Cash Flow",
+                columns: ["Modda", ...months, "Jami"],
+                rows: [
+                  ["Davr boshidagi qoldiq", ...months.map((m) => cf.opening[m] ?? 0), cf.opening[months[0]!] ?? 0],
+                  ...cf.sections.flatMap((sec) => [
+                    [sec.title.toUpperCase(), ...months.map(() => null), null],
+                    ...sec.rows.map((r) => [r.label, ...months.map((m) => r.values[m] ?? 0), r.total]),
+                    [`Sof oqim: ${sec.title}`, ...months.map((m) => sec.net[m] ?? 0), sumOf(sec.net)],
+                  ]),
+                  ["Sof pul oqimi", ...months.map((m) => cf.net[m] ?? 0), sumOf(cf.net)],
+                  ["Davr oxiridagi qoldiq", ...months.map((m) => cf.closing[m] ?? 0), cf.closing[months[months.length - 1]!] ?? 0],
+                ],
+              },
+            ]}
+          />
+        }
+      />
       <FinNav />
 
       <div className="mb-5 grid gap-4 xl:grid-cols-3">

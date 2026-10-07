@@ -46,6 +46,8 @@ export interface Lead {
   nextContactDate?: string;
   meeting?: { date: string; time: string; marketologId: string };
   rejectReason?: string;
+  /** Voronkada erishilgan eng yuqori bosqich: 0 yangi, 1 bog'lanildi, 2 uchrashuv, 3 ofisga keldi, 4 shartnoma. */
+  maxStep?: number;
   history: ContactLog[];
   projectId?: string;
   createdAt: string;
@@ -86,6 +88,10 @@ export interface Project {
   closedAt?: string;
   /** Mijozning oylik reklama byudjeti (USD, tranzit). */
   adBudgetUsd?: number;
+  /** Hujjatlar uchun mijoz rekvizitlari. */
+  legalName?: string;
+  inn?: string;
+  address?: string;
   docs: Record<DocBlock, DocState>;
   handedOffAt?: string;
   createdAt: string;
@@ -348,8 +354,19 @@ export interface Activity {
   href?: string;
 }
 
+export interface Requisites {
+  address: string;
+  inn: string;
+  bankName: string;
+  bankAccount: string;
+  mfo: string;
+  director: string;
+  phone: string;
+}
+
 export interface Settings {
   companyName: string;
+  requisites: Requisites;
   /** Joriy USD kursi (yangi tranzaksiyalar uchun taklif). */
   usdRate: number;
   /** Ish haqi to'lanadigan kun (oyning nechanchi kuni). */

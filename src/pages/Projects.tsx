@@ -182,7 +182,16 @@ function Info({ p }: { p: Project }) {
       </Card>
       <Card className="p-4">
         <h3 className="mb-2 text-sm font-semibold text-label">Shartnoma</h3>
-        {row("Raqam / sana", `${p.contractNo} · ${fmtDate(p.contractDate)}`)}
+        {row(
+          "Raqam / sana",
+          <span>
+            {p.contractNo} · {fmtDate(p.contractDate)}{" "}
+            <A href={`/hujjat/shartnoma/${p.id}`} className="ml-1 font-semibold text-accent">
+              Shartnoma hujjati →
+            </A>
+          </span>,
+        )}
+        {row("Yuridik nomi", p.legalName ?? "—")}
         {row("Tarif", p.tariff)}
         {row("Oylik summa", fmtMoney(p.monthlyFee))}
         {row("Oldindan to'lov", `${p.prepayType}%`)}
@@ -399,7 +408,17 @@ function Reports({ p }: { p: Project }) {
         </Card>
       )}
       <Card className={canSubmit ? "" : "lg:col-span-2"}>
-        <CardHeader title="Topshirilgan hisobotlar" />
+        <CardHeader
+          title="Topshirilgan hisobotlar"
+          sub="Mijozga — ERP ma'lumotlaridan avtomatik tuziladigan hisobot"
+          right={
+            p.periodStart && (
+              <A href={`/hisobot/${p.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-[13px] font-semibold text-white">
+                Mijoz uchun hisobot
+              </A>
+            )
+          }
+        />
         <ul className="divide-y divide-sep">
           {reports.map((r) => (
             <li key={r.id} className="px-4 py-3 text-sm">
@@ -415,11 +434,12 @@ function Reports({ p }: { p: Project }) {
                 <Badge tone="green">Lid: {fmtNum(r.leads)}</Badge>
               </div>
               {r.summary && <p className="mt-1.5 text-label2">{r.summary}</p>}
-              {r.fileLink && (
-                <div className="mt-1 text-xs">
-                  <LinkOut href={r.fileLink}>Hisobot fayli</LinkOut>
-                </div>
-              )}
+              <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
+                {r.fileLink && <LinkOut href={r.fileLink}>Hisobot fayli</LinkOut>}
+                <A href={`/hisobot/${p.id}/${r.periodIndex}`} className="font-semibold text-accent">
+                  Mijoz hisoboti →
+                </A>
+              </div>
             </li>
           ))}
           {reports.length === 0 && <Empty>Hali hisobot yo'q</Empty>}

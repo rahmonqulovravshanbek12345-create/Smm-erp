@@ -21,7 +21,10 @@ import { Pnl } from "./pages/finance/Pnl";
 import { Receivables } from "./pages/finance/Receivables";
 import { Recon } from "./pages/finance/Recon";
 import { Transactions } from "./pages/finance/Transactions";
+import { ClientReport } from "./pages/ClientReport";
 import { MyAccount } from "./pages/MyAccount";
+import { Documents, DocumentView } from "./pages/Documents";
+import { SalesAnalytics } from "./pages/SalesAnalytics";
 import { MyDay } from "./pages/MyDay";
 import { Process } from "./pages/Process";
 import { Activity, Notifications } from "./pages/Notifications";
@@ -53,7 +56,9 @@ const NAV_GROUPS: { title?: string; collapsible?: string; items: NavItem[] }[] =
     title: "Savdo",
     items: [
       { module: "crm", path: "/crm", label: "CRM — lidlar", short: "CRM", icon: "phone", color: "green" },
+      { module: "crm", path: "/crm/analitika", label: "Sotuv analitikasi", short: "Analitika", icon: "gauge", color: "blue" },
       { module: "projects", path: "/loyihalar", label: "Loyihalar", short: "Loyihalar", icon: "folder", color: "teal" },
+      { module: "projects", path: "/hujjatlar", label: "Hujjatlar", short: "Hujjatlar", icon: "list", color: "gray" },
     ],
   },
   {
@@ -98,7 +103,19 @@ const TAB_PRIORITY: string[] = ["/mening", "/", "/moliya", "/crm", "/kontent", "
 function route(full: string): { module: Module; node: ReactNode } {
   const path = full.split("?")[0]!;
   if (path.startsWith("/loyiha/")) return { module: "projects", node: <ProjectCard id={path.slice(8)} /> };
+  if (path.startsWith("/hujjat/")) {
+    const [, , kind = "", id = "", idx] = path.split("/");
+    return { module: "projects", node: <DocumentView key={path} kind={kind} id={id} index={idx === undefined ? undefined : Number(idx)} /> };
+  }
+  if (path.startsWith("/hisobot/")) {
+    const [, , pid = "", idx] = path.split("/");
+    return { module: "projects", node: <ClientReport key={path} projectId={pid} periodIndex={idx === undefined ? undefined : Number(idx)} /> };
+  }
   switch (path) {
+    case "/crm/analitika":
+      return { module: "crm", node: <SalesAnalytics /> };
+    case "/hujjatlar":
+      return { module: "projects", node: <Documents /> };
     case "/mening":
       return { module: "myday", node: <MyDay /> };
     case "/hisobim":
@@ -152,10 +169,12 @@ function route(full: string): { module: Module; node: ReactNode } {
   }
 }
 
+/** Eng uzun mos keladigan menyu bandi faol hisoblanadi (masalan, /crm/analitika — CRM emas). */
 const isActive = (item: NavItem, full: string) => {
-  const path = full.split("?")[0]!;
-  if (item.path === "/" || item.path === "/moliya") return path === item.path;
-  return path.startsWith(item.path) || (item.path === "/loyihalar" && path.startsWith("/loyiha/"));
+  let path = full.split("?")[0]!;
+  if (path.startsWith("/loyiha/") || path.startsWith("/hisobot/") || path.startsWith("/hujjat")) path = "/loyihalar";
+  const best = ALL_NAV.filter((n) => path === n.path || (n.path !== "/" && path.startsWith(`${n.path}/`))).sort((a, b) => b.path.length - a.path.length)[0];
+  return best?.path === item.path;
 };
 
 // ---------- Mavzu (yorug' / qorong'i / tizim) ----------
@@ -269,7 +288,7 @@ export function App() {
       <div className="wallpaper" />
 
       {/* ---------- Kompyuter: suzuvchi shisha sidebar ---------- */}
-      <aside className="glass fixed bottom-3 left-3 top-3 z-30 hidden w-[272px] flex-col rounded-[28px] lg:flex">
+      <aside className="no-print glass fixed bottom-3 left-3 top-3 z-30 hidden w-[272px] flex-col rounded-[28px] lg:flex">
         <div className="px-5 pb-3 pt-5">
           <Logo />
         </div>
@@ -285,7 +304,7 @@ export function App() {
       </aside>
 
       {/* ---------- Telefon: yuqori panel ---------- */}
-      <header className="glass sticky top-0 z-30 flex items-center justify-between gap-3 rounded-b-[22px] border-t-0 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top,0px)+10px)] lg:hidden">
+      <header className="no-print glass sticky top-0 z-30 flex items-center justify-between gap-3 rounded-b-[22px] border-t-0 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top,0px)+10px)] lg:hidden">
         <Logo small />
         <div className="flex items-center gap-2">
           <IconButton icon="bell" label="Bildirishnomalar" badge={unread} onClick={() => navigate("/bildirishnomalar")} />
@@ -295,8 +314,8 @@ export function App() {
         </div>
       </header>
 
-      <div className="lg:pl-[288px]">
-        <div className="hidden items-center justify-end gap-3 px-8 pt-6 lg:flex">
+      <div className="lg:pl-[288px] print:!pl-0">
+        <div className="no-print hidden items-center justify-end gap-3 px-8 pt-6 lg:flex">
           <span className="text-[13px] font-medium text-label2">{todayLabel()}</span>
           <IconButton icon="bell" label="Bildirishnomalar" badge={unread} onClick={() => navigate("/bildirishnomalar")} />
         </div>
@@ -306,7 +325,7 @@ export function App() {
       </div>
 
       {/* ---------- Telefon: suzuvchi tab bar ---------- */}
-      <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom,0px)+10px)] z-30 lg:hidden">
+      <nav className="no-print fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom,0px)+10px)] z-30 lg:hidden">
         <div className="glass mx-auto flex max-w-md items-stretch justify-between rounded-full p-1.5">
           {tabs.map((t) => {
             const active = isActive(t, path);

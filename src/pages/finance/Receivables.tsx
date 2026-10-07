@@ -9,6 +9,7 @@ import { useErp } from "../../lib/store";
 import type { Bill } from "../../lib/types";
 import { FinNav, Money, Note, TableWrap, td, tdr, th, thr } from "./common";
 import { BillModal, PayBillModal, PayEmployeeModal } from "./modals";
+import { ExportButton } from "../../components/ExportButton";
 
 export function Receivables() {
   const { state, me, today } = useErp();
@@ -35,11 +36,29 @@ export function Receivables() {
         title="Debitorlik va kreditorlik"
         sub={`${fmtDate(today)} holatiga: kim bizga qarzdor va biz kimga qarzdormiz`}
         actions={
-          editable && (
-            <Button onClick={() => setNewBill(true)}>
-              + Xarajat hujjati
-            </Button>
-          )
+          <>
+            <ExportButton
+              filename={`debitor-kreditor-${today}`}
+              sheets={() => [
+                {
+                  name: "Debitorlik",
+                  columns: ["Mijoz", "Fakturalar", "To'langan", "Saldo", "Muddati kelmagan", "1–30 kun", "31–60 kun", "60+ kun", "Olingan avans"],
+                  rows: ar.map((r) => [r.project.name, r.invoiced, r.paid, r.balance, r.notDue, r.d30, r.d60, r.d60plus, r.advance]),
+                },
+                {
+                  name: "Kreditorlik",
+                  columns: ["Turi", "Kontragent", "Summa"],
+                  rows: [
+                    ...ap.employees.map((e) => ["Xodim (ish haqi)", e.user.name, e.balance]),
+                    ...ap.vendors.map((v) => ["Ta'minotchi", v.vendor.name, v.outstanding]),
+                    ...ap.advances.map((a) => ["Mijoz avansi", a.project.name, a.amount]),
+                    ...ap.transit.map((a) => ["Tranzit (reklama puli)", a.project.name, a.amount]),
+                  ],
+                },
+              ]}
+            />
+            {editable && <Button onClick={() => setNewBill(true)}>+ Xarajat hujjati</Button>}
+          </>
         }
       />
       <FinNav />

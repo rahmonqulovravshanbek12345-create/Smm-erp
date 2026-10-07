@@ -6,6 +6,7 @@ import { fmtMoney, monthKey, monthShort } from "../../lib/dates";
 import { lastMonths, pnl, projectProfitability, type PnlResult } from "../../lib/finance";
 import { useErp, useLookup } from "../../lib/store";
 import { FinNav, Money, Note, TableWrap, td, tdr, th, thr } from "./common";
+import { ExportButton } from "../../components/ExportButton";
 
 type View = "months" | "projects";
 
@@ -35,6 +36,30 @@ export function Pnl() {
           ]}
         />
         <div className="flex flex-wrap gap-2">
+          <ExportButton
+            filename={`foyda-zarar-${today}`}
+            sheets={() => [
+              {
+                name: "P&L oyma-oy",
+                columns: ["Ko'rsatkich", ...r.months, "Jami"],
+                rows: [
+                  ...r.lines.filter((l) => l.section === "revenue").map((l) => [l.label, ...r.months.map((m) => l.values[m] ?? 0), l.total]),
+                  ["DAROMAD", ...r.months.map((m) => r.totals.revenue[m] ?? 0), r.sum.revenue],
+                  ...r.lines.filter((l) => l.section === "direct").map((l) => [l.label, ...r.months.map((m) => -(l.values[m] ?? 0)), -l.total]),
+                  ["YALPI FOYDA", ...r.months.map((m) => r.totals.gross[m] ?? 0), r.sum.gross],
+                  ...r.lines.filter((l) => l.section === "overhead").map((l) => [l.label, ...r.months.map((m) => -(l.values[m] ?? 0)), -l.total]),
+                  ["OPERATSION FOYDA", ...r.months.map((m) => r.totals.operating[m] ?? 0), r.sum.operating],
+                  ...r.lines.filter((l) => l.section === "tax").map((l) => [l.label, ...r.months.map((m) => -(l.values[m] ?? 0)), -l.total]),
+                  ["SOF FOYDA", ...r.months.map((m) => r.totals.net[m] ?? 0), r.sum.net],
+                ],
+              },
+              {
+                name: "Loyihalar rentabelligi",
+                columns: ["Loyiha", "Daromad", "Tannarx", "Marja", "Marja %", "Doimiy xarajat ulushi", "Sof foyda"],
+                rows: profit.map((x) => [x.project.name, x.revenue, x.direct, x.margin, Number(x.marginPct.toFixed(1)), x.overheadShare, x.net]),
+              },
+            ]}
+          />
           {view === "months" && (
             <Select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="!w-48 !py-1.5 !text-[13px]" options={[{ value: "", label: "Butun agentlik" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]} />
           )}

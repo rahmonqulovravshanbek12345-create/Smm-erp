@@ -10,6 +10,7 @@ import { useErp, useLookup } from "../../lib/store";
 import type { Invoice } from "../../lib/types";
 import { FinNav, Money, TableWrap, td, tdr, th, thr } from "./common";
 import { ExtraInvoiceModal, InvoicePayModal } from "./modals";
+import { ExportButton } from "../../components/ExportButton";
 
 export function Invoices({ projectId }: { projectId?: string }) {
   const { state, me, run, today } = useErp();
@@ -82,7 +83,9 @@ export function Invoices({ projectId }: { projectId?: string }) {
               return (
                 <tr key={inv.id} className={st === "overdue" ? "bg-red/[0.05]" : "hover:bg-fill"}>
                   <td className={`${td} font-semibold text-label`}>
-                    {inv.number}
+                    <A href={`/hujjat/faktura/${inv.id}`} className="text-accent hover:underline">
+                      {inv.number}
+                    </A>
                     <div className="text-[12px] font-normal text-label3">{fmtDate(inv.issueDate)}</div>
                   </td>
                   {!projectId && (
@@ -160,11 +163,26 @@ export function Invoices({ projectId }: { projectId?: string }) {
         title="Hisob-fakturalar"
         sub="Mijozlarga chiqarilgan hujjatlar va ular bo'yicha to'lovlar"
         actions={
-          editable && (
-            <Button variant="primary" onClick={() => setExtra(true)}>
-              + Qo'shimcha xizmat fakturasi
-            </Button>
-          )
+          <>
+            <ExportButton
+              filename={`fakturalar-${today}`}
+              sheets={() => [
+                {
+                  name: "Fakturalar",
+                  columns: ["Raqam", "Sana", "Mijoz", "Turi", "Davr", "Muddat", "Summa", "To'langan", "Qoldiq", "Holat"],
+                  rows: all.map(({ inv, st, paid }) => {
+                    const per = invoicePeriod(state, inv);
+                    return [inv.number, inv.issueDate, look.projectName(inv.projectId), PAYMENT_KIND_LABELS[inv.kind], per ? `${per.start} – ${per.end}` : "", inv.dueDate, inv.amount, paid, inv.amount - paid, PAYMENT_STATUS[st].label];
+                  }),
+                },
+              ]}
+            />
+            {editable && (
+              <Button variant="primary" onClick={() => setExtra(true)}>
+                + Qo'shimcha xizmat fakturasi
+              </Button>
+            )}
+          </>
         }
       />
       <FinNav />

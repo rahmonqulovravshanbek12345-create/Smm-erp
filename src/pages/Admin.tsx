@@ -179,6 +179,32 @@ export function Admin() {
                 }
               />
             </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(
+                [
+                  ["address", "Yuridik manzil"],
+                  ["inn", "STIR (INN)"],
+                  ["bankName", "Bank"],
+                  ["bankAccount", "Hisob raqam"],
+                  ["mfo", "MFO"],
+                  ["director", "Direktor"],
+                  ["phone", "Telefon"],
+                ] as const
+              ).map(([k, label]) => (
+                <Field key={k} label={label} className={k === "address" ? "sm:col-span-2" : ""}>
+                  <Input
+                    defaultValue={state.settings.requisites[k]}
+                    onBlur={(e) =>
+                      e.target.value !== state.settings.requisites[k] &&
+                      run((c) => {
+                        c.s.settings.requisites[k] = e.target.value.trim();
+                      }, "Rekvizit saqlandi")
+                    }
+                  />
+                </Field>
+              ))}
+            </div>
+            <p className="text-[12px] text-label3">Rekvizitlar shartnoma, hisob-faktura, dalolatnoma va akt-sverkaga avtomatik tushadi.</p>
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="USD kursi (so'm)" hint="Yangi tranzaksiyalar uchun taklif">
                 <Input

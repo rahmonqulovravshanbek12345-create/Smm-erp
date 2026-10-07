@@ -8,6 +8,7 @@ import { canEditFinance } from "../../lib/permissions";
 import { useErp, useLookup } from "../../lib/store";
 import { FinNav, MonthSelect, TableWrap, td, tdr, th, thr } from "./common";
 import { TransferModal, TxModal } from "./modals";
+import { ExportButton } from "../../components/ExportButton";
 
 export function Transactions() {
   const { state, me, run, today } = useErp();
@@ -44,7 +45,23 @@ export function Transactions() {
         title="Kirim-chiqim"
         sub="Barcha hisoblar bo'yicha pul harakati jurnali"
         actions={
-          editable && (
+          <>
+            <ExportButton
+              filename={`kirim-chiqim-${month}`}
+              sheets={() => [
+                {
+                  name: "Kirim-chiqim",
+                  columns: ["Sana", "Modda", "Guruh", "Kontragent", "Izoh", "Hisob", "Valyuta", "Summa", "Summa (so'm)"],
+                  rows: rows.map((t) => {
+                    const art = articleOf(state, t.articleId);
+                    const acc = accountOf(state, t.accountId);
+                    const sign = t.dir === "in" ? 1 : -1;
+                    return [t.date, art?.name, art ? GROUP_LABELS[art.group] : "", counterparty(t) ?? "", t.note, acc?.name, acc?.currency, sign * t.amount, sign * txUZS(state, t)];
+                  }),
+                },
+              ]}
+            />
+            {editable && (
             <>
               <Button onClick={() => setModal("transfer")}>
                 <Icon name="history" size={16} /> O'tkazma
@@ -56,7 +73,8 @@ export function Transactions() {
                 + Kirim
               </Button>
             </>
-          )
+            )}
+          </>
         }
       />
       <FinNav />

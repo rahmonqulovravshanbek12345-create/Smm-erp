@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
+import { ExportButton } from "../components/ExportButton";
 import { ProjectFormModal } from "../components/ProjectForm";
 import { A, Badge, Banner, Button, Field, Input, Modal, PageHeader, Select, Textarea, navigate, userOptions } from "../components/ui";
 import * as act from "../lib/actions";
-import { fmtDate, fmtDateShort, fmtDateTime, relDays } from "../lib/dates";
+import { diffDays, fmtDate, fmtDateShort, fmtDateTime, relDays } from "../lib/dates";
 import { LEAD_SOURCES, LEAD_STAGES, SERVICES, leadStageMeta } from "../lib/labels";
 import { canEdit } from "../lib/permissions";
 import { useErp, useLookup } from "../lib/store";
@@ -43,11 +44,26 @@ export function Crm() {
         title="CRM — lidlar varonkasi"
         sub="Lid → qo'ng'iroq → uchrashuv → shartnoma. Kartani ustunlar orasida sudrab o'tkazing."
         actions={
-          editable && (
-            <Button variant="primary" onClick={() => setOpenLead("new")}>
-              + Yangi lid
-            </Button>
-          )
+          <>
+            <A href="/crm/analitika" className="inline-flex h-10 items-center rounded-full bg-accent/12 px-4 text-[15px] font-semibold text-accent">
+              Analitika
+            </A>
+            <ExportButton
+              filename={`lidlar-${today}`}
+              sheets={() => [
+                {
+                  name: "Lidlar",
+                  columns: ["Sana", "Nomi", "Telefon", "Manba", "Xizmat", "Operator", "Bosqich", "Keyingi aloqa", "Rad sababi", "Izoh"],
+                  rows: leads.map((l) => [l.createdAt.slice(0, 10), l.name, l.phone, l.source, l.service, look.userName(l.operatorId), leadStageMeta(l.stage).label, l.nextContactDate ?? "", l.rejectReason ?? "", l.note]),
+                },
+              ]}
+            />
+            {editable && (
+              <Button variant="primary" onClick={() => setOpenLead("new")}>
+                + Yangi lid
+              </Button>
+            )}
+          </>
         }
       />
       <div className="mb-4 flex flex-wrap gap-2">
@@ -62,7 +78,10 @@ export function Crm() {
 
       <div className="scrollbar-thin -mx-4 flex gap-3 overflow-x-auto px-4 pb-4 sm:mx-0 sm:px-0">
         {LEAD_STAGES.map((st) => {
-          const col = leads.filter((l) => l.stage === st.id);
+          const all = leads.filter((l) => l.stage === st.id);
+          // Rad etilgan bosqichlarda faqat so'nggi 30 kun — eskilari Sotuv analitikasi va Excel'da
+          const rejected = st.id === "unfit" || st.id === "lowquality";
+          const col = rejected ? all.filter((l) => diffDays(today, l.createdAt.slice(0, 10)) <= 30) : all;
           return (
             <div
               key={st.id}
@@ -82,7 +101,9 @@ export function Crm() {
             >
               <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
                 <Badge tone={st.tone}>{st.label}</Badge>
-                <span className="text-xs text-label2">{col.length}</span>
+                <span className="text-xs text-label2" title={col.length !== all.length ? "Ko'rsatilgan / jami" : undefined}>
+                  {col.length !== all.length ? `${col.length} / ${all.length}` : col.length}
+                </span>
               </div>
               <div className="flex min-h-[120px] flex-col gap-2 p-2">
                 {col.map((l) => (

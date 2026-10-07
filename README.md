@@ -18,7 +18,11 @@ brauzerda (localStorage) saqlanadi va namunaviy ma'lumotlar bilan to'ldirilgan.
 | **Xodim kabineti** | «Mening kunim» — bugungi ishlar; «Mening hisobim» — nima uchun qancha hisoblandi, to'landi, qoldi |
 | **Jarayon** | «Qanday ishlaydi» sxemasi, loyiha yo'li (8 bosqich + keyingi qadam), post yo'li |
 | **Bildirishnomalar** | Tizim ichida + Telegram bot (Admin'da token va chat ID kiritilsa, haqiqiy xabar ketadi) |
-| **Admin** | Xodimlar, rollar, huquqlar matritsasi, montaj narxi, demo'ni qayta tiklash |
+| **Mijoz hisoboti** | Har davr uchun avtomatik oylik hisobot: postlar (o'z vaqtida/kechikkan, format va platforma kesimida), reklama sarfi, lidlar, lid narxi, qamrov, obunachilar — o'tgan davrga nisbatan o'zgarish, kunlik grafik, keyingi davr rejasi. PDF/chop etish va havola |
+| **Sotuv analitikasi** | Voronka (bosqichma-bosqich konversiya), manbalar va operatorlar kesimida, rad sabablari, sifatsiz lidlar, o'rtacha sotuv sikli, CAC, ARPA, LTV va LTV:CAC |
+| **Hujjatlar** | Ma'lumotlardan avtomatik to'ldiriladigan shartnoma, hisob-faktura va bajarilgan ishlar dalolatnomasi (summa so'z bilan), chop etish/PDF; rekvizitlar Admin → Sozlamalar'da |
+| **Excel eksport** | CRM, sotuv analitikasi, foyda-zarar, Cash Flow, debitor-kreditor, akt-sverka, fakturalar, kirim-chiqim, ish haqi vedomosti — `.xlsx` formatida |
+| **Admin** | Xodimlar, rollar, huquqlar matritsasi, kompaniya rekvizitlari, USD kursi, ish haqi kuni, demo'ni qayta tiklash |
 
 Dizayn — Apple «Liquid Glass» uslubida: shisha panellar, yorug'/qorong'i rejim (tizimga ergashadi),
 telefonda pastki tab bar va sheet oynalar.
@@ -31,7 +35,8 @@ telefonda pastki tab bar va sheet oynalar.
 - Aylanma soliq avtomatik hisoblanmaydi — to'langanda chiqim sifatida kiritiladi.
 - Valyuta: so'm va USD (tranzaksiya kunidagi kurs).
 
-Kod: hisob-kitob yadrosi — `src/lib/finance.ts`, namunaviy 6 oylik tarix — `src/lib/seed-finance.ts`.
+Kod: hisob-kitob yadrosi — `src/lib/finance.ts`, namunaviy 6 oylik tarix — `src/lib/seed-finance.ts` va `src/lib/seed-history.ts`,
+mijoz hisoboti — `src/lib/report.ts`, sotuv analitikasi — `src/lib/sales.ts`, Excel yozuvchi — `src/lib/xlsx.ts`.
 
 Chap pastdagi akkaunt menyusidagi **«Demo: kim sifatida kirish»** orqali rolni almashtirib, har bir xodim nimani
 ko'rishini ko'rsatish mumkin.

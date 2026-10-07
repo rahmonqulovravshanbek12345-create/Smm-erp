@@ -6,6 +6,7 @@ import { reconClient, reconEmployee } from "../../lib/finance";
 import { ROLE_LABELS } from "../../lib/labels";
 import { useErp } from "../../lib/store";
 import { FinNav, Money } from "./common";
+import { ExportButton } from "../../components/ExportButton";
 
 type Kind = "client" | "employee";
 
@@ -53,9 +54,27 @@ export function Recon() {
           title="Akt-sverka"
           sub="Solishtirma dalolatnoma: mijoz yoki xodim bilan hisob-kitob"
           actions={
+            <>
+            <ExportButton
+              filename={`akt-sverka-${party}-${to}`}
+              sheets={() => [
+                {
+                  name: "Akt-sverka",
+                  title: [`Akt-sverka: ${company} — ${party}`, `${from} – ${to}`],
+                  columns: ["№", "Sana", "Hujjat / operatsiya", debitLabel, creditLabel],
+                  rows: [
+                    ["", "", "Davr boshidagi saldo", kind === "client" ? r.opening : -r.opening, null],
+                    ...r.rows.map((x, i) => [i + 1, x.date, x.doc, x.debit || null, x.credit || null]),
+                    ["", "", "Davr aylanmasi", r.debit, r.credit],
+                    ["", "", "Davr oxiridagi saldo", kind === "client" ? r.closing : -r.closing, null],
+                  ],
+                },
+              ]}
+            />
             <Button variant="primary" onClick={() => window.print()}>
               <Icon name="upload" size={16} /> Chop etish / PDF
             </Button>
+            </>
           }
         />
         <FinNav />

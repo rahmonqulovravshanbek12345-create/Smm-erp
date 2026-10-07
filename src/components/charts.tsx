@@ -100,6 +100,8 @@ export function ColumnsChart({ labels, bars, line, height = 240 }: { labels: str
   const groupW = barW * bars.length + 2 * (bars.length - 1);
   const cx = (i: number) => pad.l + band * i + band / 2;
   const zero = y(0);
+  // Ko'p ustunda yorliqlar bir-biriga tegmasligi uchun har k-chisini ko'rsatamiz
+  const labelStep = Math.max(1, Math.ceil(labels.length / Math.max(4, Math.floor(iw / 56))));
 
   const roundTop = (x: number, top: number, w: number, bottom: number) => {
     const h = bottom - top;
@@ -134,9 +136,11 @@ export function ColumnsChart({ labels, bars, line, height = 240 }: { labels: str
               const d = v >= 0 ? roundTop(x, y(v), barW, zero) : roundBottom(x, zero, barW, y(v));
               return <path key={s.label} d={d} fill={s.color} />;
             })}
-            <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize={11} fill="var(--label2)">
-              {lab}
-            </text>
+            {i % labelStep === 0 && (
+              <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize={11} fill="var(--label2)">
+                {lab}
+              </text>
+            )}
             <rect x={pad.l + band * i} y={pad.t} width={band} height={ih} fill="transparent" onMouseEnter={() => setHover(i)} onTouchStart={() => setHover(i)} />
           </g>
         ))}

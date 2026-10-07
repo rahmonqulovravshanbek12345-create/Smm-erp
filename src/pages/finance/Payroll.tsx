@@ -10,6 +10,7 @@ import { useErp, useLookup } from "../../lib/store";
 import type { Accrual, PayProfile, WorkType } from "../../lib/types";
 import { FinNav, Money, MonthSelect, Note, TableWrap, td, tdr, th, thr } from "./common";
 import { ManualAccrualModal, PayEmployeeModal } from "./modals";
+import { ExportButton } from "../../components/ExportButton";
 
 type Tab = "balances" | "accruals" | "sheet" | "rates";
 
@@ -278,7 +279,35 @@ function Sheet() {
   const k = (r: (typeof rows)[number], kinds: string[]) => kinds.reduce((a, x) => a + (r.byKind[x as Accrual["kind"]] ?? 0), 0);
   return (
     <Card className="print-area">
-      <CardHeader title={`Ish haqi vedomosti — ${fmtMonth(month)}`} sub={state.settings.companyName} right={<div className="no-print flex gap-2"><MonthSelect value={month} onChange={setMonth} /><Button size="sm" onClick={() => window.print()}>Chop etish</Button></div>} />
+      <CardHeader
+        title={`Ish haqi vedomosti — ${fmtMonth(month)}`}
+        sub={state.settings.companyName}
+        right={
+          <div className="no-print flex flex-wrap gap-2">
+            <MonthSelect value={month} onChange={setMonth} />
+            <ExportButton
+              filename={`vedomost-${month}`}
+              sheets={() => [
+                {
+                  name: `Vedomost ${month}`,
+                  columns: ["Xodim", "Lavozim", "Oy boshi qoldig'i", "Ishbay", "Loyiha oyligi", "Fiks", "Bonus / jarima", "Jami hisoblandi", "To'landi", "Oy oxiri qoldig'i"],
+                  rows: rows.map((r) => [r.user.name, ROLE_LABELS[r.user.role], r.opening, k(r, ["piece"]), k(r, ["project"]), k(r, ["fixed"]), k(r, ["bonus", "manual", "penalty"]), r.accrued, r.paid, r.closing]),
+                },
+                {
+                  name: "Hisoblashlar",
+                  columns: ["Sana", "Xodim", "Ish / izoh", "Loyiha", "Turi", "Summa", "Tasdiqlangan"],
+                  rows: state.accruals
+                    .filter((a) => a.date.startsWith(month))
+                    .map((a) => [a.date, state.users.find((u) => u.id === a.userId)?.name, a.title, state.projects.find((p) => p.id === a.projectId)?.name ?? "", ACCRUAL_KIND_LABELS[a.kind], a.amount, a.approved ? "ha" : "yo'q"]),
+                },
+              ]}
+            />
+            <Button size="sm" onClick={() => window.print()}>
+              Chop etish
+            </Button>
+          </div>
+        }
+      />
       <TableWrap min={1000}>
         <thead>
           <tr className="border-y border-sep">

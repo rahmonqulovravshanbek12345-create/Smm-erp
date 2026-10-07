@@ -2,6 +2,7 @@
 // hisoblanadi, shuning uchun demo istalgan kuni ochilganda ham "jonli" ko'rinadi.
 import { addDays, addMonths, diffDays, monthKey } from "./dates";
 import { addFinanceHistory } from "./seed-finance";
+import { addOperationsHistory } from "./seed-history";
 import type {
   DocBlock,
   DocState,
@@ -19,7 +20,7 @@ import type {
   User,
 } from "./types";
 
-export const SEED_VERSION = 5;
+export const SEED_VERSION = 6;
 
 export function buildSeed(today: string): ErpState {
   const d = (n: number) => addDays(today, n);
@@ -87,6 +88,9 @@ export function buildSeed(today: string): ErpState {
       id: P1,
       name: "Sharq Mebel",
       leadId: "l_mebel",
+      legalName: "«Sharq Mebel Group» MChJ",
+      inn: "305 112 908",
+      address: "Toshkent sh., Chilonzor t., 9-mavze, 12-uy",
       contactName: "Akmal Rahimov",
       phone: "+998 90 555 12 12",
       industry: "Mebel ishlab chiqarish",
@@ -111,6 +115,9 @@ export function buildSeed(today: string): ErpState {
       id: P2,
       name: "FitLife Gym",
       leadId: "l_gym",
+      legalName: "«FitLife Sport» MChJ",
+      inn: "307 554 120",
+      address: "Toshkent sh., Yunusobod t., 19-mavze, 4-uy",
       contactName: "Nodir Islomov",
       phone: "+998 91 777 45 45",
       industry: "Fitnes",
@@ -135,6 +142,9 @@ export function buildSeed(today: string): ErpState {
       id: P3,
       name: "Dent Plus klinikasi",
       leadId: "l_dent",
+      legalName: "«Dent Plus Medical» MChJ",
+      inn: "310 221 774",
+      address: "Toshkent sh., Mirzo Ulug'bek t., Buyuk Ipak Yo'li ko'ch., 45",
       contactName: "Dr. Feruza Valiyeva",
       phone: "+998 99 404 40 40",
       industry: "Stomatologiya",
@@ -158,6 +168,9 @@ export function buildSeed(today: string): ErpState {
       id: P4,
       name: "Baraka Market",
       leadId: "l_baraka",
+      legalName: "«Baraka Savdo» MChJ",
+      inn: "302 998 431",
+      address: "Toshkent sh., Sergeli t., Yangi Sergeli ko'ch., 7",
       contactName: "Ulug'bek Sobirov",
       phone: "+998 95 300 70 70",
       industry: "Supermarketlar tarmog'i",
@@ -188,6 +201,9 @@ export function buildSeed(today: string): ErpState {
       id: P5,
       name: "Moda House",
       leadId: "l_moda",
+      legalName: "YaTT Usmonova Kamola",
+      inn: "—",
+      address: "Toshkent sh., Shayxontohur t., Navoiy ko'ch., 30",
       contactName: "Kamola Usmonova",
       phone: "+998 97 121 21 21",
       industry: "Kiyim do'koni",
@@ -214,6 +230,9 @@ export function buildSeed(today: string): ErpState {
       id: P6,
       name: "Burger House",
       leadId: "l_burger",
+      legalName: "«Burger House Food» MChJ",
+      inn: "308 445 216",
+      address: "Toshkent sh., Chilonzor t., Bunyodkor shoh ko'ch., 21",
       contactName: "Davron Qosimov",
       phone: "+998 93 555 66 77",
       industry: "Fast-food",
@@ -509,34 +528,12 @@ export function buildSeed(today: string): ErpState {
     createdBy: "u_smm2",
   });
 
-  // ---------- Target hisobotlari (P1 da kechagi hisobot ataylab yo'q — belgi ko'rinadi) ----------
+  // Target kunlik hisobotlari, o'tgan davrlar postlari va oylik hisobotlar — seed-history.ts da.
   const targetReports: TargetReport[] = [];
-  for (let i = 14; i >= 1; i--) {
-    for (const [pid, base] of [
-      [P1, 150_000],
-      [P2, 120_000],
-      [P4, 260_000],
-      [P6, 130_000],
-    ] as const) {
-      if (pid === P1 && i === 1) continue;
-      const k = 0.85 + ((i * 7 + base / 10_000) % 30) / 100;
-      targetReports.push({
-        id: id("tr"),
-        projectId: pid,
-        date: d(-i),
-        spend: Math.round((base * k) / 1000) * 1000,
-        views: Math.round(9_000 * k + i * 130),
-        clicks: Math.round(210 * k + i * 3),
-        leads: Math.round(5 * k + (i % 3)),
-        note: i === 7 ? "Kreativ almashtirildi, CTR oshdi" : "",
-        authorId: "u_tg",
-        source: i % 4 === 0 ? "meta" : "manual",
-      });
-    }
-  }
 
   // ---------- CRM ----------
   const lead = (l: Partial<Lead> & Pick<Lead, "id" | "name" | "phone" | "stage">): Lead => ({
+    maxStep: { new: 0, waiting: 1, meeting: 2, visited: 3, contract: 4, unfit: 2, lowquality: 0 }[l.stage],
     source: "Instagram",
     service: "SMM to'liq paket",
     note: "",
@@ -580,8 +577,8 @@ export function buildSeed(today: string): ErpState {
     lead({ id: "l_baraka", name: "Baraka Market", phone: "+998 95 300 70 70", stage: "contract", projectId: P4, operatorId: "u_op2", source: "Tavsiya", createdAt: `${addDays(p4Start, -20)}T09:00:00.000Z` }),
     lead({ id: "l_moda", name: "Moda House", phone: "+998 97 121 21 21", stage: "contract", projectId: P5, source: "Instagram", createdAt: `${addDays(p5Start, -18)}T09:00:00.000Z` }),
     lead({ id: "l_burger", name: "Burger House", phone: "+998 93 555 66 77", stage: "contract", projectId: P6, operatorId: "u_op2", source: "Meta Ads", createdAt: `${addDays(p6Start, -15)}T09:00:00.000Z` }),
-    lead({ id: "l_6", name: "Shirin Tort", phone: "+998 94 100 20 30", stage: "unfit", rejectReason: "Byudjet to'g'ri kelmadi (1 mln so'mgacha)", createdAt: at(-12) }),
-    lead({ id: "l_7", name: "Noma'lum", phone: "+998 00 000 00 00", stage: "lowquality", operatorId: "u_op2", rejectReason: "Raqam noto'g'ri, javob bermadi", createdAt: at(-4) }),
+    lead({ id: "l_6", name: "Shirin Tort", phone: "+998 94 100 20 30", stage: "unfit", rejectReason: "Byudjet to'g'ri kelmadi", createdAt: at(-12) }),
+    lead({ id: "l_7", name: "Noma'lum", phone: "+998 00 000 00 00", stage: "lowquality", operatorId: "u_op2", rejectReason: "Raqam noto'g'ri", createdAt: at(-4) }),
   ];
 
   const state: ErpState = {
@@ -594,20 +591,7 @@ export function buildSeed(today: string): ErpState {
     shoots,
     tasks,
     targetReports,
-    reports: [
-      {
-        id: "rep_1",
-        projectId: P2,
-        periodIndex: 0,
-        fileLink: "https://drive.google.com/file/d/fitlife-1-oy-hisobot",
-        reach: 184_000,
-        followers: 640,
-        leads: 92,
-        summary: "Reja: 12 post, joylandi: 12. Eng yaxshi natija — transformatsiya videolari (ER 6,1%).",
-        authorId: "u_smm2",
-        submittedAt: at(-5),
-      },
-    ],
+    reports: [],
     notifications: [
       { id: "n_1", userId: "u_mk", text: "Yangi uchrashuv belgilandi: Grand Tour turagentligi, ertaga 15:00", href: "/crm", at: at(-1), read: false, telegram: "demo" },
       { id: "n_2", userId: "u_mk", text: "Tasdiqlash so'rovi: Showroom bo'ylab tur (Sharq Mebel)", href: "/tasdiqlash", at: at(0, 7), read: false, telegram: "demo" },
@@ -632,6 +616,15 @@ export function buildSeed(today: string): ErpState {
     budget: [],
     settings: {
       companyName: "SMM Studio MChJ",
+      requisites: {
+        address: "Toshkent sh., Yunusobod t., Amir Temur ko'ch., 108-uy, «Poytaxt» biznes markazi, 4-qavat",
+        inn: "309 876 543",
+        bankName: "ATB «Kapitalbank» Yunusobod filiali",
+        bankAccount: "2020 8000 7051 2345 6001",
+        mfo: "01018",
+        director: "Sherzod Alimov",
+        phone: "+998 71 200 11 22",
+      },
       usdRate: 12_650,
       payday: 10,
       latePenaltyPct: 0,
@@ -640,6 +633,7 @@ export function buildSeed(today: string): ErpState {
     },
   };
 
+  addOperationsHistory(state, today);
   addFinanceHistory(state, today);
   return state;
 }
