@@ -83,12 +83,12 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
 
   return (
     <Card>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sep px-4 py-3">
         <div className="flex items-center gap-2">
           <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonthKey(month, -1))} aria-label="Oldingi oy">
             ‹
           </Button>
-          <span className="min-w-[130px] text-center text-sm font-semibold text-white">{fmtMonth(month)}</span>
+          <span className="min-w-[130px] text-center text-sm font-semibold text-label">{fmtMonth(month)}</span>
           <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonthKey(month, 1))} aria-label="Keyingi oy">
             ›
           </Button>
@@ -102,13 +102,13 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
           <Badge tone={projectId && (inMonth.length < 12 || inMonth.length > 15) ? "amber" : "gray"}>{inMonth.length} ta post</Badge>
           <Badge tone="green">{published} joylandi</Badge>
           {late > 0 && <Badge tone="red">{late} kechikdi</Badge>}
-          <div className="ml-1 flex rounded-lg border border-white/10 p-0.5">
+          <div className="ml-1 flex rounded-[10px] bg-fill p-[3px]">
             {(["calendar", "list"] as const).map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                className={`rounded-md px-2.5 py-1 ${view === v ? "bg-white/10 text-white" : "text-mist-400"}`}
+                className={`rounded-[8px] px-3 py-1 text-[13px] font-semibold transition ${view === v ? "bg-elevated text-label shadow-sm" : "text-label2"}`}
               >
                 {v === "calendar" ? "Kalendar" : "Ro'yxat"}
               </button>
@@ -126,7 +126,7 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
         <div className="overflow-x-auto">
           <div className="grid min-w-[760px] grid-cols-7">
             {WEEKDAYS.map((w) => (
-              <div key={w} className="border-b border-white/[0.06] px-2 py-1.5 text-center text-[11px] font-medium text-mist-400">
+              <div key={w} className="border-b border-sep px-2 py-1.5 text-center text-[11px] font-medium text-label2">
                 {w}
               </div>
             ))}
@@ -137,9 +137,11 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
                 <div
                   key={d}
                   onDoubleClick={() => editable && setOpen({ date: d })}
-                  className={`min-h-[104px] border-b border-r border-white/[0.04] p-1.5 ${inCur ? "" : "opacity-35"} ${d === today ? "bg-signal-500/[0.06]" : ""}`}
+                  className={`min-h-[104px] border-b border-r border-sep p-1.5 ${inCur ? "" : "opacity-35"} `}
                 >
-                  <div className={`mb-1 text-[11px] ${d === today ? "font-semibold text-signal-300" : "text-mist-400"}`}>{parseDate(d).getDate()}</div>
+                  <div className="mb-1 flex">
+                    <span className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold ${d === today ? "bg-red text-white" : "text-label2"}`}>{parseDate(d).getDate()}</span>
+                  </div>
                   <div className="space-y-1">
                     {items.map((p) => (
                       <PostChip key={p.id} post={p} today={today} onClick={() => setOpen({ id: p.id })} showProject={!projectId} projectName={look.projectName(p.projectId)} />
@@ -149,14 +151,14 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
               );
             })}
           </div>
-          {editable && <p className="px-4 py-2 text-[11px] text-mist-400">Kunni ikki marta bossangiz — shu sanaga yangi post qo'shiladi.</p>}
+          {editable && <p className="px-4 py-2 text-[11px] text-label2">Kunni ikki marta bossangiz — shu sanaga yangi post qo'shiladi.</p>}
         </div>
       ) : inMonth.length === 0 ? (
         <Empty>Bu oyda post yo'q</Empty>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
-            <thead className="text-left text-xs text-mist-400">
+            <thead className="text-left text-xs text-label2">
               <tr>
                 <th className="px-4 py-2 font-medium">Sana</th>
                 {!projectId && <th className="px-4 py-2 font-medium">Loyiha</th>}
@@ -167,17 +169,17 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
                 <th className="px-4 py-2 font-medium">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/[0.05]">
+            <tbody className="divide-y divide-sep">
               {inMonth.map((p) => (
-                <tr key={p.id} className="cursor-pointer hover:bg-white/[0.02]" onClick={() => setOpen({ id: p.id })}>
-                  <td className="whitespace-nowrap px-4 py-2 text-mist-200">{fmtDate(p.date)}</td>
-                  {!projectId && <td className="px-4 py-2 text-mist-300">{look.projectName(p.projectId)}</td>}
-                  <td className="px-4 py-2 text-mist-300">{PLATFORM_LABELS[p.platform]}</td>
-                  <td className="px-4 py-2 text-mist-300">{FORMAT_LABELS[p.format]}</td>
-                  <td className="px-4 py-2 text-white">
+                <tr key={p.id} className="cursor-pointer hover:bg-fill" onClick={() => setOpen({ id: p.id })}>
+                  <td className="whitespace-nowrap px-4 py-2 text-label/80">{fmtDate(p.date)}</td>
+                  {!projectId && <td className="px-4 py-2 text-label2">{look.projectName(p.projectId)}</td>}
+                  <td className="px-4 py-2 text-label2">{PLATFORM_LABELS[p.platform]}</td>
+                  <td className="px-4 py-2 text-label2">{FORMAT_LABELS[p.format]}</td>
+                  <td className="px-4 py-2 text-label">
                     {p.topic} {p.forTarget && <Badge tone="blue">target</Badge>}
                   </td>
-                  <td className="px-4 py-2 text-mist-300">{look.userName(p.assigneeId)}</td>
+                  <td className="px-4 py-2 text-label2">{look.userName(p.assigneeId)}</td>
                   <td className="px-4 py-2">
                     <PostBadge post={p} today={today} />
                   </td>
@@ -197,20 +199,20 @@ function PostChip({ post, today, onClick, showProject, projectName }: { post: Po
   const late = isPostLate(post, today);
   const meta = postStatusMeta(post.status);
   const dot =
-    late ? "bg-red-400" : meta.tone === "green" ? "bg-signal-400" : meta.tone === "violet" ? "bg-violet-400" : meta.tone === "amber" ? "bg-amber-400" : meta.tone === "blue" ? "bg-sky-400" : "bg-mist-400";
+    late ? "bg-red" : meta.tone === "green" ? "bg-green" : meta.tone === "violet" ? "bg-purple" : meta.tone === "amber" ? "bg-orange" : meta.tone === "blue" ? "bg-accent" : "bg-gray";
   return (
     <button
       type="button"
       onClick={onClick}
       title={`${post.topic} — ${late ? "Kechikdi" : meta.label}`}
-      className={`block w-full truncate rounded-md border px-1.5 py-1 text-left text-[11px] leading-tight transition hover:border-white/25 ${
-        late ? "border-red-500/40 bg-red-500/10" : "border-white/[0.06] bg-ink-800/80"
+      className={`block w-full truncate rounded-[9px] px-2 py-1 text-left text-[11px] leading-tight transition hover:brightness-95 ${
+        late ? "bg-red/12" : "bg-fill"
       }`}
     >
       <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${dot}`} />
-      <span className="text-mist-400">{post.platform === "instagram" ? "IG" : "TG"} · </span>
-      <span className="text-mist-100">{post.topic}</span>
-      {showProject && <span className="block truncate text-[10px] text-mist-400">{projectName}</span>}
+      <span className="text-label2">{post.platform === "instagram" ? "IG" : "TG"} · </span>
+      <span className="text-label">{post.topic}</span>
+      {showProject && <span className="block truncate text-[10px] text-label2">{projectName}</span>}
     </button>
   );
 }

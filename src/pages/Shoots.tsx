@@ -42,11 +42,11 @@ export function Shoots() {
           const posts = state.posts.filter((p) => s.postIds.includes(p.id));
           const overdue = s.status === "planned" && s.date < today;
           return (
-            <Card key={s.id} className={`p-4 ${overdue ? "border-red-500/30" : ""}`}>
+            <Card key={s.id} className={`p-4 ${overdue ? "border-red/40" : ""}`}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <div className="font-medium text-white">{look.projectName(s.projectId)}</div>
-                  <div className="mt-0.5 text-sm text-mist-300">
+                  <div className="font-medium text-label">{look.projectName(s.projectId)}</div>
+                  <div className="mt-0.5 text-sm text-label2">
                     {fmtDate(s.date)}, {s.time} · {s.location}
                   </div>
                 </div>
@@ -60,29 +60,29 @@ export function Shoots() {
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <div className="text-xs text-mist-400">Olinadigan video</div>
-                  <div className="text-white">{s.videoCount} ta</div>
+                  <div className="text-xs text-label2">Olinadigan video</div>
+                  <div className="text-label">{s.videoCount} ta</div>
                 </div>
                 <div>
-                  <div className="text-xs text-mist-400">Operator</div>
-                  <div className="text-white">{look.userName(s.operatorId)}</div>
+                  <div className="text-xs text-label2">Operator</div>
+                  <div className="text-label">{look.userName(s.operatorId)}</div>
                 </div>
               </div>
-              {s.note && <p className="mt-2 text-xs text-amber-200/90">Izoh: {s.note}</p>}
+              {s.note && <p className="mt-2 text-xs text-orange">Izoh: {s.note}</p>}
               <div className="mt-3">
-                <div className="text-xs text-mist-400">Bog'langan postlar</div>
-                <ul className="mt-1 space-y-0.5 text-sm text-mist-200">
+                <div className="text-xs text-label2">Bog'langan postlar</div>
+                <ul className="mt-1 space-y-0.5 text-sm text-label/80">
                   {posts.map((p) => (
                     <li key={p.id}>
                       · {fmtDate(p.date)} — {p.topic}
                     </li>
                   ))}
-                  {posts.length === 0 && <li className="text-mist-400">—</li>}
+                  {posts.length === 0 && <li className="text-label2">—</li>}
                 </ul>
               </div>
               {s.status === "handed" ? (
                 <div className="mt-3 text-sm">
-                  Kadrlar: <LinkOut href={s.footageLink} /> <span className="text-xs text-mist-400">· {s.handedAt && fmtDateTime(s.handedAt)}</span>
+                  Kadrlar: <LinkOut href={s.footageLink} /> <span className="text-xs text-label2">· {s.handedAt && fmtDateTime(s.handedAt)}</span>
                 </div>
               ) : (
                 (s.operatorId === me.id || me.role === "admin") && (

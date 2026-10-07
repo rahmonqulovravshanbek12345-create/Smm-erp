@@ -28,8 +28,8 @@ export function Approvals() {
               <Card key={p.id} className="p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <div className="font-medium text-white">{p.topic}</div>
-                    <div className="mt-0.5 text-xs text-mist-400">
+                    <div className="font-medium text-label">{p.topic}</div>
+                    <div className="mt-0.5 text-xs text-label2">
                       {look.projectName(p.projectId)} · {PLATFORM_LABELS[p.platform]} · {FORMAT_LABELS[p.format]} · SMM: {look.userName(p.assigneeId)}
                     </div>
                   </div>
@@ -37,12 +37,12 @@ export function Approvals() {
                     {fmtDate(p.date)} · {soon}
                   </Badge>
                 </div>
-                {p.script && <p className="mt-3 whitespace-pre-line rounded-lg bg-ink-950/50 p-2.5 text-xs text-mist-300">{p.script}</p>}
+                {p.script && <p className="mt-3 whitespace-pre-line rounded-[14px] bg-fill p-2.5 text-xs text-label2">{p.script}</p>}
                 <div className="mt-3 space-y-1 text-sm">
-                  {tasks.length === 0 && <div className="text-xs text-mist-400">Biriktirilgan fayl yo'q</div>}
+                  {tasks.length === 0 && <div className="text-xs text-label2">Biriktirilgan fayl yo'q</div>}
                   {tasks.map((t) => (
                     <div key={t.id}>
-                      <span className="text-mist-400">{TASK_KIND_LABELS[t.kind]}{t.designType === "cover" ? " (oblojka)" : ""}:</span>{" "}
+                      <span className="text-label2">{TASK_KIND_LABELS[t.kind]}{t.designType === "cover" ? " (oblojka)" : ""}:</span>{" "}
                       <LinkOut href={t.resultLink}>{t.title}</LinkOut>
                     </div>
                   ))}

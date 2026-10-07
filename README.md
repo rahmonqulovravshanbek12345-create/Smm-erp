@@ -17,7 +17,10 @@ brauzerda (localStorage) saqlanadi va namunaviy ma'lumotlar bilan to'ldirilgan.
 | **Bildirishnomalar** | Tizim ichida + Telegram bot (Admin'da token va chat ID kiritilsa, haqiqiy xabar ketadi) |
 | **Admin** | Xodimlar, rollar, huquqlar matritsasi, montaj narxi, demo'ni qayta tiklash |
 
-Chap paneldagi **«Demo: kim sifatida kirish»** orqali rolni almashtirib, har bir xodim nimani
+Dizayn — Apple «Liquid Glass» uslubida: shisha panellar, yorug'/qorong'i rejim (tizimga ergashadi),
+telefonda pastki tab bar va sheet oynalar.
+
+Chap pastdagi akkaunt menyusidagi **«Demo: kim sifatida kirish»** orqali rolni almashtirib, har bir xodim nimani
 ko'rishini ko'rsatish mumkin.
 
 ## Ishga tushirish

@@ -44,7 +44,7 @@ export function Admin() {
           <CardHeader title="Foydalanuvchilar" sub="Telegram chat ID — xodim botga /start bosgandan keyin @userinfobot orqali olinadi" />
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
-              <thead className="text-left text-xs text-mist-400">
+              <thead className="text-left text-xs text-label2">
                 <tr>
                   <th className="px-4 py-2 font-medium">Ism</th>
                   <th className="px-4 py-2 font-medium">Rol</th>
@@ -52,10 +52,10 @@ export function Admin() {
                   <th className="px-4 py-2 font-medium">Holat</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.05]">
+              <tbody className="divide-y divide-sep">
                 {state.users.map((u) => (
                   <tr key={u.id}>
-                    <td className="px-4 py-2 text-white">{u.name}</td>
+                    <td className="px-4 py-2 text-label">{u.name}</td>
                     <td className="px-4 py-2">
                       <Select
                         value={u.role}
@@ -104,7 +104,7 @@ export function Admin() {
               </tbody>
             </table>
           </div>
-          <div className="flex flex-wrap items-end gap-2 border-t border-white/[0.06] p-4">
+          <div className="flex flex-wrap items-end gap-2 border-t border-sep p-4">
             <Field label="Yangi xodim">
               <Input value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} placeholder="Ism Familiya" className="!w-56" />
             </Field>
@@ -129,7 +129,7 @@ export function Admin() {
         <Card>
           <CardHeader title="Telegram bot" sub="Bildirishnomalar tizim ichida va Telegram orqali" />
           <div className="space-y-3 p-4">
-            <label className="flex items-center gap-2 text-sm text-white">
+            <label className="flex items-center gap-2 text-sm text-label">
               <input
                 type="checkbox"
                 checked={tg.enabled}
@@ -156,7 +156,7 @@ export function Admin() {
             <Banner tone="amber">
               Demo versiyada token faqat shu brauzerda saqlanadi. Haqiqiy tizimda bot serverda ishlaydi va token hech kimga ko'rinmaydi.
             </Banner>
-            <ol className="list-decimal space-y-1 pl-5 text-xs text-mist-300">
+            <ol className="list-decimal space-y-1 pl-5 text-xs text-label2">
               <li>@BotFather'da yangi bot yarating va tokenni shu yerga kiriting.</li>
               <li>Har bir xodim botga /start bosadi.</li>
               <li>Xodimning chat ID'sini (@userinfobot orqali) yuqoridagi jadvalga yozing.</li>
@@ -183,12 +183,12 @@ export function Admin() {
                 className="!w-48"
               />
             </Field>
-            <div className="border-t border-white/[0.06] pt-4">
-              <div className="mb-1 text-sm text-white">Demo ma'lumotlarni tiklash</div>
-              <p className="mb-2 text-xs text-mist-400">Mijozga ko'rsatishdan oldin barcha o'zgarishlarni o'chirib, boshlang'ich holatga qaytaradi.</p>
+            <div className="border-t border-sep pt-4">
+              <div className="mb-1 text-sm text-label">Demo ma'lumotlarni tiklash</div>
+              <p className="mb-2 text-xs text-label2">Mijozga ko'rsatishdan oldin barcha o'zgarishlarni o'chirib, boshlang'ich holatga qaytaradi.</p>
               {confirmReset ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-red-300">Barcha o'zgarishlar o'chiriladi.</span>
+                  <span className="text-xs text-red">Barcha o'zgarishlar o'chiriladi.</span>
                   <Button variant="danger" onClick={() => { reset(); setConfirmReset(false); }}>
                     Ha, tiklash
                   </Button>
@@ -209,7 +209,7 @@ export function Admin() {
           <CardHeader title="Huquqlar matritsasi" sub="Har xodim faqat o'z vazifalari va loyihalarini ko'radi. Marketolog va admin hammasini ko'radi." />
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-xs">
-              <thead className="text-left text-mist-400">
+              <thead className="text-left text-label2">
                 <tr>
                   <th className="px-3 py-2 font-medium">Modul</th>
                   {ROLES.filter((r) => r !== "admin").map((r) => (
@@ -219,14 +219,14 @@ export function Admin() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.05]">
+              <tbody className="divide-y divide-sep">
                 {MATRIX_VIEW.map((m) => (
                   <tr key={m.module}>
-                    <td className="px-3 py-2 text-white">{m.label}</td>
+                    <td className="px-3 py-2 text-label">{m.label}</td>
                     {ROLES.filter((r) => r !== "admin").map((r) => {
                       const a = access(r, m.module);
                       return (
-                        <td key={r} className={`px-3 py-2 ${a === "none" ? "text-mist-400/50" : a === "full" ? "text-signal-300" : "text-mist-200"}`}>
+                        <td key={r} className={`px-3 py-2 ${a === "none" ? "text-label3" : a === "full" ? "text-green" : "text-label/80"}`}>
                           {r === "moliya" && m.module === "projects" ? "ko'rish + moliya qismi" : ACCESS_LABELS[a]}
                         </td>
                       );

@@ -43,12 +43,12 @@ export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
 
       {own && (
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Stat label="Ochiq vazifalar" value={tasks.filter((t) => t.status !== "accepted").length} />
-          <Stat label="Kechikkan" value={late} tone={late ? "red" : "green"} />
+          <Stat icon="list" color="blue" label="Ochiq vazifalar" value={tasks.filter((t) => t.status !== "accepted").length} />
+          <Stat icon="clock" color="red" label="Kechikkan" value={late} tone={late ? "red" : "green"} />
           {kind === "montaj" && (
             <>
-              <Stat label={`Qabul qilingan montaj (${fmtMonth(month)})`} value={accepted} tone="green" />
-              <Stat label={`Oylik: ${accepted} × ${fmtMoney(state.settings.montajPrice)}`} value={fmtMoney(accepted * state.settings.montajPrice)} tone="green" />
+              <Stat icon="check" color="green" label={`Qabul qilingan montaj (${fmtMonth(month)})`} value={accepted} tone="green" />
+              <Stat icon="wallet" color="teal" label={`Oylik: ${accepted} × ${fmtMoney(state.settings.montajPrice)}`} value={fmtMoney(accepted * state.settings.montajPrice)} tone="green" />
             </>
           )}
         </div>
@@ -58,10 +58,10 @@ export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
         {TASK_STATUSES.map((st) => {
           const col = tasks.filter((t) => t.status === st.id);
           return (
-            <div key={st.id} className="flex w-72 shrink-0 flex-col rounded-xl border border-white/[0.07] bg-ink-900/60 2xl:w-auto 2xl:min-w-0 2xl:flex-1">
-              <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2.5">
+            <div key={st.id} className="flex w-72 shrink-0 flex-col rounded-[24px] glass xl:w-auto xl:min-w-0 xl:flex-1">
+              <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
                 <Badge tone={st.tone}>{st.label}</Badge>
-                <span className="text-xs text-mist-400">{col.length}</span>
+                <span className="text-xs text-label2">{col.length}</span>
               </div>
               <div className="flex min-h-[120px] flex-col gap-2 p-2">
                 {col.map((t) => (
@@ -88,52 +88,52 @@ function TaskCard({ task: t }: { task: Task }) {
   const late = isTaskLate(t, today);
 
   return (
-    <Card className={`p-3 ${late ? "border-red-500/40" : ""}`}>
+    <Card className={`p-3 ${late ? "border-red/40" : ""}`}>
       <button type="button" className="w-full text-left" onClick={() => setExpanded((v) => !v)}>
-        <div className="text-sm font-medium text-white">{t.title}</div>
-        <div className="mt-0.5 text-xs text-mist-400">
+        <div className="text-sm font-medium text-label">{t.title}</div>
+        <div className="mt-0.5 text-xs text-label2">
           {look.projectName(t.projectId)} · {look.userName(t.assigneeId)}
           {t.designType && ` · ${t.designType === "cover" ? "oblojka" : "post"}`}
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <TaskBadge task={t} today={today} />
-          <span className={`text-xs ${late ? "text-red-300" : "text-mist-400"}`}>
+          <span className={`text-xs ${late ? "text-red" : "text-label2"}`}>
             ⏱ {fmtDate(t.deadline)} ({relDays(t.deadline, today)})
           </span>
         </div>
       </button>
 
-      {t.returnNote && t.status === "returned" && <div className="mt-2 rounded-md bg-red-500/10 px-2 py-1.5 text-xs text-red-200">Qaytarildi: {t.returnNote}</div>}
+      {t.returnNote && t.status === "returned" && <div className="mt-2 rounded-md bg-red/10 px-2 py-1.5 text-xs text-red">Qaytarildi: {t.returnNote}</div>}
 
       {expanded && (
-        <div className="mt-3 space-y-2 border-t border-white/[0.06] pt-3 text-xs">
+        <div className="mt-3 space-y-2 border-t border-sep pt-3 text-xs">
           {t.brief && (
             <div>
-              <div className="text-mist-400">TZ</div>
-              <p className="whitespace-pre-line text-mist-100">{t.brief}</p>
+              <div className="text-label2">TZ</div>
+              <p className="whitespace-pre-line text-label">{t.brief}</p>
             </div>
           )}
           {t.script && (
             <div>
-              <div className="text-mist-400">Ssenariy</div>
-              <p className="whitespace-pre-line text-mist-100">{t.script}</p>
+              <div className="text-label2">Ssenariy</div>
+              <p className="whitespace-pre-line text-label">{t.script}</p>
             </div>
           )}
           {t.kind === "montaj" && (
             <div>
-              <span className="text-mist-400">Kadrlar: </span>
-              {t.footageLink ? <LinkOut href={t.footageLink} /> : <span className="text-amber-300">syomka operatoridan kutilmoqda</span>}
+              <span className="text-label2">Kadrlar: </span>
+              {t.footageLink ? <LinkOut href={t.footageLink} /> : <span className="text-orange">syomka operatoridan kutilmoqda</span>}
             </div>
           )}
           {t.files && (
             <div>
-              <span className="text-mist-400">Fayllar: </span>
+              <span className="text-label2">Fayllar: </span>
               <LinkOut href={t.files} />
             </div>
           )}
           {t.resultLink && (
             <div>
-              <span className="text-mist-400">Natija: </span>
+              <span className="text-label2">Natija: </span>
               <LinkOut href={t.resultLink} />
             </div>
           )}

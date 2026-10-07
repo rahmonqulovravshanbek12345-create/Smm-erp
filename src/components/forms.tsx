@@ -88,7 +88,7 @@ export function PostModal({
       {existing && (
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <PostBadge post={existing} today={today} />
-          {isPostLate(existing, today) && <span className="text-xs text-red-300">Post sanasi o'tib ketgan</span>}
+          {isPostLate(existing, today) && <span className="text-xs text-red">Post sanasi o'tib ketgan</span>}
         </div>
       )}
       {existing?.reviewNote && <Banner tone="amber">Marketolog izohi: {existing.reviewNote}</Banner>}
@@ -135,7 +135,7 @@ export function PostModal({
             options={userOptions(look.usersByRole("smm"))}
           />
         </Field>
-        <label className="flex items-center gap-2 self-end pb-2 text-sm text-mist-200">
+        <label className="flex items-center gap-2 self-end pb-2 text-sm text-label/80">
           <input type="checkbox" checked={form.forTarget} disabled={!editable} onChange={(e) => set("forTarget", e.target.checked)} />
           Target reklama uchun ham
         </label>
@@ -143,8 +143,8 @@ export function PostModal({
 
       {existing && (
         <>
-          <div className="mt-5 rounded-lg border border-white/[0.07] bg-ink-950/40 p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-mist-400">Ish jarayoni</div>
+          <div className="mt-5 rounded-[14px] bg-fill bg-fill p-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-label2">Ish jarayoni</div>
             <div className="flex flex-wrap gap-2">
               {editable && ["plan", "shoot", "editing", "design"].includes(existing.status) && (
                 <Button variant="primary" size="sm" onClick={() => step((c) => act.sendToInternal(c, existing.id), "Marketologga tasdiqqa yuborildi", true)}>
@@ -187,7 +187,7 @@ export function PostModal({
 
           <div className="mt-4">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-mist-400">TZ va ishlab chiqarish</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-label2">TZ va ishlab chiqarish</span>
               {editable && (
                 <div className="flex flex-wrap gap-1.5">
                   {existing.format === "video" && !shoot && (
@@ -209,19 +209,19 @@ export function PostModal({
                 </div>
               )}
             </div>
-            <div className="divide-y divide-white/[0.05] rounded-lg border border-white/[0.07]">
+            <div className="divide-y divide-sep rounded-[14px] bg-fill">
               {shoot && (
                 <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                   <span>
                     Syomka: {fmtDate(shoot.date)} {shoot.time}, {shoot.location} · {look.userName(shoot.operatorId)}
                   </span>
-                  {shoot.footageLink ? <LinkOut href={shoot.footageLink}>kadrlar</LinkOut> : <span className="text-xs text-amber-300">kutilmoqda</span>}
+                  {shoot.footageLink ? <LinkOut href={shoot.footageLink}>kadrlar</LinkOut> : <span className="text-xs text-orange">kutilmoqda</span>}
                 </div>
               )}
               {tasks.map((t) => (
                 <div key={t.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                   <span>
-                    <span className="text-mist-400">{TASK_KIND_LABELS[t.kind]}:</span> {t.title} · {look.userName(t.assigneeId)} · {fmtDate(t.deadline)}
+                    <span className="text-label2">{TASK_KIND_LABELS[t.kind]}:</span> {t.title} · {look.userName(t.assigneeId)} · {fmtDate(t.deadline)}
                   </span>
                   <span className="flex items-center gap-2">
                     {t.resultLink && <LinkOut href={t.resultLink}>natija</LinkOut>}
@@ -229,7 +229,7 @@ export function PostModal({
                   </span>
                 </div>
               ))}
-              {!shoot && tasks.length === 0 && <div className="px-3 py-3 text-sm text-mist-400">Hali TZ berilmagan</div>}
+              {!shoot && tasks.length === 0 && <div className="px-3 py-3 text-sm text-label2">Hali TZ berilmagan</div>}
             </div>
           </div>
         </>
@@ -440,9 +440,9 @@ export function ShootModal({ projectId, postIds, onClose }: { projectId?: string
         </Field>
       </div>
       <div className="mt-4">
-        <div className="mb-1.5 text-xs font-medium text-mist-300">Bog'langan postlar</div>
-        <div className="max-h-44 space-y-1 overflow-y-auto rounded-lg border border-white/[0.07] p-2">
-          {candidates.length === 0 && <div className="text-sm text-mist-400">Video postlar yo'q</div>}
+        <div className="mb-1.5 text-xs font-medium text-label2">Bog'langan postlar</div>
+        <div className="max-h-44 space-y-1 overflow-y-auto rounded-[14px] bg-fill p-2">
+          {candidates.length === 0 && <div className="text-sm text-label2">Video postlar yo'q</div>}
           {candidates.map((p) => (
             <label key={p.id} className="flex items-center gap-2 text-sm">
               <input
@@ -454,7 +454,7 @@ export function ShootModal({ projectId, postIds, onClose }: { projectId?: string
             </label>
           ))}
         </div>
-        <p className="mt-2 text-[11px] text-mist-400">Operatorga darhol va syomkadan 1 kun oldin eslatma ketadi.</p>
+        <p className="mt-2 text-[11px] text-label2">Operatorga darhol va syomkadan 1 kun oldin eslatma ketadi.</p>
       </div>
     </Modal>
   );

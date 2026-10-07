@@ -26,10 +26,10 @@ export function Finance() {
     <>
       <PageHeader title="Moliya" sub="Oldindan to'lov, hisob davrlari, qarzlar va xodimlar oyligi" />
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label={`Tushum (${fmtMonth(month)})`} value={fmtMoney(receivedThisMonth)} tone="green" />
-        <Stat label="Kutilayotgan to'lovlar" value={fmtMoney(expected)} />
-        <Stat label="Umumiy qarz" value={fmtMoney(totalDebt)} tone={totalDebt ? "red" : "green"} />
-        <Stat label="Qarzdor loyihalar" value={debtors.length} tone={debtors.length ? "red" : "green"} />
+        <Stat icon="arrowUpRight" color="green" label={`Tushum (${fmtMonth(month)})`} value={fmtMoney(receivedThisMonth)} tone="green" />
+        <Stat icon="clock" color="blue" label="Kutilayotgan to'lovlar" value={fmtMoney(expected)} />
+        <Stat icon="alert" color="red" label="Umumiy qarz" value={fmtMoney(totalDebt)} tone={totalDebt ? "red" : "green"} />
+        <Stat icon="folder" color="orange" label="Qarzdor loyihalar" value={debtors.length} tone={debtors.length ? "red" : "green"} />
       </div>
       <Tabs<Tab>
         value={tab}
@@ -47,14 +47,14 @@ export function Finance() {
           {debtors.length === 0 ? (
             <Empty>Qarzdor loyiha yo'q</Empty>
           ) : (
-            <ul className="divide-y divide-white/[0.05]">
+            <ul className="divide-y divide-sep">
               {debtors.map(({ p, debt }) => (
                 <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   <div>
-                    <A href={`/loyiha/${p.id}`} className="font-medium text-white hover:underline">
+                    <A href={`/loyiha/${p.id}`} className="font-medium text-label hover:underline">
                       {p.name}
                     </A>
-                    <div className="text-xs text-mist-400">
+                    <div className="text-xs text-label2">
                       {p.contactName} · {p.phone}
                     </div>
                   </div>
@@ -66,7 +66,7 @@ export function Finance() {
               ))}
             </ul>
           )}
-          <p className="border-t border-white/[0.06] px-4 py-2.5 text-xs text-mist-400">
+          <p className="border-t border-sep px-4 py-2.5 text-xs text-label2">
             To'lov kechiksa ish to'xtamaydi. Kerak bo'lsa, loyiha kartasidagi «Ishni to'xtatish» opsiyasi qo'lda yoqiladi.
           </p>
         </Card>
@@ -89,7 +89,7 @@ export function PaymentsTable({ editable, projectId }: { editable: boolean; proj
     <Card>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[780px] text-sm">
-          <thead className="text-left text-xs text-mist-400">
+          <thead className="text-left text-xs text-label2">
             <tr>
               {!projectId && <th className="px-4 py-2 font-medium">Loyiha</th>}
               <th className="px-4 py-2 font-medium">Turi</th>
@@ -100,25 +100,25 @@ export function PaymentsTable({ editable, projectId }: { editable: boolean; proj
               {editable && <th className="px-4 py-2" />}
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.05]">
+          <tbody className="divide-y divide-sep">
             {rows.map((pay) => {
               const st = paymentStatus(pay, today);
               const paid = paidSum(pay);
               return (
-                <tr key={pay.id} className={st === "overdue" ? "bg-red-500/[0.04]" : ""}>
+                <tr key={pay.id} className={st === "overdue" ? "bg-red/[0.06]" : ""}>
                   {!projectId && (
                     <td className="px-4 py-2">
-                      <A href={`/loyiha/${pay.projectId}`} className="text-white hover:underline">
+                      <A href={`/loyiha/${pay.projectId}`} className="text-label hover:underline">
                         {look.projectName(pay.projectId)}
                       </A>
                     </td>
                   )}
-                  <td className="px-4 py-2 text-mist-200">
+                  <td className="px-4 py-2 text-label/80">
                     {PAYMENT_KIND_LABELS[pay.kind]}
-                    {pay.kind === "monthly" && <span className="text-mist-400"> · {pay.periodIndex + 1}-davr</span>}
+                    {pay.kind === "monthly" && <span className="text-label2"> · {pay.periodIndex + 1}-davr</span>}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">{fmtMoney(pay.amount)}</td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right text-mist-200">{fmtMoney(paid)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right text-label/80">{fmtMoney(paid)}</td>
                   <td className="whitespace-nowrap px-4 py-2">
                     {editable && pay.kind === "remainder" ? (
                       <Input
@@ -130,9 +130,9 @@ export function PaymentsTable({ editable, projectId }: { editable: boolean; proj
                     ) : pay.dueDate ? (
                       fmtDate(pay.dueDate)
                     ) : (
-                      <span className="text-amber-300">sana kiritilmagan</span>
+                      <span className="text-orange">sana kiritilmagan</span>
                     )}
-                    {st === "overdue" && <div className="text-[11px] text-red-300">{diffDays(today, pay.dueDate)} kun kechikdi</div>}
+                    {st === "overdue" && <div className="text-[11px] text-red">{diffDays(today, pay.dueDate)} kun kechikdi</div>}
                   </td>
                   <td className="px-4 py-2">
                     <PayBadge pay={pay} today={today} />
@@ -181,8 +181,8 @@ function PayModal({ pay, onClose }: { pay: Payment; onClose: () => void }) {
         </>
       }
     >
-      <p className="mb-3 text-sm text-mist-300">
-        Qolgan summa: <span className="text-white">{fmtMoney(left)}</span>. Qisman to'lov ham qayd etiladi.
+      <p className="mb-3 text-sm text-label2">
+        Qolgan summa: <span className="text-label">{fmtMoney(left)}</span>. Qisman to'lov ham qayd etiladi.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Summa (so'm)">
@@ -204,21 +204,21 @@ function Periods() {
   return (
     <Card>
       <CardHeader title="Hisob davrlari" sub="Birinchi reklama joylangan sanadan boshlanadi va keyingi oyning shu sanasida yopiladi" />
-      <ul className="divide-y divide-white/[0.05]">
+      <ul className="divide-y divide-sep">
         {state.projects.map((p) => {
           const per = currentPeriod(p, today);
           const left = per ? diffDays(per.end, today) : null;
           return (
             <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
               <div>
-                <A href={`/loyiha/${p.id}`} className="font-medium text-white hover:underline">
+                <A href={`/loyiha/${p.id}`} className="font-medium text-label hover:underline">
                   {p.name}
                 </A>
-                <div className="text-xs text-mist-400">{per ? periodLabel(per) : "Davr hali boshlanmagan — birinchi reklama kutilmoqda"}</div>
+                <div className="text-xs text-label2">{per ? periodLabel(per) : "Davr hali boshlanmagan — birinchi reklama kutilmoqda"}</div>
               </div>
               {per && left !== null && (
                 <div className="flex items-center gap-2">
-                  <span className="text-mist-300">Keyingi to'lov: {fmtMoney(p.monthlyFee)}</span>
+                  <span className="text-label2">Keyingi to'lov: {fmtMoney(p.monthlyFee)}</span>
                   <Badge tone={left <= 3 ? "amber" : "gray"}>{left <= 3 ? `⚠ ${left} kun qoldi` : `${left} kun qoldi`}</Badge>
                 </div>
               )}
@@ -259,7 +259,7 @@ function Salaries({ editable }: { editable: boolean }) {
             <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonthKey(month, -1))}>
               ‹
             </Button>
-            <span className="text-sm text-white">{fmtMonth(month)}</span>
+            <span className="text-sm text-label">{fmtMonth(month)}</span>
             <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonthKey(month, 1))}>
               ›
             </Button>
@@ -268,15 +268,15 @@ function Salaries({ editable }: { editable: boolean }) {
       />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[620px] text-sm">
-          <tbody className="divide-y divide-white/[0.05]">
+          <tbody className="divide-y divide-sep">
             {rows.map(({ u, auto, amount, detail }) => (
               <tr key={u.id}>
-                <td className="px-4 py-2 text-white">{u.name}</td>
-                <td className="px-4 py-2 text-mist-400">{ROLE_LABELS[u.role]}</td>
-                <td className="px-4 py-2 text-xs text-mist-400">{auto ? <Badge tone="green">avto</Badge> : detail}</td>
+                <td className="px-4 py-2 text-label">{u.name}</td>
+                <td className="px-4 py-2 text-label2">{ROLE_LABELS[u.role]}</td>
+                <td className="px-4 py-2 text-xs text-label2">{auto ? <Badge tone="green">avto</Badge> : detail}</td>
                 <td className="whitespace-nowrap px-4 py-2 text-right">
                   {auto || !editable ? (
-                    <span className="font-medium text-white">{fmtMoney(amount)}</span>
+                    <span className="font-medium text-label">{fmtMoney(amount)}</span>
                   ) : (
                     <div className="flex justify-end gap-1.5">
                       <Input
@@ -294,17 +294,17 @@ function Salaries({ editable }: { editable: boolean }) {
                       </Button>
                     </div>
                   )}
-                  {auto && <div className="text-[11px] text-mist-400">{detail}</div>}
+                  {auto && <div className="text-[11px] text-label2">{detail}</div>}
                 </td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-white/10">
-              <td colSpan={3} className="px-4 py-2.5 text-right text-mist-300">
+            <tr className="border-t border-sep">
+              <td colSpan={3} className="px-4 py-2.5 text-right text-label2">
                 Jami fond:
               </td>
-              <td className="px-4 py-2.5 text-right font-semibold text-white">{fmtMoney(total)}</td>
+              <td className="px-4 py-2.5 text-right font-semibold text-label">{fmtMoney(total)}</td>
             </tr>
           </tfoot>
         </table>

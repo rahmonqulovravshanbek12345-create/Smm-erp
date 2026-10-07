@@ -75,24 +75,24 @@ export function Target() {
           {tasks.length === 0 ? (
             <Empty>Material yo'q</Empty>
           ) : (
-            <ul className="divide-y divide-white/[0.05]">
+            <ul className="divide-y divide-sep">
               {tasks.map((t) => (
                 <li key={t.id} className="px-4 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="text-sm font-medium text-white">{t.title}</div>
+                    <div className="text-sm font-medium text-label">{t.title}</div>
                     <TaskBadge task={t} today={today} />
                   </div>
-                  <div className="mt-0.5 text-xs text-mist-400">
+                  <div className="mt-0.5 text-xs text-label2">
                     {look.projectName(t.projectId)} · deadline {fmtDate(t.deadline)}
                   </div>
-                  {t.brief && <p className="mt-1.5 text-xs text-mist-300">{t.brief}</p>}
+                  {t.brief && <p className="mt-1.5 text-xs text-label2">{t.brief}</p>}
                   {t.files && (
                     <div className="mt-1 text-xs">
                       <LinkOut href={t.files}>Materiallar (Google Drive)</LinkOut>
                     </div>
                   )}
                   {t.launchedAt ? (
-                    <div className="mt-1.5 text-xs text-signal-300">Reklama yoqilgan: {fmtDate(t.launchedAt)}</div>
+                    <div className="mt-1.5 text-xs text-green">Reklama yoqilgan: {fmtDate(t.launchedAt)}</div>
                   ) : (
                     canReport && (
                       <div className="mt-2 flex gap-2">
@@ -147,12 +147,12 @@ export function Target() {
                     Qo'lda saqlash
                   </Button>
                 </div>
-                <p className="mt-2 text-[11px] text-mist-400">
+                <p className="mt-2 text-[11px] text-label2">
                   Ikkala usul ham bor: qo'lda kiritish yoki Meta Ads'dan avtomatik olish (demo'da namunaviy raqamlar).
                 </p>
               </div>
             ) : (
-              <p className="px-4 py-3 text-sm text-mist-400">Hisobotni targetolog kiritadi.</p>
+              <p className="px-4 py-3 text-sm text-label2">Hisobotni targetolog kiritadi.</p>
             )}
           </Card>
 
@@ -170,7 +170,7 @@ export function Target() {
             ) : (
               <div className="max-h-[420px] overflow-auto">
                 <table className="w-full min-w-[560px] text-sm">
-                  <thead className="sticky top-0 bg-ink-900 text-left text-xs text-mist-400">
+                  <thead className="sticky top-0 bg-elevated text-left text-xs text-label2">
                     <tr>
                       <th className="px-4 py-2 font-medium">Sana</th>
                       <th className="px-4 py-2 text-right font-medium">Sarf</th>
@@ -180,17 +180,17 @@ export function Target() {
                       <th className="px-4 py-2 font-medium">Manba</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/[0.05]">
+                  <tbody className="divide-y divide-sep">
                     {history.map((r) => (
                       <tr key={r.id}>
-                        <td className="whitespace-nowrap px-4 py-2 text-mist-200">{fmtDate(r.date)}</td>
+                        <td className="whitespace-nowrap px-4 py-2 text-label/80">{fmtDate(r.date)}</td>
                         <td className="whitespace-nowrap px-4 py-2 text-right">{fmtNum(r.spend)}</td>
                         <td className="whitespace-nowrap px-4 py-2 text-right">{fmtNum(r.views)}</td>
                         <td className="whitespace-nowrap px-4 py-2 text-right">{fmtNum(r.clicks)}</td>
-                        <td className="px-4 py-2 text-right font-semibold text-white">{r.leads}</td>
+                        <td className="px-4 py-2 text-right font-semibold text-label">{r.leads}</td>
                         <td className="px-4 py-2">
                           <Badge tone={r.source === "meta" ? "blue" : "gray"}>{r.source === "meta" ? "Meta" : "Qo'lda"}</Badge>
-                          {r.note && <span className="ml-1.5 text-xs text-mist-400">{r.note}</span>}
+                          {r.note && <span className="ml-1.5 text-xs text-label2">{r.note}</span>}
                         </td>
                       </tr>
                     ))}

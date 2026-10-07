@@ -76,13 +76,13 @@ export function Crm() {
                 setDragOver(null);
                 requestStage(e.dataTransfer.getData("text/plain"), st.id);
               }}
-              className={`flex w-64 shrink-0 flex-col rounded-xl border bg-ink-900/60 transition ${
-                dragOver === st.id ? "border-signal-500/50" : "border-white/[0.07]"
+              className={`flex w-[272px] shrink-0 flex-col rounded-[24px] glass transition ${
+                dragOver === st.id ? "ring-2 ring-accent/50" : ""
               }`}
             >
-              <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2.5">
+              <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
                 <Badge tone={st.tone}>{st.label}</Badge>
-                <span className="text-xs text-mist-400">{col.length}</span>
+                <span className="text-xs text-label2">{col.length}</span>
               </div>
               <div className="flex min-h-[120px] flex-col gap-2 p-2">
                 {col.map((l) => (
@@ -92,11 +92,11 @@ export function Crm() {
                     draggable={editable && l.stage !== "contract"}
                     onDragStart={(e) => e.dataTransfer.setData("text/plain", l.id)}
                     onClick={() => setOpenLead(l.id)}
-                    className="rounded-lg border border-white/[0.07] bg-ink-800/80 p-2.5 text-left transition hover:border-white/20"
+                    className="tile rounded-[16px] p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-card active:scale-[0.98]"
                   >
-                    <div className="text-sm font-medium text-white">{l.name}</div>
-                    <div className="mt-0.5 text-xs text-mist-400">{l.phone}</div>
-                    <div className="mt-1.5 text-xs text-mist-300">{l.service}</div>
+                    <div className="text-sm font-medium text-label">{l.name}</div>
+                    <div className="mt-0.5 text-xs text-label2">{l.phone}</div>
+                    <div className="mt-1.5 text-xs text-label2">{l.service}</div>
                     <div className="mt-2 flex flex-wrap gap-1">
                       <Badge>{l.source}</Badge>
                       {l.meeting && l.stage === "meeting" && (
@@ -108,8 +108,8 @@ export function Crm() {
                         <Badge tone={l.nextContactDate <= today ? "amber" : "gray"}>☎ {relDays(l.nextContactDate, today)}</Badge>
                       )}
                     </div>
-                    {l.rejectReason && <div className="mt-1.5 text-[11px] text-red-300">Sabab: {l.rejectReason}</div>}
-                    <div className="mt-1.5 text-[11px] text-mist-400">{look.userName(l.operatorId)}</div>
+                    {l.rejectReason && <div className="mt-1.5 text-[11px] text-red">Sabab: {l.rejectReason}</div>}
+                    <div className="mt-1.5 text-[11px] text-label2">{look.userName(l.operatorId)}</div>
                   </button>
                 ))}
               </div>
@@ -219,7 +219,7 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
         <>
           {editable && lead.stage !== "contract" && (
             <div className="mt-4">
-              <div className="mb-1.5 text-xs font-medium text-mist-300">Bosqichni o'zgartirish</div>
+              <div className="mb-1.5 text-xs font-medium text-label2">Bosqichni o'zgartirish</div>
               <div className="flex flex-wrap gap-1.5">
                 {LEAD_STAGES.filter((s) => s.id !== lead.stage).map((s) => (
                   <Button
@@ -239,7 +239,7 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
           )}
 
           <div className="mt-5">
-            <div className="mb-1.5 text-xs font-medium text-mist-300">Aloqa tarixi</div>
+            <div className="mb-1.5 text-xs font-medium text-label2">Aloqa tarixi</div>
             {editable && (
               <div className="mb-3 flex flex-wrap gap-2">
                 <Input placeholder="Qo'ng'iroq natijasi…" value={contact} onChange={(e) => setContact(e.target.value)} className="min-w-[200px] flex-1" />
@@ -258,17 +258,17 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
               </div>
             )}
             <ul className="space-y-2">
-              {lead.history.length === 0 && <li className="text-sm text-mist-400">Hali yozuv yo'q</li>}
+              {lead.history.length === 0 && <li className="text-sm text-label2">Hali yozuv yo'q</li>}
               {lead.history.map((h) => (
-                <li key={h.id} className="rounded-lg border border-white/[0.06] px-3 py-2 text-sm">
-                  <div className="text-mist-100">{h.text}</div>
-                  <div className="mt-0.5 text-[11px] text-mist-400">
+                <li key={h.id} className="rounded-[14px] bg-fill px-3 py-2 text-sm">
+                  <div className="text-label">{h.text}</div>
+                  <div className="mt-0.5 text-[11px] text-label2">
                     {fmtDateTime(h.at)} · {look.userName(h.userId)}
                   </div>
                 </li>
               ))}
             </ul>
-            {nextDate && nextDate < today && <p className="mt-2 text-xs text-amber-300">Keyingi aloqa sanasi o'tib ketgan</p>}
+            {nextDate && nextDate < today && <p className="mt-2 text-xs text-orange">Keyingi aloqa sanasi o'tib ketgan</p>}
           </div>
         </>
       )}

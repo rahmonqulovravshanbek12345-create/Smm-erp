@@ -1,9 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { A, Select, navigate, usePath } from "./components/ui";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Icon, IconChip, type ChipColor, type IconName } from "./components/icons";
+import { A, Avatar, IconButton, navigate, usePath } from "./components/ui";
 import { ROLE_LABELS } from "./lib/labels";
 import { canView, homeFor, type Module } from "./lib/permissions";
 import { alertsFor } from "./lib/rules";
 import { useErp } from "./lib/store";
+import type { Role, User } from "./lib/types";
 import { Admin } from "./pages/Admin";
 import { Approvals } from "./pages/Approvals";
 import { Content } from "./pages/Content";
@@ -16,21 +18,52 @@ import { Shoots } from "./pages/Shoots";
 import { Target } from "./pages/Target";
 import { TaskBoard } from "./pages/TaskBoard";
 
-const NAV: { module: Module; path: string; label: string; icon: string }[] = [
-  { module: "dashboard", path: "/", label: "Nazorat paneli", icon: "◎" },
-  { module: "crm", path: "/crm", label: "CRM (lidlar)", icon: "☎" },
-  { module: "projects", path: "/loyihalar", label: "Loyihalar", icon: "▣" },
-  { module: "content", path: "/kontent", label: "Kontent reja", icon: "▦" },
-  { module: "approvals", path: "/tasdiqlash", label: "Tasdiqlash", icon: "✓" },
-  { module: "shoots", path: "/syomka", label: "Syomka", icon: "◉" },
-  { module: "montaj", path: "/montaj", label: "Montaj", icon: "✂" },
-  { module: "dizayn", path: "/dizayn", label: "Dizayn", icon: "✎" },
-  { module: "target", path: "/target", label: "Target", icon: "◈" },
-  { module: "finance", path: "/moliya", label: "Moliya", icon: "₿" },
-  { module: "notifications", path: "/bildirishnomalar", label: "Bildirishnomalar", icon: "🔔" },
-  { module: "activity", path: "/tarix", label: "Faoliyat tarixi", icon: "↺" },
-  { module: "admin", path: "/admin", label: "Admin", icon: "⚙" },
+interface NavItem {
+  module: Module;
+  path: string;
+  label: string;
+  short: string;
+  icon: IconName;
+  color: ChipColor;
+}
+
+const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
+  {
+    items: [
+      { module: "dashboard", path: "/", label: "Nazorat paneli", short: "Panel", icon: "gauge", color: "blue" },
+      { module: "notifications", path: "/bildirishnomalar", label: "Bildirishnomalar", short: "Xabarlar", icon: "bell", color: "red" },
+    ],
+  },
+  {
+    title: "Savdo",
+    items: [
+      { module: "crm", path: "/crm", label: "CRM — lidlar", short: "CRM", icon: "phone", color: "green" },
+      { module: "projects", path: "/loyihalar", label: "Loyihalar", short: "Loyihalar", icon: "folder", color: "teal" },
+    ],
+  },
+  {
+    title: "Ishlab chiqarish",
+    items: [
+      { module: "content", path: "/kontent", label: "Kontent reja", short: "Kontent", icon: "calendar", color: "red" },
+      { module: "approvals", path: "/tasdiqlash", label: "Tasdiqlash", short: "Tasdiq", icon: "checkSeal", color: "purple" },
+      { module: "shoots", path: "/syomka", label: "Syomka", short: "Syomka", icon: "camera", color: "gray" },
+      { module: "montaj", path: "/montaj", label: "Montaj", short: "Montaj", icon: "film", color: "indigo" },
+      { module: "dizayn", path: "/dizayn", label: "Dizayn", short: "Dizayn", icon: "brush", color: "orange" },
+      { module: "target", path: "/target", label: "Target reklama", short: "Target", icon: "target", color: "pink" },
+    ],
+  },
+  {
+    title: "Boshqaruv",
+    items: [
+      { module: "finance", path: "/moliya", label: "Moliya", short: "Moliya", icon: "wallet", color: "green" },
+      { module: "activity", path: "/tarix", label: "Faoliyat tarixi", short: "Tarix", icon: "history", color: "indigo" },
+      { module: "admin", path: "/admin", label: "Sozlamalar", short: "Sozlamalar", icon: "gear", color: "gray" },
+    ],
+  },
 ];
+
+const ALL_NAV = NAV_GROUPS.flatMap((g) => g.items);
+const TAB_PRIORITY: Module[] = ["dashboard", "crm", "content", "approvals", "montaj", "dizayn", "shoots", "target", "finance", "projects", "notifications"];
 
 function route(path: string): { module: Module; node: ReactNode } {
   if (path.startsWith("/loyiha/")) return { module: "projects", node: <ProjectCard id={path.slice(8)} /> };
@@ -64,10 +97,49 @@ function route(path: string): { module: Module; node: ReactNode } {
   }
 }
 
+const isActive = (item: NavItem, path: string) =>
+  item.path === "/" ? path === "/" : path.startsWith(item.path) || (item.path === "/loyihalar" && path.startsWith("/loyiha/"));
+
+// ---------- Mavzu (yorug' / qorong'i / tizim) ----------
+
+type Theme = "system" | "light" | "dark";
+const THEME_KEY = "smm-erp-theme";
+
+function useTheme(): [Theme, (t: Theme) => void] {
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      const t = window.localStorage.getItem(THEME_KEY);
+      return t === "light" || t === "dark" ? t : "system";
+    } catch {
+      return "system";
+    }
+  });
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "system") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", theme);
+    try {
+      window.localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      // mavzu faqat shu sessiyada saqlanadi
+    }
+  }, [theme]);
+  return [theme, setTheme];
+}
+
+const WEEKDAYS = ["Yakshanba", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
+const MONTHS_GEN = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentyabr", "oktyabr", "noyabr", "dekabr"];
+const todayLabel = () => {
+  const d = new Date();
+  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()}-${MONTHS_GEN[d.getMonth()]}`;
+};
+
 export function App() {
   const path = usePath();
   const { state, me, run, today, toast } = useErp();
-  const [menu, setMenu] = useState(false);
+  const [theme, setTheme] = useTheme();
+  const [more, setMore] = useState(false);
+  const [account, setAccount] = useState(false);
   const { module, node } = route(path);
   const allowed = canView(me.role, module);
 
@@ -76,116 +148,287 @@ export function App() {
     if (!allowed) navigate(homeFor(me.role));
   }, [allowed, me.role]);
   useEffect(() => {
-    setMenu(false);
+    setMore(false);
+    setAccount(false);
     window.scrollTo(0, 0);
   }, [path]);
 
   const unread = state.notifications.filter((n) => n.userId === me.id && !n.read).length + alertsFor(state, me, today).length;
-  const nav = NAV.filter((n) => canView(me.role, n.module));
+  const visible = (item: NavItem) => canView(me.role, item.module);
+  const tabs = TAB_PRIORITY.map((m) => ALL_NAV.find((n) => n.module === m)!)
+    .filter(visible)
+    .filter((n) => n.module !== "notifications")
+    .slice(0, 4);
 
   const switchUser = (id: string) => {
     run((c) => {
       c.s.currentUserId = id;
     });
+    setAccount(false);
+    setMore(false);
     const u = state.users.find((x) => x.id === id);
     if (u) navigate(homeFor(u.role));
   };
 
-  const sidebar = (
-    <nav className="flex flex-col gap-0.5">
-      {nav.map((n) => {
-        const active = n.path === "/" ? path === "/" : path.startsWith(n.path) || (n.path === "/loyihalar" && path.startsWith("/loyiha/"));
+  const navList = (compact = false) => (
+    <nav className="flex flex-col gap-4">
+      {NAV_GROUPS.map((g, gi) => {
+        const items = g.items.filter(visible);
+        if (!items.length) return null;
         return (
-          <A
-            key={n.path}
-            href={n.path}
-            className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
-              active ? "bg-signal-500/10 text-signal-300" : "text-mist-300 hover:bg-white/5 hover:text-white"
-            }`}
-          >
-            <span className="w-4 text-center text-xs opacity-80">{n.icon}</span>
-            <span className="flex-1">{n.label}</span>
-            {n.module === "notifications" && unread > 0 && (
-              <span className="rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">{unread}</span>
-            )}
-          </A>
+          <div key={gi}>
+            {g.title && <div className="mb-1 px-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-label3">{g.title}</div>}
+            <div className="flex flex-col gap-0.5">
+              {items.map((n) => {
+                const active = isActive(n, path);
+                return (
+                  <A
+                    key={n.path}
+                    href={n.path}
+                    className={`group flex items-center gap-3 rounded-[12px] px-2.5 ${compact ? "py-2" : "py-[7px]"} text-[15px] font-medium transition duration-200 ${
+                      active ? "bg-accent/12 text-accent" : "text-label hover:bg-fill"
+                    }`}
+                  >
+                    <IconChip name={n.icon} color={n.color} size={28} />
+                    <span className="flex-1 truncate">{n.label}</span>
+                    {n.module === "notifications" && unread > 0 && (
+                      <span className="min-w-[22px] rounded-full bg-red px-1.5 text-center text-[12px] font-bold leading-[20px] text-white">{unread}</span>
+                    )}
+                  </A>
+                );
+              })}
+            </div>
+          </div>
         );
       })}
     </nav>
   );
 
-  const userSwitcher = (
-    <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3">
-      <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-amber-300/90">Demo: kim sifatida kirish</div>
-      <Select
-        value={me.id}
-        onChange={(e) => switchUser(e.target.value)}
-        options={state.users.filter((u) => u.active).map((u) => ({ value: u.id, label: `${u.name} — ${ROLE_LABELS[u.role]}` }))}
-        className="!py-1.5 !text-xs"
-      />
-      <p className="mt-1.5 text-[11px] leading-snug text-mist-400">Rolni almashtirib, har bir xodim nimani ko'rishini sinab ko'ring.</p>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen lg:flex">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-4 overflow-y-auto border-r border-white/[0.06] bg-ink-900/60 p-4 lg:flex">
-        <Logo />
-        {userSwitcher}
-        {sidebar}
-        <p className="mt-auto text-[11px] text-mist-400">MVP demo · ma'lumotlar brauzeringizda saqlanadi</p>
+    <div className="min-h-screen">
+      <div className="wallpaper" />
+
+      {/* ---------- Kompyuter: suzuvchi shisha sidebar ---------- */}
+      <aside className="glass fixed bottom-3 left-3 top-3 z-30 hidden w-[272px] flex-col rounded-[28px] lg:flex">
+        <div className="px-5 pb-3 pt-5">
+          <Logo />
+        </div>
+        <div className="no-scrollbar flex-1 overflow-y-auto px-3 pb-3">{navList()}</div>
+        <div className="relative border-t border-sep p-3">
+          <AccountButton me={me} onClick={() => setAccount((v) => !v)} open={account} />
+          {account && (
+            <div className="absolute bottom-[calc(100%+8px)] left-3 right-3 z-40">
+              <AccountMenu users={state.users} meId={me.id} onPick={switchUser} theme={theme} setTheme={setTheme} onClose={() => setAccount(false)} />
+            </div>
+          )}
+        </div>
       </aside>
 
-      <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-white/[0.06] bg-ink-950/85 px-4 py-3 backdrop-blur lg:hidden">
-          <Logo />
-          <div className="flex items-center gap-2">
-            <A href="/bildirishnomalar" className="relative rounded-lg border border-white/10 px-2.5 py-1.5 text-sm">
-              🔔
-              {unread > 0 && <span className="absolute -right-1.5 -top-1.5 rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">{unread}</span>}
-            </A>
-            <button type="button" onClick={() => setMenu((v) => !v)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-white" aria-label="Menyu">
-              ☰
-            </button>
-          </div>
-        </header>
-        {menu && (
-          <div className="space-y-3 border-b border-white/[0.06] bg-ink-900 p-4 lg:hidden">
-            {userSwitcher}
-            {sidebar}
-          </div>
-        )}
-
-        <div className="hidden items-center justify-end gap-3 border-b border-white/[0.06] px-6 py-2.5 text-sm lg:flex">
-          <span className="text-mist-400">
-            {me.name} · <span className="text-mist-300">{ROLE_LABELS[me.role]}</span>
-          </span>
-          <A href="/bildirishnomalar" className="relative rounded-lg border border-white/10 px-2.5 py-1 hover:border-white/25">
-            🔔
-            {unread > 0 && <span className="absolute -right-1.5 -top-1.5 rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">{unread}</span>}
-          </A>
+      {/* ---------- Telefon: yuqori panel ---------- */}
+      <header className="glass sticky top-0 z-30 flex items-center justify-between gap-3 rounded-b-[22px] border-t-0 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top,0px)+10px)] lg:hidden">
+        <Logo small />
+        <div className="flex items-center gap-2">
+          <IconButton icon="bell" label="Bildirishnomalar" badge={unread} onClick={() => navigate("/bildirishnomalar")} />
+          <button type="button" onClick={() => setAccount(true)} aria-label="Akkaunt" className="rounded-full transition active:scale-95">
+            <Avatar name={me.name} size={40} />
+          </button>
         </div>
+      </header>
 
-        <main className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 lg:py-6">{allowed ? node : null}</main>
+      <div className="lg:pl-[288px]">
+        <div className="hidden items-center justify-end gap-3 px-8 pt-6 lg:flex">
+          <span className="text-[13px] font-medium text-label2">{todayLabel()}</span>
+          <IconButton icon="bell" label="Bildirishnomalar" badge={unread} onClick={() => navigate("/bildirishnomalar")} />
+        </div>
+        <main key={path} className="mx-auto max-w-[1360px] animate-fade-in px-4 pb-32 pt-5 sm:px-6 lg:px-8 lg:pb-12 lg:pt-2">
+          {allowed ? node : null}
+        </main>
       </div>
 
-      {toast && (
-        <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-lg border border-signal-500/30 bg-ink-800 px-4 py-2 text-sm text-signal-200 shadow-xl">
-          {toast}
+      {/* ---------- Telefon: suzuvchi tab bar ---------- */}
+      <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom,0px)+10px)] z-30 lg:hidden">
+        <div className="glass mx-auto flex max-w-md items-stretch justify-between rounded-full p-1.5">
+          {tabs.map((t) => {
+            const active = isActive(t, path);
+            return (
+              <A
+                key={t.path}
+                href={t.path}
+                className={`flex flex-1 flex-col items-center gap-0.5 rounded-full py-1.5 text-[10px] font-semibold transition ${active ? "bg-fill text-accent" : "text-label2"}`}
+              >
+                <Icon name={t.icon} size={22} strokeWidth={active ? 2.2 : 1.8} />
+                {t.short}
+              </A>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setMore(true)}
+            className={`flex flex-1 flex-col items-center gap-0.5 rounded-full py-1.5 text-[10px] font-semibold transition ${more ? "bg-fill text-accent" : "text-label2"}`}
+          >
+            <Icon name="grid" size={22} />
+            Yana
+          </button>
+        </div>
+      </nav>
+
+      {more && (
+        <Sheet onClose={() => setMore(false)} title="Bo'limlar">
+          {navList(true)}
+        </Sheet>
+      )}
+      {account && (
+        <div className="lg:hidden">
+          <Sheet onClose={() => setAccount(false)} title="Akkaunt">
+            <AccountMenu users={state.users} meId={me.id} onPick={switchUser} theme={theme} setTheme={setTheme} onClose={() => setAccount(false)} flat />
+          </Sheet>
         </div>
       )}
+
+      {toast && <Island text={toast} />}
     </div>
   );
 }
 
-function Logo() {
+function Logo({ small }: { small?: boolean }) {
   return (
-    <A href="/" className="flex items-center gap-2">
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-signal-500/15 font-mono text-sm font-semibold text-signal-400">S</span>
+    <A href="/" className="flex items-center gap-3">
+      <span
+        className={`flex items-center justify-center rounded-[12px] bg-gradient-to-br from-[#5856D6] via-[#007AFF] to-[#5AC8FA] text-white shadow-[0_6px_16px_-6px_rgb(0_122_255/0.7),inset_0_1px_0_rgb(255_255_255/0.35)] ${small ? "h-9 w-9" : "h-11 w-11"}`}
+      >
+        <Icon name="sparkle" size={small ? 18 : 22} strokeWidth={2} />
+      </span>
       <span className="leading-tight">
-        <span className="block text-sm font-semibold text-white">SMM agentlik ERP</span>
-        <span className="block text-[11px] text-mist-400">lid → kontent → to'lov</span>
+        <span className={`block font-bold tracking-tight text-label ${small ? "text-[16px]" : "text-[17px]"}`}>SMM Studio</span>
+        <span className="block text-[12px] font-medium text-label2">Agentlik ERP</span>
       </span>
     </A>
+  );
+}
+
+function AccountButton({ me, onClick, open }: { me: User; onClick: () => void; open: boolean }) {
+  return (
+    <button type="button" onClick={onClick} className={`flex w-full items-center gap-3 rounded-[16px] p-2 text-left transition ${open ? "bg-fill" : "hover:bg-fill"}`}>
+      <Avatar name={me.name} size={38} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-semibold text-label">{me.name}</span>
+        <span className="block truncate text-[12px] text-label2">{ROLE_LABELS[me.role]}</span>
+      </span>
+      <Icon name="chevronDown" size={16} className={`text-label3 transition ${open ? "rotate-180" : ""}`} />
+    </button>
+  );
+}
+
+const ROLE_ORDER: Role[] = ["marketolog", "operator", "smm", "targetolog", "syomka", "montajyor", "dizayner", "moliya", "admin"];
+
+function AccountMenu({
+  users,
+  meId,
+  onPick,
+  theme,
+  setTheme,
+  onClose,
+  flat,
+}: {
+  users: User[];
+  meId: string;
+  onPick: (id: string) => void;
+  theme: Theme;
+  setTheme: (t: Theme) => void;
+  onClose: () => void;
+  flat?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (flat) return;
+    const on = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as HTMLElement).closest("aside button")) onClose();
+    };
+    document.addEventListener("mousedown", on);
+    return () => document.removeEventListener("mousedown", on);
+  }, [flat, onClose]);
+
+  const sorted = users.filter((u) => u.active).sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+  const themes: { id: Theme; icon: IconName; label: string }[] = [
+    { id: "light", icon: "sun", label: "Yorug'" },
+    { id: "system", icon: "monitor", label: "Tizim" },
+    { id: "dark", icon: "moon", label: "Qorong'i" },
+  ];
+
+  return (
+    <div ref={ref} className={flat ? "" : "glass-strong animate-pop rounded-[22px] p-2"}>
+      <div className="px-2 pb-1.5 pt-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-label3">Mavzu</div>
+      <div className="mb-2 flex gap-1 rounded-[12px] bg-fill p-[3px]">
+        {themes.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTheme(t.id)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-[9px] py-1.5 text-[13px] font-semibold transition ${theme === t.id ? "bg-elevated text-label shadow-sm" : "text-label2"}`}
+          >
+            <Icon name={t.icon} size={15} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="px-2 pb-1 pt-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-label3">Demo: kim sifatida kirish</div>
+      <div className={`no-scrollbar flex flex-col overflow-y-auto ${flat ? "" : "max-h-[46vh]"}`}>
+        {sorted.map((u) => (
+          <button
+            key={u.id}
+            type="button"
+            onClick={() => onPick(u.id)}
+            className={`flex items-center gap-3 rounded-[12px] px-2 py-1.5 text-left transition ${u.id === meId ? "bg-accent/12" : "hover:bg-fill"}`}
+          >
+            <Avatar name={u.name} size={30} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[14px] font-semibold text-label">{u.name}</span>
+              <span className="block truncate text-[12px] text-label2">{ROLE_LABELS[u.role]}</span>
+            </span>
+            {u.id === meId && <Icon name="check" size={16} className="text-accent" strokeWidth={2.4} />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-40 flex animate-fade-in items-end bg-black/25 lg:hidden" onMouseDown={onClose}>
+      <div className="glass-strong max-h-[85vh] w-full animate-sheet-up overflow-y-auto rounded-t-[30px] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+20px)]" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-label/20" />
+        <div className="flex items-center justify-between py-3">
+          <h2 className="text-[19px] font-bold tracking-tight text-label">{title}</h2>
+          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-fill text-label2" aria-label="Yopish">
+            <Icon name="x" size={16} strokeWidth={2.4} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Dynamic Island uslubidagi xabar. */
+function Island({ text }: { text: string }) {
+  const warn = text.startsWith("⚠");
+  const clean = text.replace(/^⚠\s*/, "");
+  return (
+    <div
+      role="status"
+      className="fixed left-1/2 top-[calc(env(safe-area-inset-top,0px)+12px)] z-[60] flex max-w-[92vw] animate-island items-center gap-2.5 rounded-full bg-black py-2.5 pl-3 pr-5 text-[14px] font-semibold text-white shadow-float"
+      style={{ transform: "translateX(-50%)" }}
+    >
+      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${warn ? "bg-[#FF9F0A]" : "bg-[#30D158]"}`}>
+        <Icon name={warn ? "alert" : "check"} size={14} strokeWidth={2.6} />
+      </span>
+      <span className="truncate">{clean}</span>
+    </div>
   );
 }

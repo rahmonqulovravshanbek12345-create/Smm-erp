@@ -40,15 +40,15 @@ export function Projects() {
           const docsDone = Object.values(p.docs).filter((d) => d.status === "done").length;
           return (
             <A key={p.id} href={`/loyiha/${p.id}`}>
-              <Card className={`h-full p-4 transition hover:border-white/20 ${debt.amount ? "border-red-500/30" : ""}`}>
+              <Card className={`h-full p-4 transition hover:shadow-float ${debt.amount ? "border-red/40" : ""}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <div className="font-semibold text-white">{p.name}</div>
-                    <div className="text-xs text-mist-400">
+                    <div className="font-semibold text-label">{p.name}</div>
+                    <div className="text-xs text-label2">
                       {p.industry} · {p.tariff}
                     </div>
                   </div>
-                  <span className="text-sm text-mist-200">{fmtMoney(p.monthlyFee)}</span>
+                  <span className="text-sm text-label/80">{fmtMoney(p.monthlyFee)}</span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <DebtBadge debt={debt} />
@@ -56,13 +56,13 @@ export function Projects() {
                   {!p.handedOffAt && <Badge tone="violet">Strategiya: {docsDone}/5</Badge>}
                   {per && <Badge>{per.index + 1}-davr</Badge>}
                 </div>
-                <div className="mt-3 flex items-center gap-3 text-xs text-mist-300">
+                <div className="mt-3 flex items-center gap-3 text-xs text-label2">
                   <Progress value={done} max={posts.length} />
                   <span className="whitespace-nowrap">
                     {done}/{posts.length} joylandi
                   </span>
                 </div>
-                <div className="mt-2 text-xs text-mist-400">
+                <div className="mt-2 text-xs text-label2">
                   Marketolog: {look.userName(p.marketologId)} · SMM: {look.userName(p.smmId)}
                 </div>
               </Card>
@@ -116,7 +116,7 @@ export function ProjectCard({ id }: { id: string }) {
   return (
     <>
       <div className="mb-1 text-xs">
-        <A href="/loyihalar" className="text-mist-400 hover:text-white">
+        <A href="/loyihalar" className="text-label2 hover:text-label">
           ← Loyihalar
         </A>
       </div>
@@ -148,14 +148,14 @@ function Info({ p }: { p: Project }) {
   const canSettings = canEdit(me.role, "projects") || canEditFinance(me.role);
   const row = (label: string, value: React.ReactNode) => (
     <div className="grid grid-cols-[150px_1fr] gap-2 py-1.5 text-sm">
-      <span className="text-mist-400">{label}</span>
-      <span className="text-mist-100">{value}</span>
+      <span className="text-label2">{label}</span>
+      <span className="text-label">{value}</span>
     </div>
   );
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="p-4">
-        <h3 className="mb-2 text-sm font-semibold text-white">Mijoz</h3>
+        <h3 className="mb-2 text-sm font-semibold text-label">Mijoz</h3>
         {row("Kontakt", p.contactName)}
         {row("Telefon", p.phone)}
         {row("Soha", p.industry)}
@@ -167,20 +167,20 @@ function Info({ p }: { p: Project }) {
             ))}
           </span>,
         )}
-        <h3 className="mb-2 mt-4 text-sm font-semibold text-white">Jamoa</h3>
+        <h3 className="mb-2 mt-4 text-sm font-semibold text-label">Jamoa</h3>
         {row("Marketolog", look.userName(p.marketologId))}
         {row("SMM menejer", look.userName(p.smmId))}
         {row("Targetolog", look.userName(p.targetologId))}
       </Card>
       <Card className="p-4">
-        <h3 className="mb-2 text-sm font-semibold text-white">Shartnoma</h3>
+        <h3 className="mb-2 text-sm font-semibold text-label">Shartnoma</h3>
         {row("Raqam / sana", `${p.contractNo} · ${fmtDate(p.contractDate)}`)}
         {row("Tarif", p.tariff)}
         {row("Oylik summa", fmtMoney(p.monthlyFee))}
         {row("Oldindan to'lov", `${p.prepayType}%`)}
         {row("Davr boshlanishi", p.periodStart ? `${fmtDate(p.periodStart)} (birinchi reklama)` : "— birinchi reklama kutilmoqda")}
         {canSettings && (
-          <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-4">
+          <div className="mt-4 space-y-3 border-t border-sep pt-4">
             <Field label="Davr boshlanish sanasi" hint="Targetolog reklamani yoqqanda avtomatik qo'yiladi">
               <Input
                 type="date"
@@ -192,8 +192,8 @@ function Info({ p }: { p: Project }) {
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" checked={p.pauseWork} onChange={(e) => run((c) => act.updateProject(c, p.id, { pauseWork: e.target.checked }), "Saqlandi")} className="mt-1" />
               <span>
-                <span className="text-white">Ishni to'xtatish</span>
-                <span className="block text-xs text-mist-400">Belgilansa, bu loyiha uchun yangi post, syomka va TZ ochilmaydi (qo'lda boshqariladi)</span>
+                <span className="text-label">Ishni to'xtatish</span>
+                <span className="block text-xs text-label2">Belgilansa, bu loyiha uchun yangi post, syomka va TZ ochilmaydi (qo'lda boshqariladi)</span>
               </span>
             </label>
           </div>
@@ -213,10 +213,10 @@ function Marketing({ p }: { p: Project }) {
     <>
       <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
-          <div className="text-sm font-semibold text-white">
+          <div className="text-sm font-semibold text-label">
             Tayyor bloklar: {Object.values(p.docs).filter((d) => d.status === "done").length}/5
           </div>
-          <div className="text-xs text-mist-400">
+          <div className="text-xs text-label2">
             {p.handedOffAt ? `SMM menejer va targetologga uzatilgan: ${fmtDateTime(p.handedOffAt)}` : "Hammasi «Tayyor» bo'lgach uzatish tugmasi ishlaydi"}
           </div>
         </div>
@@ -257,7 +257,7 @@ function Marketing({ p }: { p: Project }) {
                     </div>
                   </>
                 ) : (
-                  <p className="whitespace-pre-line text-sm text-mist-200">{doc.content || "—"}</p>
+                  <p className="whitespace-pre-line text-sm text-label/80">{doc.content || "—"}</p>
                 )}
               </div>
             </Card>
@@ -278,12 +278,12 @@ function ProjectTasks({ p }: { p: Project }) {
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-2">
         <CardHeader title="TZ va vazifalar" sub={`${tasks.length} ta`} />
-        <ul className="divide-y divide-white/[0.05]">
+        <ul className="divide-y divide-sep">
           {tasks.map((t) => (
             <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
               <span>
-                <span className="text-mist-400">{TASK_KIND_LABELS[t.kind]}:</span> <span className="text-white">{t.title}</span>
-                <span className="block text-xs text-mist-400">
+                <span className="text-label2">{TASK_KIND_LABELS[t.kind]}:</span> <span className="text-label">{t.title}</span>
+                <span className="block text-xs text-label2">
                   {look.userName(t.assigneeId)} · deadline {fmtDate(t.deadline)}
                 </span>
               </span>
@@ -296,13 +296,13 @@ function ProjectTasks({ p }: { p: Project }) {
       <div className="space-y-4">
         <Card>
           <CardHeader title="Syomkalar" />
-          <ul className="divide-y divide-white/[0.05] text-sm">
+          <ul className="divide-y divide-sep text-sm">
             {shoots.map((s) => (
               <li key={s.id} className="px-4 py-2.5">
-                <div className="text-white">
+                <div className="text-label">
                   {fmtDate(s.date)} {s.time}
                 </div>
-                <div className="text-xs text-mist-400">
+                <div className="text-xs text-label2">
                   {s.location} · {s.videoCount} video · {s.status === "handed" ? "topshirildi" : "rejada"}
                 </div>
               </li>
@@ -311,9 +311,9 @@ function ProjectTasks({ p }: { p: Project }) {
           </ul>
         </Card>
         {late.length > 0 && (
-          <Card className="border-red-500/30">
-            <CardHeader title={<span className="text-red-300">Kechikkan postlar</span>} />
-            <ul className="divide-y divide-white/[0.05] text-sm">
+          <Card className="border-red/40">
+            <CardHeader title={<span className="text-red">Kechikkan postlar</span>} />
+            <ul className="divide-y divide-sep text-sm">
               {late.map((x) => (
                 <li key={x.id} className="px-4 py-2">
                   {fmtDate(x.date)} · {x.topic}
@@ -358,7 +358,7 @@ function Reports({ p }: { p: Project }) {
             <Field label="Lidlar">
               <Input type="number" value={f.leads} onChange={(e) => setF({ ...f, leads: e.target.value })} />
             </Field>
-            <div className="self-end pb-2 text-xs text-mist-400">
+            <div className="self-end pb-2 text-xs text-label2">
               Joriy davr rejasi: {posts.length} ta, joylandi: {done} ta
             </div>
             <Field label="Xulosa" className="sm:col-span-2">
@@ -392,12 +392,12 @@ function Reports({ p }: { p: Project }) {
       )}
       <Card className={canSubmit ? "" : "lg:col-span-2"}>
         <CardHeader title="Topshirilgan hisobotlar" />
-        <ul className="divide-y divide-white/[0.05]">
+        <ul className="divide-y divide-sep">
           {reports.map((r) => (
             <li key={r.id} className="px-4 py-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-medium text-white">{r.periodIndex + 1}-davr</span>
-                <span className="text-xs text-mist-400">
+                <span className="font-medium text-label">{r.periodIndex + 1}-davr</span>
+                <span className="text-xs text-label2">
                   {fmtDateTime(r.submittedAt)} · {look.userName(r.authorId)}
                 </span>
               </div>
@@ -406,7 +406,7 @@ function Reports({ p }: { p: Project }) {
                 <Badge>Obunachi: +{fmtNum(r.followers)}</Badge>
                 <Badge tone="green">Lid: {fmtNum(r.leads)}</Badge>
               </div>
-              {r.summary && <p className="mt-1.5 text-mist-300">{r.summary}</p>}
+              {r.summary && <p className="mt-1.5 text-label2">{r.summary}</p>}
               {r.fileLink && (
                 <div className="mt-1 text-xs">
                   <LinkOut href={r.fileLink}>Hisobot fayli</LinkOut>

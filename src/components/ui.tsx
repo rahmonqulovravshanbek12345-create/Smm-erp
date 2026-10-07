@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { Tone } from "../lib/labels";
+import { Icon, IconChip, type ChipColor, type IconName } from "./icons";
 
 // ---------- Router ----------
 // Joriy sahifa xotirada saqlanadi va imkon bo'lsa manzildagi #hash bilan sinxronlanadi.
@@ -68,28 +70,29 @@ export function A({ href, className = "", children }: { href: string; className?
 // ---------- Asosiy elementlar ----------
 
 const TONES: Record<Tone, string> = {
-  gray: "border-white/10 bg-white/5 text-mist-300",
-  green: "border-signal-500/30 bg-signal-500/10 text-signal-300",
-  amber: "border-amber-400/30 bg-amber-400/10 text-amber-300",
-  red: "border-red-500/40 bg-red-500/15 text-red-300",
-  blue: "border-sky-400/30 bg-sky-400/10 text-sky-300",
-  violet: "border-violet-400/30 bg-violet-400/10 text-violet-300",
+  gray: "bg-fill text-label2",
+  green: "bg-green/15 text-green",
+  amber: "bg-orange/15 text-orange",
+  red: "bg-red/15 text-red",
+  blue: "bg-accent/15 text-accent",
+  violet: "bg-purple/15 text-purple",
 };
 
 export function Badge({ tone = "gray", children }: { tone?: Tone; children: ReactNode }) {
   return (
-    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${TONES[tone]}`}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[3px] text-[11px] font-semibold leading-none ${TONES[tone]}`}>
       {children}
     </span>
   );
 }
 
-type BtnVariant = "primary" | "secondary" | "ghost" | "danger";
+type BtnVariant = "primary" | "secondary" | "ghost" | "danger" | "glass";
 const BTN: Record<BtnVariant, string> = {
-  primary: "bg-signal-500 text-ink-950 hover:bg-signal-400",
-  secondary: "border border-white/15 text-white hover:border-white/30 hover:bg-white/5",
-  ghost: "text-mist-300 hover:bg-white/5 hover:text-white",
-  danger: "border border-red-500/40 text-red-300 hover:bg-red-500/10",
+  primary: "bg-accent text-white shadow-[0_6px_16px_-6px_rgb(var(--accent)/0.6)] hover:brightness-110",
+  secondary: "bg-accent/12 text-accent hover:bg-accent/20",
+  ghost: "text-accent hover:bg-fill",
+  danger: "bg-red/12 text-red hover:bg-red/20",
+  glass: "glass text-label hover:brightness-105",
 };
 
 export function Button({
@@ -98,26 +101,40 @@ export function Button({
   className = "",
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant; size?: "sm" | "md" }) {
-  const sz = size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-2 text-sm";
+  const sz = size === "sm" ? "h-8 px-3 text-[13px]" : "h-10 px-4 text-[15px]";
   return (
     <button
       type="button"
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${sz} ${BTN[variant]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full font-semibold transition duration-200 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 ${sz} ${BTN[variant]} ${className}`}
       {...rest}
     />
   );
 }
 
-export function Card({ className = "", children }: { className?: string; children: ReactNode }) {
-  return <div className={`rounded-xl border border-white/[0.07] bg-ink-900/70 ${className}`}>{children}</div>;
+export function IconButton({ icon, label, onClick, badge }: { icon: IconName; label: string; onClick?: () => void; badge?: number }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label} className="glass relative flex h-10 w-10 items-center justify-center rounded-full text-label transition active:scale-95">
+      <Icon name={icon} size={19} />
+      {badge ? (
+        <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red px-1 text-center text-[11px] font-bold leading-[18px] text-white">{badge}</span>
+      ) : null}
+    </button>
+  );
 }
 
-export function CardHeader({ title, right, sub }: { title: ReactNode; right?: ReactNode; sub?: ReactNode }) {
+export function Card({ className = "", children }: { className?: string; children: ReactNode }) {
+  return <div className={`glass min-w-0 rounded-[24px] ${className}`}>{children}</div>;
+}
+
+export function CardHeader({ title, right, sub, icon }: { title: ReactNode; right?: ReactNode; sub?: ReactNode; icon?: { name: IconName; color: ChipColor } }) {
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-4 py-3">
-      <div className="min-w-0">
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
-        {sub && <p className="mt-0.5 text-xs text-mist-400">{sub}</p>}
+    <div className="flex items-center justify-between gap-3 px-5 pb-2 pt-4">
+      <div className="flex min-w-0 items-center gap-2.5">
+        {icon && <IconChip name={icon.name} color={icon.color} size={26} />}
+        <div className="min-w-0">
+          <h3 className="text-[17px] font-semibold tracking-tight text-label">{title}</h3>
+          {sub && <p className="mt-0.5 text-[13px] text-label2">{sub}</p>}
+        </div>
       </div>
       {right}
     </div>
@@ -126,10 +143,10 @@ export function CardHeader({ title, right, sub }: { title: ReactNode; right?: Re
 
 export function PageHeader({ title, sub, actions }: { title: string; sub?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">{title}</h1>
-        {sub && <p className="mt-1 text-sm text-mist-400">{sub}</p>}
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="text-[30px] font-bold leading-tight tracking-[-0.025em] text-label sm:text-[34px]">{title}</h1>
+        {sub && <p className="mt-1 max-w-[70ch] text-[15px] text-label2">{sub}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
@@ -137,44 +154,134 @@ export function PageHeader({ title, sub, actions }: { title: string; sub?: React
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <div className="px-4 py-8 text-center text-sm text-mist-400">{children}</div>;
+  return <div className="px-5 py-10 text-center text-[15px] text-label3">{children}</div>;
 }
 
-export function Stat({ label, value, tone, href }: { label: string; value: ReactNode; tone?: "red" | "amber" | "green"; href?: string }) {
-  const color = tone === "red" ? "text-red-300" : tone === "amber" ? "text-amber-300" : tone === "green" ? "text-signal-300" : "text-white";
+const STAT_TONE = { red: "text-red", amber: "text-orange", green: "text-green" } as const;
+
+/** iOS vidjeti uslubidagi ko'rsatkich. */
+export function Stat({
+  label,
+  value,
+  tone,
+  href,
+  icon,
+  color = "blue",
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: "red" | "amber" | "green";
+  href?: string;
+  icon?: IconName;
+  color?: ChipColor;
+}) {
   const body = (
-    <Card className="h-full px-4 py-3 transition hover:border-white/20">
-      <div className="text-xs text-mist-400">{label}</div>
-      <div className={`mt-1 text-xl font-semibold sm:text-2xl ${color}`}>{value}</div>
+    <Card className="flex h-full flex-col gap-3 p-4 transition duration-300 hover:-translate-y-0.5">
+      {(icon || href) && (
+        <div className="flex items-center justify-between">
+          {icon ? <IconChip name={icon} color={color} size={30} /> : <span />}
+          {href && <Icon name="chevronRight" size={16} className="text-label3" />}
+        </div>
+      )}
+      <div>
+        <div className={`tabular text-[26px] font-bold leading-none tracking-tight sm:text-[30px] ${tone ? STAT_TONE[tone] : "text-label"}`}>{value}</div>
+        <div className="mt-1.5 text-[13px] font-medium text-label2">{label}</div>
+      </div>
     </Card>
   );
-  return href ? <A href={href}>{body}</A> : body;
+  return href ? (
+    <A href={href} className="block">
+      {body}
+    </A>
+  ) : (
+    body
+  );
 }
 
 export function Progress({ value, max }: { value: number; max: number }) {
   const pct = max ? Math.min(100, Math.round((value / max) * 100)) : 0;
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-      <div className="h-full rounded-full bg-signal-500" style={{ width: `${pct}%` }} />
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-fill">
+      <div className="h-full rounded-full bg-gradient-to-r from-green to-teal transition-all duration-700" style={{ width: `${pct}%` }} />
     </div>
   );
 }
 
+/** Apple Watch aktivlik halqasi. */
+export function Ring({ value, max, size = 64, stroke = 8, color = "green", children }: { value: number; max: number; size?: number; stroke?: number; color?: "green" | "red" | "orange" | "accent"; children?: ReactNode }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = max ? Math.min(1, value / max) : 0;
+  const cls = { green: "text-green", red: "text-red", orange: "text-orange", accent: "text-accent" }[color];
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className={`-rotate-90 ${cls}`}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeOpacity={0.18} strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - pct)}
+          style={{ transition: "stroke-dashoffset 0.9s cubic-bezier(0.32,0.72,0,1)" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">{children}</div>
+    </div>
+  );
+}
+
+const AVATAR_GRADIENTS = [
+  "from-[#5AC8FA] to-[#007AFF]",
+  "from-[#FF9500] to-[#FF2D55]",
+  "from-[#34C759] to-[#30B0C7]",
+  "from-[#AF52DE] to-[#5856D6]",
+  "from-[#FFCC00] to-[#FF9500]",
+  "from-[#FF2D55] to-[#AF52DE]",
+];
+
+export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
+  const initials = name
+    .replace(/\(.*?\)/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+  const g = AVATAR_GRADIENTS[[...name].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVATAR_GRADIENTS.length];
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br font-semibold text-white ${g}`}
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
+    >
+      {initials}
+    </span>
+  );
+}
+
+/** iOS segment boshqaruvi. */
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: ReactNode }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="mb-4 flex gap-1 overflow-x-auto border-b border-white/[0.07]">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          onClick={() => onChange(t.id)}
-          className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm transition ${
-            value === t.id ? "border-signal-500 text-white" : "border-transparent text-mist-400 hover:text-white"
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
+    <div className="no-scrollbar mb-5 overflow-x-auto">
+      <div className="inline-flex min-w-full gap-0.5 rounded-[12px] bg-fill p-[3px] sm:min-w-0">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onChange(t.id)}
+            className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] px-4 py-1.5 text-[13px] font-semibold transition duration-200 sm:flex-none ${
+              value === t.id ? "bg-elevated text-label shadow-[0_3px_8px_rgb(0_0_0/0.12),0_0_0_0.5px_rgb(0_0_0/0.04)]" : "text-label2 hover:text-label"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -183,23 +290,23 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: 
 
 export function Field({ label, children, hint, className = "" }: { label: string; children: ReactNode; hint?: string; className?: string }) {
   return (
-    <label className={`block ${className}`}>
-      <span className="mb-1 block text-xs font-medium text-mist-300">{label}</span>
+    <label className={`block min-w-0 ${className}`}>
+      <span className="mb-1.5 block px-1 text-[13px] font-medium text-label2">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-[11px] text-mist-400">{hint}</span>}
+      {hint && <span className="mt-1 block px-1 text-[12px] text-label3">{hint}</span>}
     </label>
   );
 }
 
 const inputCls =
-  "w-full rounded-lg border border-white/10 bg-ink-950/60 px-3 py-2 text-sm text-white placeholder:text-mist-400/60 focus:border-signal-500/60 focus:outline-none";
+  "w-full rounded-[12px] border-0 bg-fill px-3.5 py-2.5 text-[15px] text-label placeholder:text-label3 transition focus:bg-elevated focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-60";
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} ${props.className ?? ""}`} />;
 }
 
 export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea rows={3} {...props} className={`${inputCls} ${props.className ?? ""}`} />;
+  return <textarea rows={3} {...props} className={`${inputCls} resize-y ${props.className ?? ""}`} />;
 }
 
 export function Select({
@@ -207,9 +314,9 @@ export function Select({
   ...props
 }: React.SelectHTMLAttributes<HTMLSelectElement> & { options: { value: string; label: string }[] }) {
   return (
-    <select {...props} className={`${inputCls} ${props.className ?? ""}`}>
+    <select {...props} className={`${inputCls} cursor-pointer appearance-none bg-[length:16px] bg-[right_10px_center] bg-no-repeat pr-9 ${props.className ?? ""}`} style={{ backgroundImage: SELECT_ARROW, ...props.style }}>
       {options.map((o) => (
-        <option key={o.value} value={o.value} className="bg-ink-900">
+        <option key={o.value} value={o.value}>
           {o.label}
         </option>
       ))}
@@ -217,6 +324,10 @@ export function Select({
   );
 }
 
+const SELECT_ARROW =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 9.5l5 5 5-5'/%3E%3C/svg%3E\")";
+
+/** iOS "sheet": telefonda pastdan chiqadi, kompyuterda markazda. */
 export function Modal({
   open,
   onClose,
@@ -236,46 +347,58 @@ export function Modal({
     if (!open) return;
     const on = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", on);
-    return () => window.removeEventListener("keydown", on);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", on);
+      document.body.style.overflow = prev;
+    };
   }, [open, onClose]);
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={onClose}>
+  // Portal: shisha (backdrop-filter) ota-element ichida "fixed" joylashuv buziladi, shuning uchun body'ga chiqaramiz.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/25 sm:items-center sm:p-6" onMouseDown={onClose}>
       <div
-        className={`flex max-h-[92vh] w-full flex-col rounded-t-2xl border border-white/10 bg-ink-900 shadow-2xl sm:rounded-2xl ${wide ? "sm:max-w-3xl" : "sm:max-w-lg"}`}
+        className={`glass-strong flex max-h-[92vh] w-full animate-sheet-up flex-col rounded-t-[30px] sm:rounded-[30px] ${wide ? "sm:max-w-3xl" : "sm:max-w-lg"}`}
         onMouseDown={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
       >
-        <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-3">
-          <h2 className="text-base font-semibold text-white">{title}</h2>
-          <button type="button" onClick={onClose} className="rounded p-1 text-mist-400 hover:text-white" aria-label="Yopish">
-            ✕
+        <div className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-label/20 sm:hidden" />
+        <div className="flex items-center justify-between gap-3 px-5 pb-2 pt-3 sm:pt-5">
+          <h2 className="min-w-0 truncate text-[19px] font-bold tracking-tight text-label">{title}</h2>
+          <button type="button" onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-fill text-label2 transition hover:bg-fill2" aria-label="Yopish">
+            <Icon name="x" size={16} strokeWidth={2.4} />
           </button>
         </div>
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-white/[0.07] px-5 py-3">{footer}</div>}
+        <div className="overflow-y-auto px-5 pb-5 pt-2">{children}</div>
+        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-sep px-5 py-3.5">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
 export function LinkOut({ href, children }: { href?: string; children?: ReactNode }) {
-  if (!href) return <span className="text-mist-400">—</span>;
+  if (!href) return <span className="text-label3">—</span>;
   const url = /^https?:\/\//.test(href) ? href : `https://${href}`;
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="break-all text-sky-300 underline-offset-2 hover:underline">
-      {children ?? href}
+    <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 break-all font-medium text-accent hover:underline">
+      {children ?? href.replace(/^https?:\/\//, "")}
+      <Icon name="arrowUpRight" size={13} className="shrink-0" />
     </a>
   );
 }
 
 export function Banner({ tone, children }: { tone: "red" | "amber" | "green"; children: ReactNode }) {
-  const cls =
-    tone === "red"
-      ? "border-red-500/40 bg-red-500/10 text-red-200"
-      : tone === "amber"
-        ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
-        : "border-signal-500/30 bg-signal-500/10 text-signal-200";
-  return <div className={`mb-4 rounded-lg border px-4 py-2.5 text-sm ${cls}`}>{children}</div>;
+  const cls = tone === "red" ? "bg-red/12 text-red" : tone === "amber" ? "bg-orange/12 text-orange" : "bg-green/12 text-green";
+  const icon: IconName = tone === "green" ? "check" : "alert";
+  return (
+    <div className={`mb-4 flex items-start gap-2.5 rounded-[16px] px-4 py-3 text-[14px] font-medium ${cls}`}>
+      <Icon name={icon} size={18} className="mt-px shrink-0" />
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
 }
 
 export const userOptions = (users: { id: string; name: string }[], empty?: string) => [
