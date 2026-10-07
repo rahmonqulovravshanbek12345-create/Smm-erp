@@ -1,7 +1,7 @@
 // Biznes amallari. Har biri Ctx oladi: holatni o'zgartiradi, bildirishnoma yuboradi va tarixga yozadi.
 import { addDays, diffDays, fmtDate, fmtDateShort, fmtMoney, nowISO } from "./dates";
 import { ART, accountOf, articleOf, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
-import { DOC_BLOCKS, LEAD_STAGES, POST_STATUSES, TASK_KIND_LABELS } from "./labels";
+import { DOC_BLOCKS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, TASK_KIND_LABELS } from "./labels";
 import { postStage, workBlockedReason } from "./rules";
 import { newId, type Ctx } from "./store";
 import type { Bill, BudgetLine, DocBlock, Lead, LeadStage, PayProfile, Post, PostStatus, Project, Shoot, Task, TargetReport, Transaction, WorkType } from "./types";
@@ -254,6 +254,8 @@ export function clientApproved(c: Ctx, postId: string) {
   const p = c.s.posts.find((x) => x.id === postId);
   if (!p) return;
   p.status = "approved";
+  const pr = findProject(c, p.projectId);
+  c.notify([pr?.marketologId, p.assigneeId], `Mijoz tasdiqladi: ${p.topic} (${pr?.name ?? "—"}) — joylash ${fmtDate(p.date)}`, "/kontent");
   c.log(`${p.topic}: mijoz tasdiqladi`, "/kontent");
 }
 
@@ -262,13 +264,16 @@ export function publishPost(c: Ctx, postId: string) {
   if (!p) return;
   p.status = "published";
   p.publishedAt = c.today;
-  c.log(`${p.topic}: joylandi (${p.platform === "instagram" ? "Instagram" : "Telegram"})`, "/kontent");
+  const pr = findProject(c, p.projectId);
+  c.notify([pr?.marketologId, pr?.targetologId, p.assigneeId], `Joylandi: ${p.topic} (${pr?.name ?? "—"}, ${PLATFORM_LABELS[p.platform]})`, "/kontent");
+  c.log(`${p.topic}: joylandi (${PLATFORM_LABELS[p.platform]})`, "/kontent");
 }
 
 export function setPostStatus(c: Ctx, postId: string, status: PostStatus) {
   const p = c.s.posts.find((x) => x.id === postId);
   if (!p || p.status === status) return;
   if (status === "internal") return sendToInternal(c, postId);
+  if (status === "approved") return clientApproved(c, postId);
   if (status === "published") return publishPost(c, postId);
   p.status = status;
   c.log(`${p.topic}: status → ${POST_STATUSES.find((x) => x.id === status)?.label}`, "/kontent");
