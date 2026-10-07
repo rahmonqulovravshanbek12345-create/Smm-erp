@@ -2,15 +2,18 @@ import { useState } from "react";
 import { Badge, Banner, Button, Card, CardHeader, Field, Input, PageHeader, Select } from "../components/ui";
 import { ROLE_DUTIES, ROLE_LABELS } from "../lib/labels";
 import { ACCESS_LABELS, MATRIX_VIEW, access } from "../lib/permissions";
+import { alertsFor } from "../lib/rules";
 import { newId, useErp } from "../lib/store";
+import { sendTelegram, telegramText } from "../lib/telegram";
 import type { Role } from "../lib/types";
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 
 export function Admin() {
-  const { state, me, run, reset, showToast } = useErp();
+  const { state, me, today, run, reset, showToast } = useErp();
   const [nu, setNu] = useState({ name: "", role: "smm" as Role });
   const [testing, setTesting] = useState(false);
+  const [sharedChat, setSharedChat] = useState(() => me.telegramChatId ?? "");
   const [confirmReset, setConfirmReset] = useState(false);
   const tg = state.settings.telegram;
 
@@ -21,18 +24,36 @@ export function Admin() {
       return;
     }
     setTesting(true);
-    try {
-      const res = await fetch(`https://api.telegram.org/bot${tg.botToken.trim()}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: "✅ SMM ERP: Telegram bildirishnomalari ishlayapti" }),
-      });
-      showToast(res.ok ? "Test xabar yuborildi" : "⚠ Telegram xatolik qaytardi — token va chat ID'ni tekshiring");
-    } catch {
-      showToast("⚠ Telegram'ga ulanib bo'lmadi");
-    } finally {
-      setTesting(false);
+    const ok = await sendTelegram(tg.botToken.trim(), chatId, telegramText(me, "✅ Telegram bildirishnomalari ishlayapti"));
+    setTesting(false);
+    showToast(ok ? "Test xabar yuborildi" : "⚠ Xabar ketmadi — token, chat ID va botga /start bosilganini tekshiring");
+  };
+
+  const setChatForAll = () => {
+    const id = sharedChat.trim();
+    if (!id) return showToast("⚠ Chat ID kiriting");
+    run((c) => {
+      for (const u of c.s.users) u.telegramChatId = id;
+      c.log("Barcha xodimlarga bitta Telegram chat ID qo'yildi (demo)", "/admin");
+    }, `Chat ID ${state.users.length} ta xodimga qo'yildi`);
+  };
+
+  // Haqiqiy tizimda server har kuni ertalab yuboradi; demo'da tugma bilan ko'rsatiladi.
+  const sendDigest = () => {
+    const token = tg.botToken.trim();
+    if (!tg.enabled || !token) return showToast("⚠ Avval Telegram'ni yoqing va bot tokenini kiriting");
+    let sent = 0;
+    for (const u of state.users) {
+      const chatId = u.telegramChatId?.trim();
+      if (!u.active || !chatId) continue;
+      const alerts = alertsFor(state, u, today);
+      if (alerts.length === 0) continue;
+      const lines = alerts.slice(0, 12).map((a) => `${a.tone === "red" ? "🔴" : "🟡"} ${a.text}`);
+      if (alerts.length > 12) lines.push(`… yana ${alerts.length - 12} ta`);
+      void sendTelegram(token, chatId, telegramText(u, `📋 Bugungi eslatmalar (${alerts.length}):\n${lines.join("\n")}`));
+      sent++;
     }
+    showToast(sent ? `${sent} ta xodimga eslatma navbatga qo'yildi (har ~1 soniyada bittadan)` : "Chat ID kiritilgan xodimlarda eslatma yo'q");
   };
 
   return (
@@ -72,6 +93,7 @@ export function Admin() {
                     </td>
                     <td className="px-4 py-2">
                       <Input
+                        key={u.telegramChatId ?? ""}
                         defaultValue={u.telegramChatId ?? ""}
                         placeholder="masalan 123456789"
                         onBlur={(e) =>
@@ -156,13 +178,29 @@ export function Admin() {
               Demo versiyada token faqat shu brauzerda saqlanadi. Haqiqiy tizimda bot serverda ishlaydi va token hech kimga ko'rinmaydi.
             </Banner>
             <ol className="list-decimal space-y-1 pl-5 text-xs text-label2">
-              <li>@BotFather'da yangi bot yarating va tokenni shu yerga kiriting.</li>
-              <li>Har bir xodim botga /start bosadi.</li>
-              <li>Xodimning chat ID'sini (@userinfobot orqali) yuqoridagi jadvalga yozing.</li>
+              <li>@BotFather'da /newbot buyrug'i bilan bot yarating va tokenni yuqoriga kiriting.</li>
+              <li>Botingizni topib /start bosing (bot faqat /start bosgan odamga yoza oladi).</li>
+              <li>Chat ID'ingizni @userinfobot'dan oling va jadvalga yoki pastdagi maydonga yozing.</li>
             </ol>
-            <Button onClick={testTelegram} disabled={testing}>
-              {testing ? "Yuborilmoqda…" : "Menga test xabar yuborish"}
-            </Button>
+            <div className="rounded-[14px] bg-fill p-3">
+              <div className="text-[13px] font-semibold text-label">Demo uchun: hamma xabar bitta Telegram'ga</div>
+              <p className="mt-0.5 text-xs text-label2">
+                Barcha xodimlarga bitta chat ID qo'yiladi. Har xabarda kimga ekanligi yoziladi (👤 Ism · Rol). Guruh ID'si (-100… bilan boshlanadi) ham bo'ladi — botni guruhga qo'shing.
+              </p>
+              <div className="mt-2 flex gap-2">
+                <Input value={sharedChat} onChange={(e) => setSharedChat(e.target.value)} placeholder="masalan 123456789" className="!py-1.5 !text-[13px]" />
+                <Button onClick={setChatForAll}>Hammaga qo'yish</Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={testTelegram} disabled={testing}>
+                {testing ? "Yuborilmoqda…" : "Menga test xabar yuborish"}
+              </Button>
+              <Button onClick={sendDigest}>Bugungi eslatmalarni yuborish</Button>
+            </div>
+            <p className="text-xs text-label3">
+              Eslatmalar: deadline, kechikkan ishlar, ertangi syomka, qarzlar, to'lov muddati, qayta aloqa. Haqiqiy tizimda har kuni ertalab avtomatik yuboriladi.
+            </p>
           </div>
         </Card>
 
@@ -247,7 +285,7 @@ export function Admin() {
             <p className="text-[12px] text-label3">Xodimlar stavkalari: Moliya → Ish haqi → Stavkalar.</p>
             <div className="border-t border-sep pt-4">
               <div className="mb-1 text-sm text-label">Demo ma'lumotlarni tiklash</div>
-              <p className="mb-2 text-xs text-label2">Mijozga ko'rsatishdan oldin barcha o'zgarishlarni o'chirib, boshlang'ich holatga qaytaradi.</p>
+              <p className="mb-2 text-xs text-label2">Mijozga ko'rsatishdan oldin barcha o'zgarishlarni o'chirib, boshlang'ich holatga qaytaradi. Telegram sozlamalari saqlanib qoladi.</p>
               {confirmReset ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-red">Barcha o'zgarishlar o'chiriladi.</span>

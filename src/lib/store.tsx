@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { nowISO, todayISO } from "./dates";
 import { syncAll } from "./store-sync";
 import { buildSeed, SEED_VERSION } from "./seed";
+import { sendTelegram, telegramText } from "./telegram";
 import type { ErpState, User } from "./types";
 
 const STORAGE_KEY = "smm-erp-demo";
@@ -47,6 +48,9 @@ function load(): ErpState {
     if (raw) {
       const parsed = JSON.parse(raw) as ErpState;
       if (parsed.version === SEED_VERSION) return parsed;
+      const fresh = buildSeed(todayISO());
+      keepTelegram(parsed, fresh);
+      return fresh;
     }
   } catch {
     // saqlangan ma'lumot o'qilmadi — yangi demo ma'lumot bilan boshlaymiz
@@ -54,16 +58,13 @@ function load(): ErpState {
   return buildSeed(todayISO());
 }
 
-async function sendTelegram(token: string, chatId: string, text: string): Promise<boolean> {
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: `🔔 SMM ERP\n${text}` }),
-    });
-    return res.ok;
-  } catch {
-    return false;
+/** Demo qayta tiklanganda yoki yangilanganda bot tokeni va xodimlarning chat ID'lari saqlanib qoladi. */
+function keepTelegram(from: ErpState, to: ErpState) {
+  const tg = from.settings?.telegram;
+  if (tg) to.settings.telegram = { ...tg };
+  for (const u of to.users) {
+    const chatId = from.users?.find((x) => x.id === u.id)?.telegramChatId;
+    if (chatId) u.telegramChatId = chatId;
   }
 }
 
@@ -122,7 +123,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         notify(userIds, text, href) {
           const uniq = new Set(userIds.filter((x): x is string => Boolean(x) && x !== me.id));
           for (const uid of uniq) {
-            const chatId = s.users.find((u) => u.id === uid)?.telegramChatId?.trim();
+            const to = s.users.find((u) => u.id === uid);
+            const chatId = to?.telegramChatId?.trim();
             const live = Boolean(tg.enabled && token && chatId);
             const id = newId("ntf");
             s.notifications.unshift({
@@ -134,7 +136,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               read: false,
               telegram: !tg.enabled ? "off" : live ? "sent" : "demo",
             });
-            if (live) outbox.push({ notificationId: id, chatId: chatId!, text });
+            if (live) outbox.push({ notificationId: id, chatId: chatId!, text: telegramText(to!, text) });
           }
         },
         log(text, href) {
@@ -160,7 +162,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const reset = useCallback(() => {
     const s = buildSeed(todayISO());
+    keepTelegram(stateRef.current, s);
     syncAll(s, todayISO());
+    stateRef.current = s;
     setState(s);
     showToast("Demo ma'lumotlar qayta tiklandi");
   }, [showToast]);
