@@ -58,7 +58,7 @@ function load(): ErpState {
   return buildSeed(todayISO());
 }
 
-/** Demo qayta tiklanganda yoki yangilanganda bot tokeni va xodimlarning chat ID'lari saqlanib qoladi. */
+/** Demo qayta tiklanganda yoki yangilanganda tokenlar, chat ID'lar va ulangan reklama kabinetlari saqlanib qoladi. */
 function keepTelegram(from: ErpState, to: ErpState) {
   const tg = from.settings?.telegram;
   if (tg) to.settings.telegram = { ...tg };
@@ -66,6 +66,11 @@ function keepTelegram(from: ErpState, to: ErpState) {
     const chatId = from.users?.find((x) => x.id === u.id)?.telegramChatId;
     if (chatId) u.telegramChatId = chatId;
   }
+  const integ = from.settings?.integrations;
+  if (integ?.meta?.token) {
+    to.settings.integrations.meta = { ...integ.meta, accounts: { ...integ.meta.accounts }, lastSync: undefined };
+  }
+  if (integ?.cbu) to.settings.integrations.cbu.autoUpdate = integ.cbu.autoUpdate;
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {

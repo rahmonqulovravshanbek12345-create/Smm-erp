@@ -3,6 +3,8 @@
 import { addDays, addMonths, diffDays, monthKey } from "./dates";
 import { addFinanceHistory } from "./seed-finance";
 import { addOperationsHistory } from "./seed-history";
+import { addSalesHistory } from "./seed-sales";
+import { DEFAULT_TARIFFS } from "./tariffs";
 import type {
   DocBlock,
   DocState,
@@ -20,7 +22,7 @@ import type {
   User,
 } from "./types";
 
-export const SEED_VERSION = 6;
+export const SEED_VERSION = 7;
 
 export function buildSeed(today: string): ErpState {
   const d = (n: number) => addDays(today, n);
@@ -125,6 +127,7 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/027",
       contractDate: addDays(p2Start, -7),
       tariff: "Biznes (Instagram + target)",
+      tariffId: "t_biznes",
       monthlyFee: 12_000_000,
       prepayType: 50,
       marketologId: "u_mk",
@@ -152,6 +155,7 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/041",
       contractDate: d(-3),
       tariff: "Start (Instagram)",
+      tariffId: "t_start",
       monthlyFee: 8_000_000,
       prepayType: 50,
       marketologId: "u_mk",
@@ -177,7 +181,8 @@ export function buildSeed(today: string): ErpState {
       links: "instagram.com/barakamarket.uz\nt.me/barakamarket",
       contractNo: "SH-2026/022",
       contractDate: addDays(p4Start, -6),
-      tariff: "Premium (Instagram + Telegram + target + syomka)",
+      tariff: "Premium (Instagram + Telegram + target)",
+      tariffId: "t_premium",
       monthlyFee: 18_000_000,
       prepayType: 100,
       marketologId: "u_mk",
@@ -240,6 +245,7 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/036",
       contractDate: addDays(p6Start, -6),
       tariff: "Biznes (Instagram + target)",
+      tariffId: "t_biznes",
       monthlyFee: 12_000_000,
       prepayType: 50,
       marketologId: "u_mk",
@@ -614,6 +620,9 @@ export function buildSeed(today: string): ErpState {
     payProfiles: [],
     accruals: [],
     budget: [],
+    tariffs: DEFAULT_TARIFFS.map((t) => ({ ...t, features: [...t.features], platforms: [...t.platforms] })),
+    proposals: [],
+    integrationLog: [],
     settings: {
       companyName: "SMM Studio MChJ",
       requisites: {
@@ -630,10 +639,23 @@ export function buildSeed(today: string): ErpState {
       latePenaltyPct: 0,
       payrollStart: monthKey(addMonths(today, -5)),
       telegram: { enabled: true, botToken: "" },
+      integrations: {
+        meta: {
+          token: "",
+          apiVersion: "v23.0",
+          autoSync: true,
+          leadMetric: "all",
+          // Sharq Mebel ulanmagan — targetolog hisobotni qo'lda kiritadi
+          accounts: { p_gym: "act_1029384756", p_baraka: "act_5647382910", p_burger: "act_8392017465" },
+          lastSync: `${today}T04:05:10.000Z`,
+        },
+        cbu: { autoUpdate: true, lastUpdate: `${today}T04:05:00.000Z`, rateDate: today },
+      },
     },
   };
 
   addOperationsHistory(state, today);
   addFinanceHistory(state, today);
+  addSalesHistory(state, today);
   return state;
 }

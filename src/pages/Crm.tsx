@@ -3,11 +3,13 @@ import { ExportButton } from "../components/ExportButton";
 import { ProjectFormModal } from "../components/ProjectForm";
 import { A, Badge, Banner, Button, Field, Input, Modal, PageHeader, Select, Textarea, navigate, userOptions } from "../components/ui";
 import * as act from "../lib/actions";
-import { diffDays, fmtDate, fmtDateShort, fmtDateTime, relDays } from "../lib/dates";
+import { diffDays, fmtDate, fmtDateShort, fmtDateTime, fmtMoney, relDays } from "../lib/dates";
 import { LEAD_SOURCES, LEAD_STAGES, SERVICES, leadStageMeta } from "../lib/labels";
+import { PROPOSAL_STATUS, acceptedProposalOf, proposalPrice, proposalView, tariffLabel, tariffOf } from "../lib/tariffs";
 import { canEdit } from "../lib/permissions";
 import { useErp, useLookup } from "../lib/store";
 import type { Lead, LeadStage } from "../lib/types";
+import { ProposalModal } from "./Proposals";
 
 type Pending = { leadId: string; stage: LeadStage } | null;
 
@@ -152,7 +154,9 @@ export function Crm() {
 }
 
 function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => void; onStage: (id: string, s: LeadStage) => void }) {
-  const { me, run, today } = useErp();
+  const { state, me, run, today } = useErp();
+  const [proposing, setProposing] = useState(false);
+  const proposals = lead ? state.proposals.filter((p) => p.leadId === lead.id).sort((a, b) => b.date.localeCompare(a.date)) : [];
   const look = useLookup();
   const editable = canEdit(me.role, "crm");
   const [f, setF] = useState(() => ({
@@ -260,6 +264,38 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
           )}
 
           <div className="mt-5">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-label2">Tijorat takliflari</span>
+              {editable && !["contract", "unfit", "lowquality"].includes(lead.stage) && (
+                <Button size="sm" onClick={() => setProposing(true)}>
+                  + Tijorat taklifi
+                </Button>
+              )}
+            </div>
+            {proposals.length === 0 ? (
+              <p className="text-sm text-label2">Hali taklif yuborilmagan</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {proposals.map((p) => {
+                  const v = proposalView(p, today);
+                  const t = tariffOf(state, p.acceptedTariffId ?? p.recommendedId);
+                  return (
+                    <li key={p.id}>
+                      <A href={`/taklif/${p.id}`} className="flex items-center justify-between gap-2 rounded-[14px] bg-fill px-3 py-2 text-sm hover:brightness-105">
+                        <span className="text-label">
+                          <b>{p.number}</b> · {fmtDate(p.date)} · {t?.name}
+                          {t ? ` — ${fmtMoney(proposalPrice(p, t))}` : ""}
+                        </span>
+                        <Badge tone={PROPOSAL_STATUS[v].tone}>{PROPOSAL_STATUS[v].label}</Badge>
+                      </A>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="mt-5">
             <div className="mb-1.5 text-xs font-medium text-label2">Aloqa tarixi</div>
             {editable && (
               <div className="mb-3 flex flex-wrap gap-2">
@@ -293,6 +329,15 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
           </div>
         </>
       )}
+      {proposing && lead && (
+        <ProposalModal
+          leadId={lead.id}
+          onClose={() => {
+            setProposing(false);
+            onClose();
+          }}
+        />
+      )}
     </Modal>
   );
 }
@@ -305,10 +350,20 @@ function StageDialog({ pending, onClose }: { pending: NonNullable<Pending>; onCl
   const [reason, setReason] = useState("");
 
   if (pending.stage === "contract") {
+    const accepted = acceptedProposalOf(state, lead.id);
+    const acceptedTariff = tariffOf(state, accepted?.acceptedTariffId);
     return (
       <ProjectFormModal
         title={`Shartnoma bo'ldi: ${lead.name} → Loyiha kartasi`}
-        initial={{ name: lead.name, phone: lead.phone, contactName: lead.name, tariff: lead.service, marketologId: lead.meeting?.marketologId }}
+        initial={{
+          name: lead.name,
+          phone: lead.phone,
+          contactName: lead.name,
+          ...(lead.meeting ? { marketologId: lead.meeting.marketologId } : {}),
+          ...(acceptedTariff && accepted
+            ? { tariff: tariffLabel(acceptedTariff), tariffId: acceptedTariff.id, monthlyFee: proposalPrice(accepted, acceptedTariff), prepayType: acceptedTariff.prepayType }
+            : {}),
+        }}
         onClose={onClose}
         onSubmit={(input) => {
           let id = "";

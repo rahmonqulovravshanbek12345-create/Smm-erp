@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ProjectInput } from "../lib/actions";
 import { fmtMoney } from "../lib/dates";
 import { useErp, useLookup } from "../lib/store";
+import { tariffLabel, tariffOf } from "../lib/tariffs";
 import { Button, Field, Input, Modal, Select, Textarea, userOptions } from "./ui";
 
 /** Shartnoma ma'lumotlari: lid → loyiha yoki qo'lda yangi loyiha. */
@@ -16,8 +17,14 @@ export function ProjectFormModal({
   onSubmit: (input: ProjectInput) => void;
   onClose: () => void;
 }) {
-  const { today } = useErp();
+  const { state, today } = useErp();
   const look = useLookup();
+  const defaultTariff = () => {
+    const t = state.tariffs.find((x) => x.id === "t_biznes" && x.active) ?? state.tariffs.find((x) => x.active);
+    return t
+      ? { tariff: tariffLabel(t), tariffId: t.id as string | undefined, monthlyFee: t.price, prepayType: t.prepayType }
+      : { tariff: "Individual", tariffId: undefined, monthlyFee: 5_000_000, prepayType: 100 as const };
+  };
   const [f, setF] = useState<ProjectInput>(() => ({
     name: "",
     contactName: "",
@@ -26,9 +33,7 @@ export function ProjectFormModal({
     links: "",
     contractNo: "",
     contractDate: today,
-    tariff: "Standart",
-    monthlyFee: 5_000_000,
-    prepayType: 100,
+    ...defaultTariff(),
     prepayDueDate: today,
     remainderDueDate: "",
     marketologId: look.usersByRole("marketolog")[0]?.id ?? "",
@@ -79,9 +84,21 @@ export function ProjectFormModal({
         <Field label="Shartnoma sanasi">
           <Input type="date" value={f.contractDate} onChange={(e) => set("contractDate", e.target.value)} />
         </Field>
-        <Field label="Tarif">
-          <Input value={f.tariff} onChange={(e) => set("tariff", e.target.value)} />
+        <Field label="Tarif" hint={f.tariffId ? "Narx va oldindan to'lov tarifdan olindi — o'zgartirish mumkin" : undefined}>
+          <Select
+            value={f.tariffId ?? ""}
+            onChange={(e) => {
+              const t = tariffOf(state, e.target.value);
+              setF((x) => (t ? { ...x, tariffId: t.id, tariff: tariffLabel(t), monthlyFee: t.price, prepayType: t.prepayType } : { ...x, tariffId: undefined, tariff: x.tariffId ? "Individual" : x.tariff }));
+            }}
+            options={[...state.tariffs.filter((t) => t.active || t.id === f.tariffId).map((t) => ({ value: t.id, label: `${t.name} — ${fmtMoney(t.price)}` })), { value: "", label: "Individual shartlar" }]}
+          />
         </Field>
+        {!f.tariffId && (
+          <Field label="Tarif nomi (individual)">
+            <Input value={f.tariff} onChange={(e) => set("tariff", e.target.value)} />
+          </Field>
+        )}
         <Field label="Oylik summa (so'm)">
           <Input type="number" min={0} step={100000} value={f.monthlyFee} onChange={(e) => set("monthlyFee", Number(e.target.value))} />
         </Field>

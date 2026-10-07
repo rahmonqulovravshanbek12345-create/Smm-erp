@@ -1,10 +1,12 @@
 // Biznes amallari. Har biri Ctx oladi: holatni o'zgartiradi, bildirishnoma yuboradi va tarixga yozadi.
-import { addDays, diffDays, fmtDate, fmtDateShort, fmtMoney, nowISO } from "./dates";
+import { addDays, diffDays, fmtDate, fmtDateShort, fmtMoney, fmtNum, nowISO } from "./dates";
+import type { MetaResult } from "./integrations";
 import { ART, accountOf, articleOf, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
 import { DOC_BLOCKS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, TASK_KIND_LABELS } from "./labels";
 import { postStage, workBlockedReason } from "./rules";
 import { newId, type Ctx } from "./store";
-import type { Bill, BudgetLine, DocBlock, Lead, LeadStage, PayProfile, Post, PostStatus, Project, Shoot, Task, TargetReport, Transaction, WorkType } from "./types";
+import { nextProposalNumber, proposalPrice, tariffOf } from "./tariffs";
+import type { Bill, BudgetLine, DocBlock, IntegrationKind, Integrations, Lead, LeadStage, PayProfile, Post, PostStatus, Project, Shoot, Tariff, Task, TargetReport, Transaction, WorkType } from "./types";
 
 /** Voronka bosqichi raqami (rad etilgan bosqichlar avvalgi eng yuqori bosqichni saqlaydi). */
 export const FUNNEL_STEP: Partial<Record<LeadStage, number>> = { new: 0, waiting: 1, meeting: 2, visited: 3, contract: 4 };
@@ -103,6 +105,7 @@ export interface ProjectInput {
   contractNo: string;
   contractDate: string;
   tariff: string;
+  tariffId?: string;
   monthlyFee: number;
   prepayType: 100 | 50;
   prepayDueDate: string;
@@ -170,6 +173,84 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
   c.notify(financeIds(c), `${input.name}: oldindan to'lovni (${input.prepayType}%) qayd eting`, "/moliya/fakturalar");
   c.log(`${input.name}: loyiha kartasi yaratildi${leadId ? " (lid → loyiha)" : ""}`, `/loyiha/${id}`);
   return id;
+}
+
+// ---------- Tariflar va tijorat takliflari ----------
+
+export function saveTariff(c: Ctx, t: Tariff) {
+  if (!t.name.trim()) throw new Error("Tarif nomini kiriting");
+  if (!(t.price > 0)) throw new Error("Narxni kiriting");
+  const i = c.s.tariffs.findIndex((x) => x.id === t.id);
+  if (i >= 0) c.s.tariffs[i] = t;
+  else c.s.tariffs.push({ ...t, id: newId("t") });
+  c.log(`Tarif saqlandi: ${t.name} — ${fmtMoney(t.price)}`, "/takliflar");
+}
+
+export interface ProposalInput {
+  leadId: string;
+  tariffIds: string[];
+  recommendedId: string;
+  discountPct: number;
+  validDays: number;
+  note: string;
+}
+
+export function createProposal(c: Ctx, o: ProposalInput): string {
+  const lead = c.s.leads.find((l) => l.id === o.leadId);
+  if (!lead) throw new Error("Lidni tanlang");
+  if (o.tariffIds.length === 0) throw new Error("Kamida bitta tarifni tanlang");
+  if (!o.tariffIds.includes(o.recommendedId)) throw new Error("Tavsiya etiladigan tarif ro'yxatda bo'lishi kerak");
+  if (o.discountPct < 0 || o.discountPct > 50) throw new Error("Chegirma 0–50% oralig'ida bo'lishi kerak");
+  const id = newId("tk");
+  const number = nextProposalNumber(c.s, c.today);
+  c.s.proposals.push({
+    id,
+    number,
+    leadId: o.leadId,
+    date: c.today,
+    validUntil: addDays(c.today, o.validDays),
+    tariffIds: o.tariffIds,
+    recommendedId: o.recommendedId,
+    discountPct: o.discountPct,
+    note: o.note.trim(),
+    status: "draft",
+    createdBy: c.me.id,
+  });
+  lead.history.unshift({ id: newId("c"), at: nowISO(), userId: c.me.id, text: `Tijorat taklifi tayyorlandi: ${number}` });
+  c.log(`${lead.name}: tijorat taklifi ${number}`, `/taklif/${id}`);
+  return id;
+}
+
+export function setProposalStatus(c: Ctx, id: string, status: "sent" | "accepted" | "rejected", extra: { tariffId?: string; reason?: string } = {}) {
+  const p = c.s.proposals.find((x) => x.id === id);
+  if (!p) return;
+  const lead = c.s.leads.find((l) => l.id === p.leadId);
+  if (status === "accepted") {
+    const tid = extra.tariffId ?? p.recommendedId;
+    if (!p.tariffIds.includes(tid)) throw new Error("Tarifni tanlang");
+    p.acceptedTariffId = tid;
+  }
+  if (status === "rejected" && !extra.reason?.trim()) throw new Error("Sabab majburiy");
+  p.status = status;
+  p.rejectReason = status === "rejected" ? extra.reason!.trim() : undefined;
+  p.decidedAt = status === "sent" ? undefined : c.today;
+  const t = tariffOf(c.s, p.acceptedTariffId ?? p.recommendedId);
+  const text =
+    status === "sent"
+      ? `Tijorat taklifi yuborildi: ${p.number}`
+      : status === "accepted"
+        ? `Taklif qabul qilindi: ${t?.name} — ${t ? fmtMoney(proposalPrice(p, t)) : ""}/oy`
+        : `Taklif rad etildi: ${p.rejectReason}`;
+  lead?.history.unshift({ id: newId("c"), at: nowISO(), userId: c.me.id, text });
+  if (status === "accepted" && lead) {
+    const bosses = c.s.users.filter((u) => u.role === "rahbar" && u.active).map((u) => u.id);
+    c.notify(
+      [lead.operatorId, lead.meeting?.marketologId, ...bosses],
+      `${lead.name}: taklif qabul qilindi — ${t?.name} (${t ? fmtMoney(proposalPrice(p, t)) : ""}/oy). Shartnomani rasmiylashtiring`,
+      "/crm",
+    );
+  }
+  c.log(`${lead?.name}: ${text}`, `/taklif/${p.id}`);
 }
 
 export function updateProject(c: Ctx, id: string, patch: Partial<Project>) {
@@ -420,20 +501,61 @@ export function saveTargetReport(c: Ctx, data: Omit<TargetReport, "id" | "author
   c.log(`Target kunlik hisobot: ${projectName(c, data.projectId)}, ${fmtDate(data.date)}`, "/target");
 }
 
-/** Demo: Meta Ads'dan avtomatik import (haqiqiy versiyada Marketing API orqali olinadi). */
-export function importFromMeta(c: Ctx, projectId: string, date: string) {
-  const seed = [...(projectId + date)].reduce((a, ch) => a + ch.charCodeAt(0), 0);
-  const k = 0.8 + (seed % 40) / 100;
-  saveTargetReport(c, {
-    projectId,
-    date,
-    spend: Math.round((140_000 * k) / 1000) * 1000,
-    views: Math.round(9_500 * k),
-    clicks: Math.round(220 * k),
-    leads: Math.round(6 * k),
-    note: "Meta Ads'dan import qilindi",
-    source: "meta",
-  });
+// ---------- Integratsiyalar ----------
+
+export function logIntegration(c: Ctx, kind: IntegrationKind, ok: boolean, text: string) {
+  c.s.integrationLog.unshift({ id: newId("il"), at: nowISO(), kind, ok, text });
+  c.s.integrationLog = c.s.integrationLog.slice(0, 60);
+}
+
+/** Meta Ads'dan olingan kunlik ko'rsatkichlarni target hisobotlariga yozadi. Qaytaradi: nechta kun. */
+export function applyMetaSync(c: Ctx, results: MetaResult[]): number {
+  let n = 0;
+  const parts: string[] = [];
+  for (const r of results) {
+    const p = findProject(c, r.projectId);
+    if (!p) continue;
+    if (r.error) {
+      logIntegration(c, "meta", false, `Meta Ads: ${p.name} — ${r.error}`);
+      continue;
+    }
+    for (const row of r.rows) {
+      const ex = c.s.targetReports.find((x) => x.projectId === row.projectId && x.date === row.date);
+      if (ex) Object.assign(ex, row);
+      else c.s.targetReports.push({ ...row, id: newId("tr"), authorId: p.targetologId ?? c.me.id });
+      n++;
+    }
+    if (r.rows.length) parts.push(`${p.name} — ${r.rows.length} kun`);
+  }
+  if (parts.length) logIntegration(c, "meta", true, `Meta Ads: ${parts.join(", ")}${results.every((r) => r.demo) ? " (demo)" : ""}`);
+  c.s.settings.integrations.meta.lastSync = nowISO();
+  return n;
+}
+
+export function saveMetaSettings(c: Ctx, patch: Partial<Omit<Integrations["meta"], "accounts">>) {
+  Object.assign(c.s.settings.integrations.meta, patch);
+}
+
+export function setMetaAccount(c: Ctx, projectId: string, account: string) {
+  const v = account.trim();
+  if (v && !/^(act_)?\d{5,20}$/.test(v)) throw new Error("Reklama kabineti ID raqamlardan iborat bo'ladi, masalan act_1234567890");
+  const acc = c.s.settings.integrations.meta.accounts;
+  if (v) acc[projectId] = v.startsWith("act_") ? v : `act_${v}`;
+  else delete acc[projectId];
+  c.log(`${projectName(c, projectId)}: Meta reklama kabineti ${v ? "ulandi" : "uzildi"}`, "/integratsiyalar");
+}
+
+export function setUsdRate(c: Ctx, rate: number, rateDate: string, source: "cbu" | "manual") {
+  if (!(rate > 0)) throw new Error("Kursni kiriting");
+  c.s.settings.usdRate = Math.round(rate * 100) / 100;
+  c.s.settings.integrations.cbu.lastUpdate = nowISO();
+  c.s.settings.integrations.cbu.rateDate = rateDate;
+  logIntegration(
+    c,
+    "cbu",
+    true,
+    source === "cbu" ? `Markaziy bank kursi: 1 USD = ${fmtNum(rate)} so'm (${fmtDate(rateDate)})` : `Kurs qo'lda kiritildi: 1 USD = ${fmtNum(rate)} so'm`,
+  );
 }
 
 // ---------- Moliya ----------

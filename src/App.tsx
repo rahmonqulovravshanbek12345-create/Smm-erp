@@ -25,6 +25,9 @@ import { ClientReport } from "./pages/ClientReport";
 import { MyAccount } from "./pages/MyAccount";
 import { Documents, DocumentView } from "./pages/Documents";
 import { SalesAnalytics } from "./pages/SalesAnalytics";
+import { ProposalPage, Proposals } from "./pages/Proposals";
+import { Integrations } from "./pages/Integrations";
+import { useAutoSync } from "./components/AutoSync";
 import { MyDay } from "./pages/MyDay";
 import { Process } from "./pages/Process";
 import { Activity, Notifications } from "./pages/Notifications";
@@ -57,6 +60,7 @@ const NAV_GROUPS: { title?: string; collapsible?: string; items: NavItem[] }[] =
     items: [
       { module: "crm", path: "/crm", label: "CRM — lidlar", short: "CRM", icon: "phone", color: "green" },
       { module: "crm", path: "/crm/analitika", label: "Sotuv analitikasi", short: "Analitika", icon: "gauge", color: "blue" },
+      { module: "crm", path: "/takliflar", label: "Tariflar va takliflar", short: "Takliflar", icon: "send", color: "purple" },
       { module: "projects", path: "/loyihalar", label: "Loyihalar", short: "Loyihalar", icon: "folder", color: "teal" },
       { module: "projects", path: "/hujjatlar", label: "Hujjatlar", short: "Hujjatlar", icon: "list", color: "gray" },
     ],
@@ -92,6 +96,7 @@ const NAV_GROUPS: { title?: string; collapsible?: string; items: NavItem[] }[] =
     title: "Boshqaruv",
     items: [
       { module: "activity", path: "/tarix", label: "Faoliyat tarixi", short: "Tarix", icon: "history", color: "indigo" },
+      { module: "integrations", path: "/integratsiyalar", label: "Integratsiyalar", short: "Integratsiya", icon: "link", color: "teal" },
       { module: "admin", path: "/admin", label: "Sozlamalar", short: "Sozlamalar", icon: "gear", color: "gray" },
     ],
   },
@@ -111,7 +116,10 @@ function route(full: string): { module: Module; node: ReactNode } {
     const [, , pid = "", idx] = path.split("/");
     return { module: "projects", node: <ClientReport key={path} projectId={pid} periodIndex={idx === undefined ? undefined : Number(idx)} /> };
   }
+  if (path.startsWith("/taklif/")) return { module: "crm", node: <ProposalPage key={path} id={path.slice(8)} /> };
   switch (path) {
+    case "/takliflar":
+      return { module: "crm", node: <Proposals /> };
     case "/crm/analitika":
       return { module: "crm", node: <SalesAnalytics /> };
     case "/hujjatlar":
@@ -164,6 +172,8 @@ function route(full: string): { module: Module; node: ReactNode } {
       return { module: "activity", node: <Activity /> };
     case "/admin":
       return { module: "admin", node: <Admin /> };
+    case "/integratsiyalar":
+      return { module: "integrations", node: <Integrations /> };
     default:
       return { module: "dashboard", node: <Dashboard /> };
   }
@@ -173,6 +183,7 @@ function route(full: string): { module: Module; node: ReactNode } {
 const isActive = (item: NavItem, full: string) => {
   let path = full.split("?")[0]!;
   if (path.startsWith("/loyiha/") || path.startsWith("/hisobot/") || path.startsWith("/hujjat")) path = "/loyihalar";
+  if (path.startsWith("/taklif/")) path = "/takliflar";
   const best = ALL_NAV.filter((n) => path === n.path || (n.path !== "/" && path.startsWith(`${n.path}/`))).sort((a, b) => b.path.length - a.path.length)[0];
   return best?.path === item.path;
 };
@@ -215,6 +226,7 @@ export function App() {
   const path = usePath();
   const { state, me, run, today, toast } = useErp();
   const [theme, setTheme] = useTheme();
+  useAutoSync();
   const [more, setMore] = useState(false);
   const [account, setAccount] = useState(false);
   const { module, node } = route(path);

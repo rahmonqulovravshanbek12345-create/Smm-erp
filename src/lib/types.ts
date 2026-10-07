@@ -74,6 +74,8 @@ export interface Project {
   contractNo: string;
   contractDate: string;
   tariff: string;
+  /** Katalogdagi tarif (bo'sh — individual shartlar). */
+  tariffId?: string;
   monthlyFee: number;
   prepayType: 100 | 50;
   marketologId: string;
@@ -95,6 +97,49 @@ export interface Project {
   docs: Record<DocBlock, DocState>;
   handedOffAt?: string;
   createdAt: string;
+}
+
+// ---------- Tariflar va tijorat takliflari ----------
+
+export interface Tariff {
+  id: string;
+  name: string;
+  /** Qisqa tavsif: kimlar uchun. */
+  tagline: string;
+  /** Oylik narx, so'm. */
+  price: number;
+  posts: number;
+  videos: number;
+  designs: number;
+  stories: number;
+  shoots: number;
+  platforms: Platform[];
+  target: boolean;
+  /** Tavsiya etiladigan oylik reklama byudjeti (USD, alohida to'lanadi). */
+  adBudgetUsd: number;
+  prepayType: 100 | 50;
+  features: string[];
+  active: boolean;
+}
+
+export type ProposalStatus = "draft" | "sent" | "accepted" | "rejected";
+
+export interface Proposal {
+  id: string;
+  number: string;
+  leadId: string;
+  date: string;
+  validUntil: string;
+  tariffIds: string[];
+  recommendedId: string;
+  discountPct: number;
+  /** Mijozga shaxsiy murojaat. */
+  note: string;
+  status: ProposalStatus;
+  acceptedTariffId?: string;
+  rejectReason?: string;
+  decidedAt?: string;
+  createdBy: string;
 }
 
 // ---------- Kontent ----------
@@ -380,6 +425,41 @@ export interface Settings {
     /** Bot tokeni faqat shu brauzerda saqlanadi; bo'sh bo'lsa xabarlar demo rejimda ko'rsatiladi. */
     botToken: string;
   };
+  integrations: Integrations;
+}
+
+export type IntegrationKind = "meta" | "cbu";
+
+export interface IntegrationLog {
+  id: string;
+  at: string;
+  kind: IntegrationKind;
+  ok: boolean;
+  text: string;
+}
+
+export interface Integrations {
+  meta: {
+    /** Marketing API kirish tokeni — faqat shu brauzerda saqlanadi; bo'sh bo'lsa demo rejim. */
+    token: string;
+    apiVersion: string;
+    /** Sayt ochilganda o'tgan kunlar hisobotini o'zi oladi. */
+    autoSync: boolean;
+    /** Lid deb nimani hisoblash: lid forma, Direct/Telegram xabar yoki ikkalasi. */
+    leadMetric: "all" | "forms" | "messages";
+    /** Loyiha → reklama kabineti ID (act_…). */
+    accounts: Record<string, string>;
+    lastSync?: string;
+    /** Avtomatik sinxron urinilgan kun (mahalliy sana). */
+    lastAttempt?: string;
+  };
+  cbu: {
+    autoUpdate: boolean;
+    lastUpdate?: string;
+    rateDate?: string;
+    /** Avtomatik urinish kuni — sayt ochilganda kuniga bir martadan ko'p urinilmaydi. */
+    lastAttempt?: string;
+  };
 }
 
 export interface ErpState {
@@ -402,6 +482,9 @@ export interface ErpState {
   payProfiles: PayProfile[];
   accruals: Accrual[];
   budget: BudgetLine[];
+  tariffs: Tariff[];
+  proposals: Proposal[];
+  integrationLog: IntegrationLog[];
   notifications: Notification[];
   activity: Activity[];
   settings: Settings;

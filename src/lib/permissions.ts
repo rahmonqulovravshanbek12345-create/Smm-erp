@@ -19,7 +19,8 @@ export type Module =
   | "myday"
   | "myaccount"
   | "process"
-  | "payroll";
+  | "payroll"
+  | "integrations";
 
 /**
  * none — ko'rinmaydi; own — faqat o'ziga tegishli; view — ko'rish;
@@ -62,6 +63,7 @@ const MATRIX: Record<Module, Partial<Record<Role, Access>>> = {
   myaccount: { operator: "own", marketolog: "own", smm: "own", targetolog: "own", syomka: "own", montajyor: "own", dizayner: "own", moliya: "own" },
   process: { operator: "view", marketolog: "view", smm: "view", targetolog: "view", syomka: "view", montajyor: "view", dizayner: "view", moliya: "view" },
   payroll: { moliya: "full", marketolog: "view" },
+  integrations: { marketolog: "view", targetolog: "view", moliya: "view" },
 };
 
 export function access(role: Role, mod: Module): Access {
@@ -93,6 +95,7 @@ export const MATRIX_VIEW: { module: Module; label: string }[] = [
   { module: "finance", label: "Moliya" },
   { module: "payroll", label: "Ish haqi (barcha xodimlar)" },
   { module: "dashboard", label: "Nazorat paneli" },
+  { module: "integrations", label: "Integratsiyalar" },
 ];
 
 export const ACCESS_LABELS: Record<Access, string> = {

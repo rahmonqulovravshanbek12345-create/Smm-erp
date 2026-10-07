@@ -15,10 +15,12 @@ import {
   FORMAT_LABELS,
   PAYMENT_KIND_LABELS,
   PAYMENT_STATUS,
+  PLATFORM_LABELS,
 } from "../lib/labels";
 import { canView, visibleProjects } from "../lib/permissions";
 import { reportPeriods } from "../lib/report";
 import { useErp } from "../lib/store";
+import { tariffOf } from "../lib/tariffs";
 import type { ErpState, Project } from "../lib/types";
 import { moneyWords } from "../lib/words";
 
@@ -470,6 +472,10 @@ function Contract({ s, p }: { s: ErpState; p: Project }) {
   const fee = fmtMoney(p.monthlyFee);
   const words = moneyWords(p.monthlyFee);
   const hasTarget = Boolean(p.targetologId);
+  const t = tariffOf(s, p.tariffId);
+  const scope = t
+    ? `har oy ${t.posts} ta post (${t.videos} ta video, ${t.designs} ta dizayn), ${t.stories} ta stories va ${t.shoots} ta syomka kuni bilan kontent reja (${t.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")})`
+    : "har oy 12–15 ta post (video, rasm, AI post) bilan kontent reja";
   const Section = ({
     n,
     title,
@@ -509,8 +515,7 @@ function Contract({ s, p }: { s: ErpState; p: Project }) {
         </p>
         <p>
           1.2. Xizmatlar tarkibi («{p.tariff}» tarifi): marketing strategiyasi
-          va brif; har oy 12–15 ta post (video, rasm, AI post) bilan kontent
-          reja; syomka, montaj va dizayn
+          va brif; {scope}; syomka, montaj va dizayn
           {hasTarget
             ? "; Meta Ads'da target reklamani sozlash va boshqarish"
             : ""}

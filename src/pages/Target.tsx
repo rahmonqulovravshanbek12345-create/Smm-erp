@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { TaskBadge } from "../components/bits";
 import { TaskModal } from "../components/forms";
-import { Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, LinkOut, PageHeader, Select } from "../components/ui";
+import { A, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, LinkOut, PageHeader, Select } from "../components/ui";
 import * as act from "../lib/actions";
 import { addDays, fmtDate, fmtMoney, fmtNum } from "../lib/dates";
 import { access, canEdit, visibleProjects } from "../lib/permissions";
+import { isMetaDemo, metaAccountOf, syncMeta } from "../lib/integrations";
 import { targetReportMissing } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
 
 export function Target() {
-  const { state, me, run, today } = useErp();
+  const { state, me, run, today, showToast } = useErp();
   const look = useLookup();
   const own = access(me.role, "target") === "own";
   const editable = canEdit(me.role, "target");
@@ -31,6 +32,26 @@ export function Target() {
     (a, r) => ({ spend: a.spend + r.spend, views: a.views + r.views, clicks: a.clicks + r.clicks, leads: a.leads + r.leads }),
     { spend: 0, views: 0, clicks: 0, leads: 0 },
   );
+
+  const account = metaAccountOf(state, projectId);
+  const demo = isMetaDemo(state);
+  const [syncing, setSyncing] = useState(false);
+  const pullMeta = async () => {
+    setSyncing(true);
+    const res = await syncMeta(state, today, { projectId, days: [f.date] });
+    setSyncing(false);
+    const err = res.find((r) => r.error)?.error;
+    if (err) {
+      run((c) => act.applyMetaSync(c, res));
+      showToast(`⚠ ${err}`);
+      return;
+    }
+    let n = 0;
+    run((c) => {
+      n = act.applyMetaSync(c, res);
+    });
+    showToast(n ? (res[0]?.demo ? "Meta Ads: namunaviy raqamlar olindi (demo rejim)" : "Meta Ads'dan olindi") : "Meta'da bu kun uchun ma'lumot yo'q");
+  };
 
   const saveReport = () => {
     const ok = run(
@@ -140,15 +161,24 @@ export function Target() {
                   </Field>
                 </div>
                 <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  <Button onClick={() => run((c) => act.importFromMeta(c, projectId, f.date), "Meta Ads'dan import qilindi (demo)")} disabled={!projectId}>
-                    ⇩ Meta Ads'dan olish
+                  <Button onClick={pullMeta} disabled={!projectId || syncing}>
+                    {syncing ? "Olinmoqda…" : "⇩ Meta Ads'dan olish"}
                   </Button>
                   <Button variant="primary" onClick={saveReport} disabled={!projectId || !f.spend}>
                     Qo'lda saqlash
                   </Button>
                 </div>
                 <p className="mt-2 text-[11px] text-label2">
-                  Ikkala usul ham bor: qo'lda kiritish yoki Meta Ads'dan avtomatik olish (demo'da namunaviy raqamlar).
+                  {account ? (
+                    <>
+                      Meta Ads ulangan ({account}) — kunlik hisobot har kuni o'zi tushadi{demo ? " (demo rejim: namunaviy raqamlar)" : ""}.{" "}
+                    </>
+                  ) : (
+                    <>Bu loyiha Meta Ads'ga ulanmagan — hisobot qo'lda kiritiladi. </>
+                  )}
+                  <A href="/integratsiyalar" className="text-accent">
+                    Integratsiyalar →
+                  </A>
                 </p>
               </div>
             ) : (

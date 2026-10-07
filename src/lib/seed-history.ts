@@ -148,10 +148,12 @@ export function addOperationsHistory(s: ErpState, today: string): void {
           spend,
           views,
           clicks,
-          leads: Math.max(0, Math.round(clicks * crBase * (0.7 + rand() * 0.6))),
+          // Optimizatsiya samarasi: birinchi 5 oyda konversiya ~40% gacha o'sadi (lid narxi pasayadi)
+          leads: Math.max(0, Math.round(clicks * crBase * (0.7 + rand() * 0.6) * (1 + 0.4 * Math.min(1, diffDays(dte, p.periodStart) / 150)))),
           note: rand() < 0.04 ? "Kreativ almashtirildi" : "",
           authorId: p.targetologId,
-          source: rand() < 0.3 ? "meta" : "manual",
+          // Meta Ads'ga ulangan loyihalarda hisobot API orqali tushadi, qolganlarida targetolog qo'lda kiritadi
+          source: s.settings.integrations.meta.accounts[p.id] ? "meta" : "manual",
         });
       }
     }
