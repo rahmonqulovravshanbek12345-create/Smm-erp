@@ -11,7 +11,10 @@ export function ExportButton({ filename, sheets, label = "Excel" }: { filename: 
       className="no-print"
       onClick={() => {
         try {
-          const data = sheets().map((sh) => ({ ...sh, title: sh.title ?? [state.settings.companyName, `${sh.name} · ${new Date().toLocaleDateString("ru-RU")}`] }));
+          const data = sheets().map((sh) => ({
+            ...sh,
+            title: sh.title ?? [state.settings.companyName, `${sh.name} · ${new Date().toLocaleDateString("ru-RU")}`],
+          }));
           downloadXlsx(filename, data);
           showToast("Excel fayl tayyor");
         } catch {

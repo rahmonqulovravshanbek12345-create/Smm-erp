@@ -41,7 +41,10 @@ export function PayCalendar() {
           {fmtDate(cal.firstNegative)} kuni erkin pul minusga tushadi. Mijoz to'lovlarini tezlashtiring yoki chiqimlarni keyinga suring.
         </Banner>
       ) : (
-        <Banner tone="green">Tanlangan davrda pul yetarli: eng past qoldiq {fmtMoney(cal.min)}{minDay ? ` (${fmtDate(minDay.date)})` : ""}.</Banner>
+        <Banner tone="green">
+          Tanlangan davrda pul yetarli: eng past qoldiq {fmtMoney(cal.min)}
+          {minDay ? ` (${fmtDate(minDay.date)})` : ""}.
+        </Banner>
       )}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon="wallet" color="green" label="Bugun erkin pul" value={fmtShort(cal.free)} />
@@ -99,7 +102,8 @@ export function PayCalendar() {
         </Card>
       </div>
       <Note>
-        Kirim: to'lanmagan fakturalar muddati bo'yicha (muddati o'tganlari bugunga) va hali chiqmagan oylik fakturalar prognozi. Chiqim: ish haqi kuni ({state.settings.payday}-sana), ta'minotchi hujjatlari va oxirgi oylardagi takrorlanuvchi xarajatlar. Aylanma soliq avtomatik qo'shilmaydi.
+        Kirim: to'lanmagan fakturalar muddati bo'yicha (muddati o'tganlari bugunga) va hali chiqmagan oylik fakturalar prognozi. Chiqim: ish haqi kuni (
+        {state.settings.payday}-sana), ta'minotchi hujjatlari va oxirgi oylardagi takrorlanuvchi xarajatlar. Aylanma soliq avtomatik qo'shilmaydi.
       </Note>
     </>
   );

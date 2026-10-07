@@ -185,8 +185,50 @@ export function addOperationsHistory(s: ErpState, today: string): void {
   }
 
   // ---------- 6 oylik lidlar oqimi (sotuv analitikasi uchun) ----------
-  const prefixes = ["Nur", "Asl", "Grand", "Smart", "Bahor", "Lux", "Pro", "Zamon", "Oila", "City", "Gold", "Mega", "Sevimli", "Bek", "Tez", "Yangi", "Orzu", "Shams", "Ideal", "Navro'z"];
-  const kinds = ["Optika", "Kafe", "Mebel", "Kids", "Market", "Go'zallik saloni", "Fitness", "Avto", "Restoran", "Dental", "Zargarlik", "Stroy", "Tort", "Tekstil", "Kuryer", "O'quv markazi", "Gullar", "Klinika", "Mehmonxona", "Do'kon"];
+  const prefixes = [
+    "Nur",
+    "Asl",
+    "Grand",
+    "Smart",
+    "Bahor",
+    "Lux",
+    "Pro",
+    "Zamon",
+    "Oila",
+    "City",
+    "Gold",
+    "Mega",
+    "Sevimli",
+    "Bek",
+    "Tez",
+    "Yangi",
+    "Orzu",
+    "Shams",
+    "Ideal",
+    "Navro'z",
+  ];
+  const kinds = [
+    "Optika",
+    "Kafe",
+    "Mebel",
+    "Kids",
+    "Market",
+    "Go'zallik saloni",
+    "Fitness",
+    "Avto",
+    "Restoran",
+    "Dental",
+    "Zargarlik",
+    "Stroy",
+    "Tort",
+    "Tekstil",
+    "Kuryer",
+    "O'quv markazi",
+    "Gullar",
+    "Klinika",
+    "Mehmonxona",
+    "Do'kon",
+  ];
   const sources: [string, number, number][] = [
     // manba, ulush, "sifatli" bo'lish ehtimoli
     ["Instagram", 0.34, 0.55],
@@ -197,9 +239,15 @@ export function addOperationsHistory(s: ErpState, today: string): void {
     ["Boshqa", 0.05, 0.45],
   ];
   const services = ["SMM to'liq paket", "Target reklama", "Kontent ishlab chiqarish", "Brending", "Konsultatsiya"];
-  const unfitReasons = ["Byudjet to'g'ri kelmadi", "Boshqa agentlikni tanladi", "Hozircha kerak emas", "Narx qimmat deb hisobladi", "Natija kafolatini talab qildi"];
+  const unfitReasons = [
+    "Byudjet to'g'ri kelmadi",
+    "Boshqa agentlikni tanladi",
+    "Hozircha kerak emas",
+    "Narx qimmat deb hisobladi",
+    "Natija kafolatini talab qildi",
+  ];
   const lowReasons = ["Raqam noto'g'ri", "3 marta javob bermadi", "Tasodifiy ariza", "Ish qidiruvchi, mijoz emas"];
-  const pick = <T,>(arr: T[]) => arr[Math.floor(rand() * arr.length)]!;
+  const pick = <T>(arr: T[]) => arr[Math.floor(rand() * arr.length)]!;
   const span = diffDays(addDays(today, -8), histStart);
   const total = 96;
   for (let k = 0; k < total; k++) {

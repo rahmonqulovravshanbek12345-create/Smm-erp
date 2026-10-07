@@ -24,10 +24,7 @@ export function Crm() {
   const editable = canEdit(me.role, "crm");
 
   const leads = useMemo(
-    () =>
-      state.leads.filter(
-        (l) => (!op || l.operatorId === op) && (!q || `${l.name} ${l.phone} ${l.service}`.toLowerCase().includes(q.toLowerCase())),
-      ),
+    () => state.leads.filter((l) => (!op || l.operatorId === op) && (!q || `${l.name} ${l.phone} ${l.service}`.toLowerCase().includes(q.toLowerCase()))),
     [state.leads, op, q],
   );
 
@@ -56,7 +53,18 @@ export function Crm() {
                 {
                   name: "Lidlar",
                   columns: ["Sana", "Nomi", "Telefon", "Manba", "Xizmat", "Operator", "Bosqich", "Keyingi aloqa", "Rad sababi", "Izoh"],
-                  rows: leads.map((l) => [l.createdAt.slice(0, 10), l.name, l.phone, l.source, l.service, look.userName(l.operatorId), leadStageMeta(l.stage).label, l.nextContactDate ?? "", l.rejectReason ?? "", l.note]),
+                  rows: leads.map((l) => [
+                    l.createdAt.slice(0, 10),
+                    l.name,
+                    l.phone,
+                    l.source,
+                    l.service,
+                    look.userName(l.operatorId),
+                    leadStageMeta(l.stage).label,
+                    l.nextContactDate ?? "",
+                    l.rejectReason ?? "",
+                    l.note,
+                  ]),
                 },
               ]}
             />
@@ -97,9 +105,7 @@ export function Crm() {
                 setDragOver(null);
                 requestStage(e.dataTransfer.getData("text/plain"), st.id);
               }}
-              className={`flex w-[272px] shrink-0 flex-col rounded-[24px] glass transition ${
-                dragOver === st.id ? "ring-2 ring-accent/50" : ""
-              }`}
+              className={`flex w-[272px] shrink-0 flex-col rounded-[24px] glass transition ${dragOver === st.id ? "ring-2 ring-accent/50" : ""}`}
             >
               <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
                 <Badge tone={st.tone}>{st.label}</Badge>
@@ -165,7 +171,7 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
     source: lead?.source ?? LEAD_SOURCES[0]!,
     service: lead?.service ?? SERVICES[0]!,
     note: lead?.note ?? "",
-    operatorId: lead?.operatorId ?? (me.role === "operator" ? me.id : look.usersByRole("operator")[0]?.id ?? ""),
+    operatorId: lead?.operatorId ?? (me.role === "operator" ? me.id : (look.usersByRole("operator")[0]?.id ?? "")),
     nextContactDate: lead?.nextContactDate ?? "",
   }));
   const [contact, setContact] = useState("");
@@ -174,7 +180,15 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
 
   const save = () => {
     const ok = run(
-      (c) => act.saveLead(c, { ...f, id: lead?.id, nextContactDate: f.nextContactDate || undefined, meeting: lead?.meeting, rejectReason: lead?.rejectReason, projectId: lead?.projectId }),
+      (c) =>
+        act.saveLead(c, {
+          ...f,
+          id: lead?.id,
+          nextContactDate: f.nextContactDate || undefined,
+          meeting: lead?.meeting,
+          rejectReason: lead?.rejectReason,
+          projectId: lead?.projectId,
+        }),
       lead ? "Saqlandi" : "Lid qo'shildi",
     );
     if (ok) onClose();
@@ -224,13 +238,28 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
           <Input value={f.phone} disabled={!editable} onChange={(e) => set("phone", e.target.value)} />
         </Field>
         <Field label="Manba">
-          <Select value={f.source} disabled={!editable} onChange={(e) => set("source", e.target.value)} options={LEAD_SOURCES.map((s) => ({ value: s, label: s }))} />
+          <Select
+            value={f.source}
+            disabled={!editable}
+            onChange={(e) => set("source", e.target.value)}
+            options={LEAD_SOURCES.map((s) => ({ value: s, label: s }))}
+          />
         </Field>
         <Field label="Qiziqqan xizmat">
-          <Select value={f.service} disabled={!editable} onChange={(e) => set("service", e.target.value)} options={SERVICES.map((s) => ({ value: s, label: s }))} />
+          <Select
+            value={f.service}
+            disabled={!editable}
+            onChange={(e) => set("service", e.target.value)}
+            options={SERVICES.map((s) => ({ value: s, label: s }))}
+          />
         </Field>
         <Field label="Mas'ul operator">
-          <Select value={f.operatorId} disabled={!editable} onChange={(e) => set("operatorId", e.target.value)} options={userOptions(look.usersByRole("operator"))} />
+          <Select
+            value={f.operatorId}
+            disabled={!editable}
+            onChange={(e) => set("operatorId", e.target.value)}
+            options={userOptions(look.usersByRole("operator"))}
+          />
         </Field>
         <Field label="Keyingi aloqa sanasi">
           <Input type="date" value={f.nextContactDate} disabled={!editable} onChange={(e) => set("nextContactDate", e.target.value)} />
@@ -281,7 +310,10 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
                   const t = tariffOf(state, p.acceptedTariffId ?? p.recommendedId);
                   return (
                     <li key={p.id}>
-                      <A href={`/taklif/${p.id}`} className="flex items-center justify-between gap-2 rounded-[14px] bg-fill px-3 py-2 text-sm hover:brightness-105">
+                      <A
+                        href={`/taklif/${p.id}`}
+                        className="flex items-center justify-between gap-2 rounded-[14px] bg-fill px-3 py-2 text-sm hover:brightness-105"
+                      >
                         <span className="text-label">
                           <b>{p.number}</b> · {fmtDate(p.date)} · {t?.name}
                           {t ? ` — ${fmtMoney(proposalPrice(p, t))}` : ""}
@@ -361,7 +393,12 @@ function StageDialog({ pending, onClose }: { pending: NonNullable<Pending>; onCl
           contactName: lead.name,
           ...(lead.meeting ? { marketologId: lead.meeting.marketologId } : {}),
           ...(acceptedTariff && accepted
-            ? { tariff: tariffLabel(acceptedTariff), tariffId: acceptedTariff.id, monthlyFee: proposalPrice(accepted, acceptedTariff), prepayType: acceptedTariff.prepayType }
+            ? {
+                tariff: tariffLabel(acceptedTariff),
+                tariffId: acceptedTariff.id,
+                monthlyFee: proposalPrice(accepted, acceptedTariff),
+                prepayType: acceptedTariff.prepayType,
+              }
             : {}),
         }}
         onClose={onClose}
@@ -413,7 +450,11 @@ function StageDialog({ pending, onClose }: { pending: NonNullable<Pending>; onCl
             <Input type="time" value={meeting.time} onChange={(e) => setMeeting({ ...meeting, time: e.target.value })} />
           </Field>
           <Field label="Marketolog">
-            <Select value={meeting.marketologId} onChange={(e) => setMeeting({ ...meeting, marketologId: e.target.value })} options={userOptions(look.usersByRole("marketolog"))} />
+            <Select
+              value={meeting.marketologId}
+              onChange={(e) => setMeeting({ ...meeting, marketologId: e.target.value })}
+              options={userOptions(look.usersByRole("marketolog"))}
+            />
           </Field>
         </div>
       ) : (

@@ -12,15 +12,7 @@ import { Banner, Button, Field, Input, LinkOut, Modal, Select, Textarea, userOpt
 
 // ---------- Post kartasi ----------
 
-export function PostModal({
-  postId,
-  newFor,
-  onClose,
-}: {
-  postId?: string;
-  newFor?: { projectId: string; date: string };
-  onClose: () => void;
-}) {
+export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor?: { projectId: string; date: string }; onClose: () => void }) {
   const { state, me, run, today } = useErp();
   const look = useLookup();
   const existing = state.posts.find((p) => p.id === postId);
@@ -255,7 +247,7 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
     return {
       projectId: pid,
       postId: post?.id ?? "",
-      assigneeId: kind === "target" ? prj?.targetologId ?? look.usersByRole("targetolog")[0]?.id ?? "" : look.usersByRole(KIND_ROLE[kind])[0]?.id ?? "",
+      assigneeId: kind === "target" ? (prj?.targetologId ?? look.usersByRole("targetolog")[0]?.id ?? "") : (look.usersByRole(KIND_ROLE[kind])[0]?.id ?? ""),
       title: post ? `${post.topic}${kind === "dizayn" ? " — oblojka" : ""}` : "",
       brief: "",
       script: post?.script ?? "",
@@ -328,7 +320,11 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
           />
         </Field>
         <Field label="Ijrochi">
-          <Select value={f.assigneeId} onChange={(e) => set("assigneeId", e.target.value)} options={userOptions(look.usersByRole(KIND_ROLE[kind]), "Tanlang…")} />
+          <Select
+            value={f.assigneeId}
+            onChange={(e) => set("assigneeId", e.target.value)}
+            options={userOptions(look.usersByRole(KIND_ROLE[kind]), "Tanlang…")}
+          />
         </Field>
         <Field label="Deadline">
           <Input type="date" value={f.deadline} onChange={(e) => set("deadline", e.target.value)} />

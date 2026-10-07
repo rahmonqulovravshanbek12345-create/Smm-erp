@@ -27,7 +27,11 @@ export function Budget() {
 
   return (
     <>
-      <PageHeader title="Reja-fakt (byudjet)" sub="Oylik reja va haqiqiy natijani solishtirish" actions={<MonthSelect value={month} onChange={setMonth} back={11} forward={2} />} />
+      <PageHeader
+        title="Reja-fakt (byudjet)"
+        sub="Oylik reja va haqiqiy natijani solishtirish"
+        actions={<MonthSelect value={month} onChange={setMonth} back={11} forward={2} />}
+      />
       <FinNav />
       <Card>
         <CardHeader title={fmtMonth(month)} sub={isCur ? "Joriy oy — fakt bugungi kungacha" : undefined} />
@@ -84,7 +88,9 @@ export function Budget() {
           </tbody>
         </TableWrap>
         <div className="px-5 pb-4">
-          <Note>Daromad uchun rejadan oshish yaxshi (yashil), xarajat uchun rejadan kam bo'lish yaxshi. Reja summalarini to'g'ridan-to'g'ri jadvalda o'zgartiring.</Note>
+          <Note>
+            Daromad uchun rejadan oshish yaxshi (yashil), xarajat uchun rejadan kam bo'lish yaxshi. Reja summalarini to'g'ridan-to'g'ri jadvalda o'zgartiring.
+          </Note>
         </div>
       </Card>
     </>

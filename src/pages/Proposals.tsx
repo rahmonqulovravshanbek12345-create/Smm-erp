@@ -43,7 +43,12 @@ export function Proposals() {
   const usage = useMemo(() => tariffUsage(state), [state]);
 
   const rows = state.proposals
-    .map((p) => ({ p, view: proposalView(p, today), lead: state.leads.find((l) => l.id === p.leadId), t: tariffOf(state, p.acceptedTariffId ?? p.recommendedId) }))
+    .map((p) => ({
+      p,
+      view: proposalView(p, today),
+      lead: state.leads.find((l) => l.id === p.leadId),
+      t: tariffOf(state, p.acceptedTariffId ?? p.recommendedId),
+    }))
     .filter((r) => filter === "all" || r.view === filter)
     .sort((a, b) => b.p.date.localeCompare(a.p.date) || b.p.number.localeCompare(a.p.number));
 
@@ -60,7 +65,17 @@ export function Proposals() {
                 {
                   name: "Takliflar",
                   columns: ["Raqam", "Sana", "Mijoz", "Tarif", "Chegirma %", "Oylik summa", "Holat", "Amal qiladi", "Rad sababi"],
-                  rows: rows.map((r) => [r.p.number, r.p.date, r.lead?.name ?? "", r.t?.name ?? "", r.p.discountPct, r.t ? proposalPrice(r.p, r.t) : 0, PROPOSAL_STATUS[r.view].label, r.p.validUntil, r.p.rejectReason ?? ""]),
+                  rows: rows.map((r) => [
+                    r.p.number,
+                    r.p.date,
+                    r.lead?.name ?? "",
+                    r.t?.name ?? "",
+                    r.p.discountPct,
+                    r.t ? proposalPrice(r.p, r.t) : 0,
+                    PROPOSAL_STATUS[r.view].label,
+                    r.p.validUntil,
+                    r.p.rejectReason ?? "",
+                  ]),
                 },
               ]}
             />
@@ -98,7 +113,10 @@ export function Proposals() {
                 value={filter}
                 onChange={(e) => setFilter(e.target.value as typeof filter)}
                 className="!w-44 !py-1.5 !text-[13px]"
-                options={[{ value: "all", label: "Hammasi" }, ...(Object.keys(PROPOSAL_STATUS) as PView[]).map((k) => ({ value: k, label: PROPOSAL_STATUS[k].label }))]}
+                options={[
+                  { value: "all", label: "Hammasi" },
+                  ...(Object.keys(PROPOSAL_STATUS) as PView[]).map((k) => ({ value: k, label: PROPOSAL_STATUS[k].label })),
+                ]}
               />
             }
           />
@@ -191,7 +209,13 @@ export function Proposals() {
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[16px] bg-fill px-4 py-3 text-[13px] text-label2">
             <span>
-              Individual shartlardagi loyihalar: <b className="text-label">{usage.get("custom")?.projects.map((p) => p.name).join(", ") || "yo'q"}</b>
+              Individual shartlardagi loyihalar:{" "}
+              <b className="text-label">
+                {usage
+                  .get("custom")
+                  ?.projects.map((p) => p.name)
+                  .join(", ") || "yo'q"}
+              </b>
             </span>
             {canEditTariffs(me.role) && <Button onClick={() => setEditTariff("new")}>+ Yangi tarif</Button>}
           </div>
@@ -238,7 +262,14 @@ export function ProposalModal({ leadId, onClose }: { leadId?: string; onClose: (
   const submit = () => {
     let id = "";
     const ok = run((c) => {
-      id = act.createProposal(c, { leadId: lid, tariffIds: active.filter((t) => ids.includes(t.id)).map((t) => t.id), recommendedId: rec, discountPct: discount, validDays: Number(days), note });
+      id = act.createProposal(c, {
+        leadId: lid,
+        tariffIds: active.filter((t) => ids.includes(t.id)).map((t) => t.id),
+        recommendedId: rec,
+        discountPct: discount,
+        validDays: Number(days),
+        note,
+      });
     }, "Tijorat taklifi tayyor");
     if (ok) {
       onClose();
@@ -277,11 +308,7 @@ export function ProposalModal({ leadId, onClose }: { leadId?: string; onClose: (
           />
         </Field>
         <Field label="Amal qilish muddati">
-          <Select
-            value={days}
-            onChange={(e) => setDays(e.target.value)}
-            options={["3", "7", "14", "30"].map((d) => ({ value: d, label: `${d} kun` }))}
-          />
+          <Select value={days} onChange={(e) => setDays(e.target.value)} options={["3", "7", "14", "30"].map((d) => ({ value: d, label: `${d} kun` }))} />
         </Field>
       </div>
       <div className="mt-4 mb-1.5 px-1 text-[13px] font-medium text-label2">Taklifdagi paketlar va tavsiya</div>
@@ -351,7 +378,17 @@ function TariffModal({ tariff, onClose }: { tariff?: Tariff; onClose: () => void
   );
   const togglePlatform = (p: Platform) => set("platforms", f.platforms.includes(p) ? f.platforms.filter((x) => x !== p) : [...f.platforms, p]);
   const save = () => {
-    const ok = run((c) => act.saveTariff(c, { ...f, features: features.split("\n").map((x) => x.trim()).filter(Boolean) }), "Tarif saqlandi");
+    const ok = run(
+      (c) =>
+        act.saveTariff(c, {
+          ...f,
+          features: features
+            .split("\n")
+            .map((x) => x.trim())
+            .filter(Boolean),
+        }),
+      "Tarif saqlandi",
+    );
     if (ok) onClose();
   };
 
@@ -459,7 +496,10 @@ export function ProposalPage({ id }: { id: string }) {
     }
   };
   const decide = (status: "sent" | "accepted" | "rejected") => {
-    const ok = run((c) => act.setProposalStatus(c, p.id, status, { tariffId: acceptId, reason }), status === "sent" ? "Yuborildi deb belgilandi" : status === "accepted" ? "Qabul qilindi — operator, marketolog va rahbarga xabar ketdi" : "Rad etildi");
+    const ok = run(
+      (c) => act.setProposalStatus(c, p.id, status, { tariffId: acceptId, reason }),
+      status === "sent" ? "Yuborildi deb belgilandi" : status === "accepted" ? "Qabul qilindi — operator, marketolog va rahbarga xabar ketdi" : "Rad etildi",
+    );
     if (ok) setRejecting(false);
   };
 
@@ -478,7 +518,12 @@ export function ProposalPage({ id }: { id: string }) {
           )}
           {editable && p.status === "sent" && (
             <>
-              <Select value={acceptId} onChange={(e) => setAcceptId(e.target.value)} className="!w-36 !py-1.5 !text-[13px]" options={tariffs.map((t) => ({ value: t.id, label: t.name }))} />
+              <Select
+                value={acceptId}
+                onChange={(e) => setAcceptId(e.target.value)}
+                className="!w-36 !py-1.5 !text-[13px]"
+                options={tariffs.map((t) => ({ value: t.id, label: t.name }))}
+              />
               <Button variant="primary" onClick={() => decide("accepted")}>
                 ✓ Qabul qildi
               </Button>
@@ -585,7 +630,9 @@ export function ProposalPage({ id }: { id: string }) {
                   ["Oldindan to'lov", (t: Tariff) => `${t.prepayType}%`],
                 ].map(([label, fn]) => (
                   <tr key={label as string}>
-                    <td className={`border-t border-sep py-2 pr-3 text-label2 ${(label as string).startsWith("  ") ? "pl-4 text-[13px]" : ""}`}>{(label as string).trim()}</td>
+                    <td className={`border-t border-sep py-2 pr-3 text-label2 ${(label as string).startsWith("  ") ? "pl-4 text-[13px]" : ""}`}>
+                      {(label as string).trim()}
+                    </td>
                     {tariffs.map((t) => (
                       <td key={t.id} className={`border-t border-sep px-3 py-2 font-medium text-label ${t.id === p.recommendedId ? "bg-accent/10" : ""}`}>
                         {(fn as (t: Tariff) => string)(t)}
@@ -597,7 +644,10 @@ export function ProposalPage({ id }: { id: string }) {
                   <tr key={f}>
                     <td className="border-t border-sep py-2 pr-3 text-label2">{f}</td>
                     {tariffs.map((t) => (
-                      <td key={t.id} className={`border-t border-sep px-3 py-2 ${t.id === p.recommendedId ? "bg-accent/10" : ""} ${i === features.length - 1 ? "rounded-b-[16px]" : ""}`}>
+                      <td
+                        key={t.id}
+                        className={`border-t border-sep px-3 py-2 ${t.id === p.recommendedId ? "bg-accent/10" : ""} ${i === features.length - 1 ? "rounded-b-[16px]" : ""}`}
+                      >
                         {t.features.includes(f) ? <Icon name="check" size={17} className="text-green" /> : <span className="text-label3">—</span>}
                       </td>
                     ))}
@@ -639,7 +689,12 @@ export function ProposalPage({ id }: { id: string }) {
                     <div className="text-[13px] text-label2">lid oxirgi oyda</div>
                     <div className="mt-2 text-[13px] text-label">
                       Lid narxi: {fmtShortMoney(c.cplFrom)} → <b>{fmtShortMoney(c.cplTo)}</b>
-                      {Math.abs(drop) >= 1 && <span className={`ml-1 font-semibold ${drop < 0 ? "text-green" : "text-orange"}`}>({drop > 0 ? "+" : "−"}{Math.abs(drop).toFixed(0)}%)</span>}
+                      {Math.abs(drop) >= 1 && (
+                        <span className={`ml-1 font-semibold ${drop < 0 ? "text-green" : "text-orange"}`}>
+                          ({drop > 0 ? "+" : "−"}
+                          {Math.abs(drop).toFixed(0)}%)
+                        </span>
+                      )}
                     </div>
                   </div>
                 );

@@ -1,22 +1,9 @@
 import type { ReactNode } from "react";
 import { Icon } from "../components/icons";
-import {
-  A,
-  Badge,
-  Button,
-  Card,
-  CardHeader,
-  Empty,
-  PageHeader,
-} from "../components/ui";
+import { A, Badge, Button, Card, CardHeader, Empty, PageHeader } from "../components/ui";
 import { fmtDate, fmtMoney } from "../lib/dates";
 import { invoicePeriod, invoiceStatus } from "../lib/finance";
-import {
-  FORMAT_LABELS,
-  PAYMENT_KIND_LABELS,
-  PAYMENT_STATUS,
-  PLATFORM_LABELS,
-} from "../lib/labels";
+import { FORMAT_LABELS, PAYMENT_KIND_LABELS, PAYMENT_STATUS, PLATFORM_LABELS } from "../lib/labels";
 import { canView, visibleProjects } from "../lib/permissions";
 import { reportPeriods } from "../lib/report";
 import { useErp } from "../lib/store";
@@ -38,9 +25,7 @@ export function Documents() {
       />
       <div className="grid gap-4 lg:grid-cols-2">
         {projects.map((p) => {
-          const invoices = state.invoices
-            .filter((i) => i.projectId === p.id)
-            .sort((a, b) => a.issueDate.localeCompare(b.issueDate));
+          const invoices = state.invoices.filter((i) => i.projectId === p.id).sort((a, b) => a.issueDate.localeCompare(b.issueDate));
           const periods = reportPeriods(p, today).filter((x) => x.end <= today);
           return (
             <Card key={p.id}>
@@ -48,9 +33,7 @@ export function Documents() {
                 icon={{ name: "folder", color: "teal" }}
                 title={p.name}
                 sub={`${p.legalName ?? p.contactName} · shartnoma ${p.contractNo}`}
-                right={
-                  p.status === "closed" ? <Badge>yopilgan</Badge> : undefined
-                }
+                right={p.status === "closed" ? <Badge>yopilgan</Badge> : undefined}
               />
               <div className="space-y-3 px-5 pb-5 text-[14px]">
                 <DocRow label="Shartnoma" icon="checkSeal">
@@ -60,43 +43,24 @@ export function Documents() {
                 </DocRow>
                 {finance && (
                   <DocRow label="Hisob-fakturalar" icon="send">
-                    {invoices.length === 0 && (
-                      <span className="text-label3">—</span>
-                    )}
+                    {invoices.length === 0 && <span className="text-label3">—</span>}
                     {invoices.map((i) => (
-                      <DocLink
-                        key={i.id}
-                        href={`/hujjat/faktura/${i.id}`}
-                        tone={
-                          invoiceStatus(state, i, today) === "overdue"
-                            ? "red"
-                            : undefined
-                        }
-                      >
+                      <DocLink key={i.id} href={`/hujjat/faktura/${i.id}`} tone={invoiceStatus(state, i, today) === "overdue" ? "red" : undefined}>
                         {i.number}
                       </DocLink>
                     ))}
                   </DocRow>
                 )}
                 <DocRow label="Dalolatnomalar" icon="list">
-                  {periods.length === 0 && (
-                    <span className="text-label3">
-                      Birinchi davr yakunlangach
-                    </span>
-                  )}
+                  {periods.length === 0 && <span className="text-label3">Birinchi davr yakunlangach</span>}
                   {[...periods].reverse().map((x) => (
-                    <DocLink
-                      key={x.index}
-                      href={`/hujjat/dalolatnoma/${p.id}/${x.index}`}
-                    >
+                    <DocLink key={x.index} href={`/hujjat/dalolatnoma/${p.id}/${x.index}`}>
                       {x.index + 1}-davr
                     </DocLink>
                   ))}
                 </DocRow>
                 <DocRow label="Mijoz hisobotlari" icon="sparkle">
-                  {reportPeriods(p, today).length === 0 && (
-                    <span className="text-label3">Davr boshlanmagan</span>
-                  )}
+                  {reportPeriods(p, today).length === 0 && <span className="text-label3">Davr boshlanmagan</span>}
                   {[...reportPeriods(p, today)].reverse().map((x) => (
                     <DocLink key={x.index} href={`/hisobot/${p.id}/${x.index}`}>
                       {x.index + 1}-davr{x.end > today ? " (joriy)" : ""}
@@ -112,15 +76,7 @@ export function Documents() {
   );
 }
 
-function DocRow({
-  label,
-  icon,
-  children,
-}: {
-  label: string;
-  icon: "checkSeal" | "send" | "list" | "sparkle";
-  children: ReactNode;
-}) {
+function DocRow({ label, icon, children }: { label: string; icon: "checkSeal" | "send" | "list" | "sparkle"; children: ReactNode }) {
   return (
     <div className="grid gap-1.5 sm:grid-cols-[150px_1fr]">
       <span className="flex items-center gap-1.5 text-label2">
@@ -131,15 +87,7 @@ function DocRow({
   );
 }
 
-function DocLink({
-  href,
-  children,
-  tone,
-}: {
-  href: string;
-  children: ReactNode;
-  tone?: "red";
-}) {
+function DocLink({ href, children, tone }: { href: string; children: ReactNode; tone?: "red" }) {
   return (
     <A
       href={href}
@@ -152,15 +100,7 @@ function DocLink({
 
 // ---------- Hujjat ko'rinishi (chop etishga tayyor) ----------
 
-export function DocumentView({
-  kind,
-  id,
-  index,
-}: {
-  kind: string;
-  id: string;
-  index?: number;
-}) {
+export function DocumentView({ kind, id, index }: { kind: string; id: string; index?: number }) {
   const { state, today } = useErp();
   let title = "";
   let body: ReactNode = null;
@@ -184,35 +124,15 @@ export function DocumentView({
           : `SMM xizmatlari (${p.tariff}) — ${per ? `${fmtDate(per.start)} – ${fmtDate(per.end)}` : "birinchi xizmat davri"} · ${PAYMENT_KIND_LABELS[inv.kind].toLowerCase()}`;
       body = (
         <Paper>
-          <DocHead
-            title={`HISOB-FAKTURA № ${inv.number}`}
-            sub={`${fmtDate(inv.issueDate)} · shartnoma № ${p.contractNo} (${fmtDate(p.contractDate)})`}
-          />
-          <Parties
-            s={state}
-            p={p}
-            left="Xizmat ko'rsatuvchi"
-            right="Buyurtmachi"
-          />
-          <ServiceTable
-            rows={[
-              { name: service, unit: "xizmat", qty: 1, price: inv.amount },
-            ]}
-          />
+          <DocHead title={`HISOB-FAKTURA № ${inv.number}`} sub={`${fmtDate(inv.issueDate)} · shartnoma № ${p.contractNo} (${fmtDate(p.contractDate)})`} />
+          <Parties s={state} p={p} left="Xizmat ko'rsatuvchi" right="Buyurtmachi" />
+          <ServiceTable rows={[{ name: service, unit: "xizmat", qty: 1, price: inv.amount }]} />
           <p className="mt-3 text-[13px]">
-            To'lov muddati:{" "}
-            <b>{inv.dueDate ? fmtDate(inv.dueDate) : "kelishiladi"}</b> · Holat:{" "}
-            {PAYMENT_STATUS[
-              invoiceStatus(state, inv, today)
-            ].label.toLowerCase()}
+            To'lov muddati: <b>{inv.dueDate ? fmtDate(inv.dueDate) : "kelishiladi"}</b> · Holat:{" "}
+            {PAYMENT_STATUS[invoiceStatus(state, inv, today)].label.toLowerCase()}
           </p>
-          <p className="text-[13px] text-black/60">
-            QQS: hisoblanmaydi (aylanma soliq to'lovchisi).
-          </p>
-          <Signs
-            left={["Rahbar", state.settings.requisites.director]}
-            right={["Qabul qildi", p.contactName]}
-          />
+          <p className="text-[13px] text-black/60">QQS: hisoblanmaydi (aylanma soliq to'lovchisi).</p>
+          <Signs left={["Rahbar", state.settings.requisites.director]} right={["Qabul qildi", p.contactName]} />
         </Paper>
       );
       back = "/moliya/fakturalar";
@@ -223,36 +143,12 @@ export function DocumentView({
       const per = reportPeriods(p, today).find((x) => x.index === index);
       if (per) {
         title = `Dalolatnoma — ${p.name}, ${index + 1}-davr`;
-        const posts = state.posts.filter(
-          (x) =>
-            x.projectId === p.id &&
-            x.date >= per.start &&
-            x.date < per.end &&
-            x.status === "published",
-        );
-        const byFmt = Object.entries(
-          posts.reduce<Record<string, number>>(
-            (a, x) => ((a[x.format] = (a[x.format] ?? 0) + 1), a),
-            {},
-          ),
-        )
-          .map(
-            ([k, v]) =>
-              `${FORMAT_LABELS[k as keyof typeof FORMAT_LABELS].toLowerCase()} — ${v} ta`,
-          )
+        const posts = state.posts.filter((x) => x.projectId === p.id && x.date >= per.start && x.date < per.end && x.status === "published");
+        const byFmt = Object.entries(posts.reduce<Record<string, number>>((a, x) => ((a[x.format] = (a[x.format] ?? 0) + 1), a), {}))
+          .map(([k, v]) => `${FORMAT_LABELS[k as keyof typeof FORMAT_LABELS].toLowerCase()} — ${v} ta`)
           .join(", ");
-        const amount = state.invoices
-          .filter(
-            (i) =>
-              i.projectId === p.id &&
-              i.periodIndex === index &&
-              i.kind !== "extra",
-          )
-          .reduce((a, i) => a + i.amount, 0);
-        const ad = state.targetReports.filter(
-          (r) =>
-            r.projectId === p.id && r.date >= per.start && r.date < per.end,
-        );
+        const amount = state.invoices.filter((i) => i.projectId === p.id && i.periodIndex === index && i.kind !== "extra").reduce((a, i) => a + i.amount, 0);
+        const ad = state.targetReports.filter((r) => r.projectId === p.id && r.date >= per.start && r.date < per.end);
         const rows = [
           {
             name: `Ijtimoiy tarmoqlarni yuritish: kontent reja, ${posts.length} ta post joylandi (${byFmt || "—"})`,
@@ -281,14 +177,10 @@ export function DocumentView({
             <Parties s={state} p={p} left="Ijrochi" right="Buyurtmachi" />
             <ServiceTable rows={rows} />
             <p className="mt-4 text-[14px]">
-              Yuqorida ko'rsatilgan xizmatlar to'liq hajmda va belgilangan
-              muddatlarda ko'rsatildi. Buyurtmachining xizmatlar hajmi, sifati
-              va muddatlari bo'yicha e'tirozlari yo'q.
+              Yuqorida ko'rsatilgan xizmatlar to'liq hajmda va belgilangan muddatlarda ko'rsatildi. Buyurtmachining xizmatlar hajmi, sifati va muddatlari
+              bo'yicha e'tirozlari yo'q.
             </p>
-            <Signs
-              left={["Ijrochi", state.settings.requisites.director]}
-              right={["Buyurtmachi", p.contactName]}
-            />
+            <Signs left={["Ijrochi", state.settings.requisites.director]} right={["Buyurtmachi", p.contactName]} />
           </Paper>
         );
         back = "/hujjatlar";
@@ -317,41 +209,25 @@ export function DocumentView({
 
 function Paper({ children }: { children: ReactNode }) {
   return (
-    <div className="print-area mx-auto max-w-[820px] rounded-[18px] bg-white p-5 text-[14px] leading-relaxed text-black shadow-float sm:p-12">
-      {children}
-    </div>
+    <div className="print-area mx-auto max-w-[820px] rounded-[18px] bg-white p-5 text-[14px] leading-relaxed text-black shadow-float sm:p-12">{children}</div>
   );
 }
 
 function DocHead({ title, sub }: { title: string; sub: string }) {
   return (
     <div className="mb-6 text-center">
-      <h1 className="text-[18px] font-bold uppercase tracking-[0.02em]">
-        {title}
-      </h1>
+      <h1 className="text-[18px] font-bold uppercase tracking-[0.02em]">{title}</h1>
       <p className="mt-1 text-[13px] text-black/60">{sub}</p>
     </div>
   );
 }
 
-function Parties({
-  s,
-  p,
-  left,
-  right,
-}: {
-  s: ErpState;
-  p: Project;
-  left: string;
-  right: string;
-}) {
+function Parties({ s, p, left, right }: { s: ErpState; p: Project; left: string; right: string }) {
   const r = s.settings.requisites;
   return (
     <div className="grid gap-4 text-[13px] sm:grid-cols-2">
       <div className="rounded-[12px] border border-black/10 p-3">
-        <div className="text-[11px] uppercase tracking-[0.06em] text-black/50">
-          {left}
-        </div>
+        <div className="text-[11px] uppercase tracking-[0.06em] text-black/50">{left}</div>
         <div className="font-semibold">{s.settings.companyName}</div>
         <div>{r.address}</div>
         <div>
@@ -363,9 +239,7 @@ function Parties({
         <div>Tel: {r.phone}</div>
       </div>
       <div className="rounded-[12px] border border-black/10 p-3">
-        <div className="text-[11px] uppercase tracking-[0.06em] text-black/50">
-          {right}
-        </div>
+        <div className="text-[11px] uppercase tracking-[0.06em] text-black/50">{right}</div>
         <div className="font-semibold">{p.legalName ?? p.name}</div>
         <div>{p.address ?? "—"}</div>
         <div>STIR: {p.inn ?? "—"}</div>
@@ -377,11 +251,7 @@ function Parties({
   );
 }
 
-function ServiceTable({
-  rows,
-}: {
-  rows: { name: string; unit: string; qty: number; price: number }[];
-}) {
+function ServiceTable({ rows }: { rows: { name: string; unit: string; qty: number; price: number }[] }) {
   const total = rows.reduce((a, r) => a + r.qty * r.price, 0);
   return (
     <>
@@ -390,19 +260,11 @@ function ServiceTable({
           <thead>
             <tr className="bg-black/[0.04] text-left">
               <th className="border border-black/15 px-2 py-1.5">№</th>
-              <th className="border border-black/15 px-2 py-1.5">
-                Xizmat nomi
-              </th>
+              <th className="border border-black/15 px-2 py-1.5">Xizmat nomi</th>
               <th className="border border-black/15 px-2 py-1.5">O'lchov</th>
-              <th className="border border-black/15 px-2 py-1.5 text-right">
-                Miqdor
-              </th>
-              <th className="border border-black/15 px-2 py-1.5 text-right">
-                Narx
-              </th>
-              <th className="border border-black/15 px-2 py-1.5 text-right">
-                Summa
-              </th>
+              <th className="border border-black/15 px-2 py-1.5 text-right">Miqdor</th>
+              <th className="border border-black/15 px-2 py-1.5 text-right">Narx</th>
+              <th className="border border-black/15 px-2 py-1.5 text-right">Summa</th>
             </tr>
           </thead>
           <tbody>
@@ -411,24 +273,16 @@ function ServiceTable({
                 <td className="border border-black/15 px-2 py-1.5">{i + 1}</td>
                 <td className="border border-black/15 px-2 py-1.5">{r.name}</td>
                 <td className="border border-black/15 px-2 py-1.5">{r.unit}</td>
-                <td className="border border-black/15 px-2 py-1.5 text-right">
-                  {r.qty}
-                </td>
-                <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">
-                  {r.price ? fmtMoney(r.price) : "narxga kiritilgan"}
-                </td>
-                <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">
-                  {r.price ? fmtMoney(r.qty * r.price) : "—"}
-                </td>
+                <td className="border border-black/15 px-2 py-1.5 text-right">{r.qty}</td>
+                <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">{r.price ? fmtMoney(r.price) : "narxga kiritilgan"}</td>
+                <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">{r.price ? fmtMoney(r.qty * r.price) : "—"}</td>
               </tr>
             ))}
             <tr className="font-bold">
               <td className="border border-black/15 px-2 py-1.5" colSpan={5}>
                 Jami
               </td>
-              <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">
-                {fmtMoney(total)}
-              </td>
+              <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">{fmtMoney(total)}</td>
             </tr>
           </tbody>
         </table>
@@ -440,13 +294,7 @@ function ServiceTable({
   );
 }
 
-function Signs({
-  left,
-  right,
-}: {
-  left: [string, string];
-  right: [string, string];
-}) {
+function Signs({ left, right }: { left: [string, string]; right: [string, string] }) {
   return (
     <div className="mt-10 grid gap-10 text-[13px] sm:grid-cols-2">
       {[left, right].map(([role, name], i) => (
@@ -456,9 +304,7 @@ function Signs({
             <span className="flex-1 border-b border-black/40" />
             <span className="font-semibold">{name}</span>
           </div>
-          <div className="mt-1 text-[11px] text-black/45">
-            imzo{i === 0 ? ", muhr" : ""}
-          </div>
+          <div className="mt-1 text-[11px] text-black/45">imzo{i === 0 ? ", muhr" : ""}</div>
         </div>
       ))}
     </div>
@@ -476,15 +322,7 @@ function Contract({ s, p }: { s: ErpState; p: Project }) {
   const scope = t
     ? `har oy ${t.posts} ta post (${t.videos} ta video, ${t.designs} ta dizayn), ${t.stories} ta stories va ${t.shoots} ta syomka kuni bilan kontent reja (${t.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")})`
     : "har oy 12–15 ta post (video, rasm, AI post) bilan kontent reja";
-  const Section = ({
-    n,
-    title,
-    children,
-  }: {
-    n: number;
-    title: string;
-    children: ReactNode;
-  }) => (
+  const Section = ({ n, title, children }: { n: number; title: string; children: ReactNode }) => (
     <section className="mt-5">
       <h2 className="mb-1.5 text-[14px] font-bold uppercase">
         {n}. {title}
@@ -494,110 +332,69 @@ function Contract({ s, p }: { s: ErpState; p: Project }) {
   );
   return (
     <Paper>
-      <DocHead
-        title={`XIZMAT KO'RSATISH SHARTNOMASI № ${p.contractNo}`}
-        sub={`Toshkent sh. · ${fmtDate(p.contractDate)}`}
-      />
+      <DocHead title={`XIZMAT KO'RSATISH SHARTNOMASI № ${p.contractNo}`} sub={`Toshkent sh. · ${fmtDate(p.contractDate)}`} />
       <p>
-        <b>{s.settings.companyName}</b> (keyingi o'rinlarda «Ijrochi») nomidan
-        direktor <b>{r.director}</b> bir tomondan, va{" "}
-        <b>{p.legalName ?? p.name}</b> (keyingi o'rinlarda «Buyurtmachi»)
-        nomidan <b>{p.contactName}</b> ikkinchi tomondan, quyidagilar haqida
-        ushbu shartnomani tuzdilar:
+        <b>{s.settings.companyName}</b> (keyingi o'rinlarda «Ijrochi») nomidan direktor <b>{r.director}</b> bir tomondan, va <b>{p.legalName ?? p.name}</b>{" "}
+        (keyingi o'rinlarda «Buyurtmachi») nomidan <b>{p.contactName}</b> ikkinchi tomondan, quyidagilar haqida ushbu shartnomani tuzdilar:
       </p>
       <Section n={1} title="Shartnoma predmeti">
         <p>
-          1.1. Ijrochi Buyurtmachining ijtimoiy tarmoqlardagi sahifalarini (
-          {p.links.split("\n").filter(Boolean).join(", ") ||
-            "Instagram, Telegram"}
-          ) yuritish bo'yicha xizmatlarni ko'rsatadi, Buyurtmachi esa ularni
-          qabul qiladi va haqini to'laydi.
+          1.1. Ijrochi Buyurtmachining ijtimoiy tarmoqlardagi sahifalarini ({p.links.split("\n").filter(Boolean).join(", ") || "Instagram, Telegram"}) yuritish
+          bo'yicha xizmatlarni ko'rsatadi, Buyurtmachi esa ularni qabul qiladi va haqini to'laydi.
         </p>
         <p>
-          1.2. Xizmatlar tarkibi («{p.tariff}» tarifi): marketing strategiyasi
-          va brif; {scope}; syomka, montaj va dizayn
-          {hasTarget
-            ? "; Meta Ads'da target reklamani sozlash va boshqarish"
-            : ""}
-          ; oylik natijalar hisoboti.
+          1.2. Xizmatlar tarkibi («{p.tariff}» tarifi): marketing strategiyasi va brif; {scope}; syomka, montaj va dizayn
+          {hasTarget ? "; Meta Ads'da target reklamani sozlash va boshqarish" : ""}; oylik natijalar hisoboti.
         </p>
       </Section>
       <Section n={2} title="Xizmat davri">
         <p>
-          2.1. Xizmat davri birinchi reklama (post) joylangan kundan boshlanadi
-          va keyingi oyning shu sanasida yakunlanadi. Keyingi davrlar ketma-ket
-          davom etadi.
+          2.1. Xizmat davri birinchi reklama (post) joylangan kundan boshlanadi va keyingi oyning shu sanasida yakunlanadi. Keyingi davrlar ketma-ket davom
+          etadi.
         </p>
-        <p>
-          2.2. Har bir davr yakunida tomonlar bajarilgan ishlar dalolatnomasini
-          imzolaydi.
-        </p>
+        <p>2.2. Har bir davr yakunida tomonlar bajarilgan ishlar dalolatnomasini imzolaydi.</p>
       </Section>
       <Section n={3} title="Narx va to'lov tartibi">
         <p>
-          3.1. Bir oylik xizmat narxi: <b>{fee}</b> ({words}). QQS
-          hisoblanmaydi.
+          3.1. Bir oylik xizmat narxi: <b>{fee}</b> ({words}). QQS hisoblanmaydi.
         </p>
         <p>
-          3.2. Buyurtmachi shartnoma imzolangandan keyin 3 (uch) bank kuni
-          ichida oylik narxning {p.prepayType}% miqdorida oldindan to'lov
-          qiladi. Ish oldindan to'lov kelib tushgandan keyin boshlanadi.
+          3.2. Buyurtmachi shartnoma imzolangandan keyin 3 (uch) bank kuni ichida oylik narxning {p.prepayType}% miqdorida oldindan to'lov qiladi. Ish oldindan
+          to'lov kelib tushgandan keyin boshlanadi.
         </p>
-        {p.prepayType === 50 && (
-          <p>
-            3.3. Qolgan 50% birinchi xizmat davri boshlanganidan keyin tomonlar
-            kelishgan sanada to'lanadi.
-          </p>
-        )}
+        {p.prepayType === 50 && <p>3.3. Qolgan 50% birinchi xizmat davri boshlanganidan keyin tomonlar kelishgan sanada to'lanadi.</p>}
         <p>
-          3.{p.prepayType === 50 ? 4 : 3}. Keyingi davrlar uchun to'lov har bir
-          davr boshlanish kunigacha amalga oshiriladi. Ijrochi davr
-          boshlanishidan 3 kun oldin hisob-faktura taqdim etadi.
+          3.{p.prepayType === 50 ? 4 : 3}. Keyingi davrlar uchun to'lov har bir davr boshlanish kunigacha amalga oshiriladi. Ijrochi davr boshlanishidan 3 kun
+          oldin hisob-faktura taqdim etadi.
         </p>
         {hasTarget && (
           <p>
-            3.{p.prepayType === 50 ? 5 : 4}. Reklama byudjeti xizmat narxiga
-            kirmaydi va Buyurtmachi tomonidan alohida to'lanadi; sarf hisoboti
-            har oy taqdim etiladi.
+            3.{p.prepayType === 50 ? 5 : 4}. Reklama byudjeti xizmat narxiga kirmaydi va Buyurtmachi tomonidan alohida to'lanadi; sarf hisoboti har oy taqdim
+            etiladi.
           </p>
         )}
       </Section>
       <Section n={4} title="Tomonlarning majburiyatlari">
         <p>
-          4.1. Ijrochi: kontent rejani o'z vaqtida tayyorlash va kelishilgan
-          sanalarda joylash; materiallarni Buyurtmachi tasdig'iga yuborish; har
-          oy hisobot taqdim etish.
+          4.1. Ijrochi: kontent rejani o'z vaqtida tayyorlash va kelishilgan sanalarda joylash; materiallarni Buyurtmachi tasdig'iga yuborish; har oy hisobot
+          taqdim etish.
         </p>
         <p>
-          4.2. Buyurtmachi: zarur ma'lumot va kirish huquqlarini berish;
-          materiallarni 2 (ikki) ish kuni ichida tasdiqlash yoki izoh berish;
-          to'lovlarni o'z vaqtida amalga oshirish.
+          4.2. Buyurtmachi: zarur ma'lumot va kirish huquqlarini berish; materiallarni 2 (ikki) ish kuni ichida tasdiqlash yoki izoh berish; to'lovlarni o'z
+          vaqtida amalga oshirish.
         </p>
       </Section>
       <Section n={5} title="Javobgarlik">
-        <p>
-          5.1. To'lov kechiktirilganda Ijrochi yozma ogohlantirish bilan yangi
-          ishlarni to'xtatib turishga haqli.
-        </p>
-        <p>
-          5.2. Buyurtmachi materiallarni kechiktirib tasdiqlagan hollarda
-          joylash muddatlari tegishli kunlarga suriladi.
-        </p>
+        <p>5.1. To'lov kechiktirilganda Ijrochi yozma ogohlantirish bilan yangi ishlarni to'xtatib turishga haqli.</p>
+        <p>5.2. Buyurtmachi materiallarni kechiktirib tasdiqlagan hollarda joylash muddatlari tegishli kunlarga suriladi.</p>
       </Section>
       <Section n={6} title="Amal qilish muddati">
-        <p>
-          6.1. Shartnoma imzolangan kundan kuchga kiradi va 12 oy amal qiladi.
-          Tomonlar 30 kun oldin yozma ogohlantirib shartnomani bekor qilishi
-          mumkin.
-        </p>
+        <p>6.1. Shartnoma imzolangan kundan kuchga kiradi va 12 oy amal qiladi. Tomonlar 30 kun oldin yozma ogohlantirib shartnomani bekor qilishi mumkin.</p>
       </Section>
       <Section n={7} title="Tomonlarning rekvizitlari va imzolari">
         <Parties s={s} p={p} left="Ijrochi" right="Buyurtmachi" />
       </Section>
-      <Signs
-        left={["Ijrochi, direktor", r.director]}
-        right={["Buyurtmachi", p.contactName]}
-      />
+      <Signs left={["Ijrochi, direktor", r.director]} right={["Buyurtmachi", p.contactName]} />
     </Paper>
   );
 }

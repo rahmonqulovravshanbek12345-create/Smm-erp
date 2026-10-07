@@ -49,7 +49,14 @@ export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
           <Stat icon="list" color="blue" label="Ochiq vazifalar" value={tasks.filter((t) => t.status !== "accepted").length} />
           <Stat icon="clock" color="red" label="Kechikkan" value={late} tone={late ? "red" : "green"} />
           <Stat icon="check" color="green" label={`Qabul qilingan ishlar (${fmtMonth(month)})`} value={accepted} tone="green" href="/hisobim" />
-          <Stat icon="wallet" color="teal" label={`Shu oy hisoblandi · qoldiq ${fmtMoney(employeeBalance(state, me.id))}`} value={fmtMoney(earned)} tone="green" href="/hisobim" />
+          <Stat
+            icon="wallet"
+            color="teal"
+            label={`Shu oy hisoblandi · qoldiq ${fmtMoney(employeeBalance(state, me.id))}`}
+            value={fmtMoney(earned)}
+            tone="green"
+            href="/hisobim"
+          />
         </div>
       )}
 

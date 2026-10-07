@@ -12,7 +12,7 @@ import type { Post, TaskKind } from "../lib/types";
 export function Content() {
   const { state, me } = useErp();
   const projects = visibleProjects(state, me);
-  const [projectId, setProjectId] = useState(me.role === "smm" ? projects[0]?.id ?? "" : "");
+  const [projectId, setProjectId] = useState(me.role === "smm" ? (projects[0]?.id ?? "") : "");
   const [modal, setModal] = useState<null | "shoot" | TaskKind>(null);
   const editable = canEdit(me.role, "content");
 
@@ -60,9 +60,7 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
   const visible = useMemo(() => {
     const allowed = new Set(visibleProjects(state, me).map((p) => p.id));
     const mineTaskPosts = new Set(state.tasks.filter((t) => t.assigneeId === me.id).map((t) => t.postId));
-    return state.posts.filter(
-      (p) => allowed.has(p.projectId) && (!projectId || p.projectId === projectId) && (!own || mineTaskPosts.has(p.id)),
-    );
+    return state.posts.filter((p) => allowed.has(p.projectId) && (!projectId || p.projectId === projectId) && (!own || mineTaskPosts.has(p.id)));
   }, [state, me, projectId, own]);
 
   const inMonth = visible.filter((p) => monthKey(p.date) === month).sort((a, b) => a.date.localeCompare(b.date));
@@ -140,11 +138,22 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
                   className={`min-h-[104px] border-b border-r border-sep p-1.5 ${inCur ? "" : "opacity-35"} `}
                 >
                   <div className="mb-1 flex">
-                    <span className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold ${d === today ? "bg-red text-white" : "text-label2"}`}>{parseDate(d).getDate()}</span>
+                    <span
+                      className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold ${d === today ? "bg-red text-white" : "text-label2"}`}
+                    >
+                      {parseDate(d).getDate()}
+                    </span>
                   </div>
                   <div className="space-y-1">
                     {items.map((p) => (
-                      <PostChip key={p.id} post={p} today={today} onClick={() => setOpen({ id: p.id })} showProject={!projectId} projectName={look.projectName(p.projectId)} />
+                      <PostChip
+                        key={p.id}
+                        post={p}
+                        today={today}
+                        onClick={() => setOpen({ id: p.id })}
+                        showProject={!projectId}
+                        projectName={look.projectName(p.projectId)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -190,16 +199,43 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
         </div>
       )}
 
-      {open && <PostModal postId={open.id} newFor={open.id ? undefined : { projectId: newFor, date: open.date ?? toISODate(new Date()) }} onClose={() => setOpen(null)} />}
+      {open && (
+        <PostModal
+          postId={open.id}
+          newFor={open.id ? undefined : { projectId: newFor, date: open.date ?? toISODate(new Date()) }}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </Card>
   );
 }
 
-function PostChip({ post, today, onClick, showProject, projectName }: { post: Post; today: string; onClick: () => void; showProject: boolean; projectName: string }) {
+function PostChip({
+  post,
+  today,
+  onClick,
+  showProject,
+  projectName,
+}: {
+  post: Post;
+  today: string;
+  onClick: () => void;
+  showProject: boolean;
+  projectName: string;
+}) {
   const late = isPostLate(post, today);
   const meta = postStatusMeta(post.status);
-  const dot =
-    late ? "bg-red" : meta.tone === "green" ? "bg-green" : meta.tone === "violet" ? "bg-purple" : meta.tone === "amber" ? "bg-orange" : meta.tone === "blue" ? "bg-accent" : "bg-gray";
+  const dot = late
+    ? "bg-red"
+    : meta.tone === "green"
+      ? "bg-green"
+      : meta.tone === "violet"
+        ? "bg-purple"
+        : meta.tone === "amber"
+          ? "bg-orange"
+          : meta.tone === "blue"
+            ? "bg-accent"
+            : "bg-gray";
   return (
     <button
       type="button"

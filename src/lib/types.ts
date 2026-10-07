@@ -1,17 +1,7 @@
 // SMM agentlik ERP — asosiy ma'lumotlar obyektlari (TZ, 8-bo'lim).
 // Barcha sanalar "YYYY-MM-DD" ko'rinishida, vaqt belgilari esa ISO formatda saqlanadi.
 
-export type Role =
-  | "admin"
-  | "rahbar"
-  | "operator"
-  | "marketolog"
-  | "smm"
-  | "targetolog"
-  | "syomka"
-  | "montajyor"
-  | "dizayner"
-  | "moliya";
+export type Role = "admin" | "rahbar" | "operator" | "marketolog" | "smm" | "targetolog" | "syomka" | "montajyor" | "dizayner" | "moliya";
 
 export interface User {
   id: string;
@@ -146,15 +136,7 @@ export interface Proposal {
 
 export type Platform = "instagram" | "telegram";
 export type PostFormat = "video" | "image" | "ai";
-export type PostStatus =
-  | "plan"
-  | "shoot"
-  | "editing"
-  | "design"
-  | "internal"
-  | "client"
-  | "approved"
-  | "published";
+export type PostStatus = "plan" | "shoot" | "editing" | "design" | "internal" | "client" | "approved" | "published";
 
 export interface Post {
   id: string;
@@ -253,18 +235,7 @@ export interface Account {
  * payroll — xodimga to'lov (hisoblangan ish haqini yopadi); client — mijoz to'lovi (fakturani yopadi);
  * vendor — ta'minotchiga to'lov (xarajat hujjatini yopadi).
  */
-export type ArticleGroup =
-  | "revenue"
-  | "direct"
-  | "overhead"
-  | "tax"
-  | "transit"
-  | "investing"
-  | "financing"
-  | "payroll"
-  | "client"
-  | "vendor"
-  | "transfer";
+export type ArticleGroup = "revenue" | "direct" | "overhead" | "tax" | "transit" | "investing" | "financing" | "payroll" | "client" | "vendor" | "transfer";
 
 export interface Article {
   id: string;

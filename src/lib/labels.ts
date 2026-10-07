@@ -1,13 +1,4 @@
-import type {
-  DocBlock,
-  LeadStage,
-  Platform,
-  PostFormat,
-  PostStatus,
-  Role,
-  TaskKind,
-  TaskStatus,
-} from "./types";
+import type { DocBlock, LeadStage, Platform, PostFormat, PostStatus, Role, TaskKind, TaskStatus } from "./types";
 
 export type Tone = "gray" | "green" | "amber" | "red" | "blue" | "violet";
 

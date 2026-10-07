@@ -80,5 +80,10 @@ export function MonthSelect({ value, onChange, back = 11, forward = 0 }: { value
 }
 
 export function Note({ children }: { children: ReactNode }) {
-  return <p className="mt-3 flex gap-2 px-1 text-[12px] leading-relaxed text-label3"><Icon name="alert" size={14} className="mt-0.5 shrink-0" />{children}</p>;
+  return (
+    <p className="mt-3 flex gap-2 px-1 text-[12px] leading-relaxed text-label3">
+      <Icon name="alert" size={14} className="mt-0.5 shrink-0" />
+      {children}
+    </p>
+  );
 }

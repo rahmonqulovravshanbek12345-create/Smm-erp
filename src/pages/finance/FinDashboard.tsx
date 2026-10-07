@@ -19,7 +19,27 @@ import {
 import { useErp } from "../../lib/store";
 import { FinNav } from "./common";
 
-function Kpi({ label, value, sub, icon, color, trend, trendColor, href, tone }: { label: string; value: string; sub?: string; icon: IconName; color: ChipColor; trend?: number[]; trendColor?: string; href?: string; tone?: "red" | "green" }) {
+function Kpi({
+  label,
+  value,
+  sub,
+  icon,
+  color,
+  trend,
+  trendColor,
+  href,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: IconName;
+  color: ChipColor;
+  trend?: number[];
+  trendColor?: string;
+  href?: string;
+  tone?: "red" | "green";
+}) {
   const body = (
     <Card className="flex h-full flex-col justify-between gap-3 p-4 transition duration-300 hover:-translate-y-0.5">
       <div className="flex items-start justify-between gap-2">
@@ -27,7 +47,11 @@ function Kpi({ label, value, sub, icon, color, trend, trendColor, href, tone }: 
         {trend && <Sparkline values={trend} color={trendColor} />}
       </div>
       <div>
-        <div className={`text-[24px] font-bold leading-none tracking-tight sm:text-[26px] ${tone === "red" ? "text-red" : tone === "green" ? "text-green" : "text-label"}`}>{value}</div>
+        <div
+          className={`text-[24px] font-bold leading-none tracking-tight sm:text-[26px] ${tone === "red" ? "text-red" : tone === "green" ? "text-green" : "text-label"}`}
+        >
+          {value}
+        </div>
         <div className="mt-1.5 text-[13px] font-semibold text-label">{label}</div>
         {sub && <div className="mt-0.5 text-[12px] text-label2">{sub}</div>}
       </div>
@@ -78,17 +102,39 @@ export function FinDashboard() {
   const insights: { tone: "red" | "amber" | "green"; text: string; href: string }[] = [];
   for (const r of d.ar) {
     const late = r.d30 + r.d60 + r.d60plus;
-    if (late > 0) insights.push({ tone: r.d60plus ? "red" : "amber", text: `${r.project.name}: muddati o'tgan qarz ${fmtMoney(late)}${r.d60plus ? " (60 kundan ortiq)" : ""}`, href: "/moliya/debitor" });
+    if (late > 0)
+      insights.push({
+        tone: r.d60plus ? "red" : "amber",
+        text: `${r.project.name}: muddati o'tgan qarz ${fmtMoney(late)}${r.d60plus ? " (60 kundan ortiq)" : ""}`,
+        href: "/moliya/debitor",
+      });
   }
   const avgMargin = d.profit.length ? d.profit.reduce((a, x) => a + x.marginPct, 0) / d.profit.length : 0;
   for (const x of d.profit) {
-    if (x.net < 0) insights.push({ tone: "red", text: `${x.project.name}: so'nggi 3 oyda sof zarar ${fmtMoney(-x.net)} — narx yoki hajmni qayta ko'rib chiqing`, href: "/moliya/pnl" });
-    else if (x.marginPct < avgMargin - 8) insights.push({ tone: "amber", text: `${x.project.name}: marja ${x.marginPct.toFixed(0)}% — o'rtachadan (${avgMargin.toFixed(0)}%) past`, href: "/moliya/pnl" });
+    if (x.net < 0)
+      insights.push({
+        tone: "red",
+        text: `${x.project.name}: so'nggi 3 oyda sof zarar ${fmtMoney(-x.net)} — narx yoki hajmni qayta ko'rib chiqing`,
+        href: "/moliya/pnl",
+      });
+    else if (x.marginPct < avgMargin - 8)
+      insights.push({
+        tone: "amber",
+        text: `${x.project.name}: marja ${x.marginPct.toFixed(0)}% — o'rtachadan (${avgMargin.toFixed(0)}%) past`,
+        href: "/moliya/pnl",
+      });
   }
   const payroll = d.cal.days.flatMap((x) => x.items.filter((i) => i.kind === "payroll").map((i) => ({ date: x.date, amount: -i.amount })))[0];
-  if (payroll) insights.push({ tone: d.cal.free >= payroll.amount ? "green" : "red", text: `${fmtDate(payroll.date)} — ish haqi kuni: ${fmtMoney(payroll.amount)} kerak, erkin pul ${d.cal.free >= payroll.amount ? "yetarli" : "yetmaydi"}`, href: "/moliya/kalendar" });
-  if (d.cal.firstNegative) insights.push({ tone: "red", text: `${fmtDate(d.cal.firstNegative)} kuni kassa minusga tushadi — to'lovlarni rejalashtiring`, href: "/moliya/kalendar" });
-  for (const v of d.ap.vendors) if (v.overdue > 0) insights.push({ tone: "amber", text: `${v.vendor.name}: to'lov muddati o'tgan — ${fmtMoney(v.overdue)}`, href: "/moliya/debitor" });
+  if (payroll)
+    insights.push({
+      tone: d.cal.free >= payroll.amount ? "green" : "red",
+      text: `${fmtDate(payroll.date)} — ish haqi kuni: ${fmtMoney(payroll.amount)} kerak, erkin pul ${d.cal.free >= payroll.amount ? "yetarli" : "yetmaydi"}`,
+      href: "/moliya/kalendar",
+    });
+  if (d.cal.firstNegative)
+    insights.push({ tone: "red", text: `${fmtDate(d.cal.firstNegative)} kuni kassa minusga tushadi — to'lovlarni rejalashtiring`, href: "/moliya/kalendar" });
+  for (const v of d.ap.vendors)
+    if (v.overdue > 0) insights.push({ tone: "amber", text: `${v.vendor.name}: to'lov muddati o'tgan — ${fmtMoney(v.overdue)}`, href: "/moliya/debitor" });
 
   return (
     <>
@@ -96,19 +142,88 @@ export function FinDashboard() {
       <FinNav />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
-        <Kpi icon="wallet" color="green" label="Erkin pul" value={fmtShort(d.cash - d.transit)} sub={`Hisoblarda ${fmtShort(d.cash)}, shundan mijoz reklama puli ${fmtShort(d.transit)}`} trend={months.map((m) => d.cf.closing[m] ?? 0)} trendColor={VIZ.c3} href="/moliya/cashflow" />
-        <Kpi icon="arrowUpRight" color="blue" label={`Daromad — ${fmtMonth(prev)}`} value={fmtShort(revPrev)} sub={`Kassaga tushgan: ${fmtShort(clientCashIn(state, prev))}`} trend={months.slice(0, -1).map((m) => p.totals.revenue[m] ?? 0)} trendColor={VIZ.c1} href="/moliya/pnl" />
-        <Kpi icon="sparkle" color={netPrev >= 0 ? "teal" : "red"} label={`Sof foyda — ${fmtMonth(prev)}`} value={fmtShort(netPrev)} sub={`Sof marja ${marginPrev.toFixed(1)}%`} tone={netPrev < 0 ? "red" : undefined} trend={months.slice(0, -1).map((m) => p.totals.net[m] ?? 0)} trendColor={VIZ.c3} href="/moliya/pnl" />
-        <Kpi icon="history" color="indigo" label="MRR (oylik abonent)" value={fmtShort(mrr(state, today))} sub={`${d.activeClients} faol mijoz · o'rtacha chek ${fmtShort(mrr(state, today) / Math.max(1, d.activeClients))}`} />
-        <Kpi icon="users" color="orange" label="Debitorlik" value={fmtShort(d.arTotal)} sub={`Muddati o'tgan: ${fmtShort(d.arOverdue)}`} tone={d.arOverdue > 0 ? "red" : undefined} href="/moliya/debitor" />
-        <Kpi icon="clock" color="purple" label="Kreditorlik" value={fmtShort(d.apEmployees + d.apVendors)} sub={`Xodimlarga ${fmtShort(d.apEmployees)} · ta'minotchilarga ${fmtShort(d.apVendors)}`} href="/moliya/debitor" />
+        <Kpi
+          icon="wallet"
+          color="green"
+          label="Erkin pul"
+          value={fmtShort(d.cash - d.transit)}
+          sub={`Hisoblarda ${fmtShort(d.cash)}, shundan mijoz reklama puli ${fmtShort(d.transit)}`}
+          trend={months.map((m) => d.cf.closing[m] ?? 0)}
+          trendColor={VIZ.c3}
+          href="/moliya/cashflow"
+        />
+        <Kpi
+          icon="arrowUpRight"
+          color="blue"
+          label={`Daromad — ${fmtMonth(prev)}`}
+          value={fmtShort(revPrev)}
+          sub={`Kassaga tushgan: ${fmtShort(clientCashIn(state, prev))}`}
+          trend={months.slice(0, -1).map((m) => p.totals.revenue[m] ?? 0)}
+          trendColor={VIZ.c1}
+          href="/moliya/pnl"
+        />
+        <Kpi
+          icon="sparkle"
+          color={netPrev >= 0 ? "teal" : "red"}
+          label={`Sof foyda — ${fmtMonth(prev)}`}
+          value={fmtShort(netPrev)}
+          sub={`Sof marja ${marginPrev.toFixed(1)}%`}
+          tone={netPrev < 0 ? "red" : undefined}
+          trend={months.slice(0, -1).map((m) => p.totals.net[m] ?? 0)}
+          trendColor={VIZ.c3}
+          href="/moliya/pnl"
+        />
+        <Kpi
+          icon="history"
+          color="indigo"
+          label="MRR (oylik abonent)"
+          value={fmtShort(mrr(state, today))}
+          sub={`${d.activeClients} faol mijoz · o'rtacha chek ${fmtShort(mrr(state, today) / Math.max(1, d.activeClients))}`}
+        />
+        <Kpi
+          icon="users"
+          color="orange"
+          label="Debitorlik"
+          value={fmtShort(d.arTotal)}
+          sub={`Muddati o'tgan: ${fmtShort(d.arOverdue)}`}
+          tone={d.arOverdue > 0 ? "red" : undefined}
+          href="/moliya/debitor"
+        />
+        <Kpi
+          icon="clock"
+          color="purple"
+          label="Kreditorlik"
+          value={fmtShort(d.apEmployees + d.apVendors)}
+          sub={`Xodimlarga ${fmtShort(d.apEmployees)} · ta'minotchilarga ${fmtShort(d.apVendors)}`}
+          href="/moliya/debitor"
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader icon={{ name: "sparkle", color: "blue" }} title="Daromad, xarajat va sof foyda" sub={`So'nggi 6 oy, hisoblash usulida · * joriy oy — ${dayOfMonth} kun`} right={<Legend items={[{ label: "Daromad", color: VIZ.c1 }, { label: "Xarajatlar", color: VIZ.c2 }, { label: "Sof foyda", color: VIZ.c3, line: true }]} />} />
+          <CardHeader
+            icon={{ name: "sparkle", color: "blue" }}
+            title="Daromad, xarajat va sof foyda"
+            sub={`So'nggi 6 oy, hisoblash usulida · * joriy oy — ${dayOfMonth} kun`}
+            right={
+              <Legend
+                items={[
+                  { label: "Daromad", color: VIZ.c1 },
+                  { label: "Xarajatlar", color: VIZ.c2 },
+                  { label: "Sof foyda", color: VIZ.c3, line: true },
+                ]}
+              />
+            }
+          />
           <div className="px-3 pb-4">
-            <ColumnsChart labels={labels} bars={[{ label: "Daromad", color: VIZ.c1, values: months.map((m) => p.totals.revenue[m] ?? 0) }, { label: "Xarajatlar", color: VIZ.c2, values: costs }]} line={{ label: "Sof foyda", color: VIZ.c3, values: months.map((m) => p.totals.net[m] ?? 0) }} />
+            <ColumnsChart
+              labels={labels}
+              bars={[
+                { label: "Daromad", color: VIZ.c1, values: months.map((m) => p.totals.revenue[m] ?? 0) },
+                { label: "Xarajatlar", color: VIZ.c2, values: costs },
+              ]}
+              line={{ label: "Sof foyda", color: VIZ.c3, values: months.map((m) => p.totals.net[m] ?? 0) }}
+            />
           </div>
         </Card>
 
@@ -135,9 +250,21 @@ export function FinDashboard() {
         </Card>
 
         <Card>
-          <CardHeader icon={{ name: "folder", color: "teal" }} title="Loyihalar foydaliligi" sub="So'nggi 3 oy · doimiy xarajat ulushi bilan sof foyda" right={<A href="/moliya/pnl" className="text-[13px] font-semibold text-accent">Batafsil</A>} />
+          <CardHeader
+            icon={{ name: "folder", color: "teal" }}
+            title="Loyihalar foydaliligi"
+            sub="So'nggi 3 oy · doimiy xarajat ulushi bilan sof foyda"
+            right={
+              <A href="/moliya/pnl" className="text-[13px] font-semibold text-accent">
+                Batafsil
+              </A>
+            }
+          />
           <div className="px-5 pb-5">
-            <BarList signed rows={d.profit.map((x) => ({ label: x.project.name, value: x.net, sub: `Daromad ${fmtShort(x.revenue)} · marja ${x.marginPct.toFixed(0)}%` }))} />
+            <BarList
+              signed
+              rows={d.profit.map((x) => ({ label: x.project.name, value: x.net, sub: `Daromad ${fmtShort(x.revenue)} · marja ${x.marginPct.toFixed(0)}%` }))}
+            />
           </div>
         </Card>
 
@@ -163,11 +290,28 @@ export function FinDashboard() {
         </Card>
 
         <Card className="xl:col-span-2">
-          <CardHeader icon={{ name: "calendar", color: "red" }} title="Keyingi 30 kun" sub="To'lov kalendari bo'yicha prognoz" right={<A href="/moliya/kalendar" className="text-[13px] font-semibold text-accent">Kalendar</A>} />
+          <CardHeader
+            icon={{ name: "calendar", color: "red" }}
+            title="Keyingi 30 kun"
+            sub="To'lov kalendari bo'yicha prognoz"
+            right={
+              <A href="/moliya/kalendar" className="text-[13px] font-semibold text-accent">
+                Kalendar
+              </A>
+            }
+          />
           <div className="grid gap-3 px-5 pb-5 sm:grid-cols-4">
             {[
-              { l: "Kutilayotgan kirim", v: d.cal.days.reduce((a, x) => a + x.items.filter((i) => i.amount > 0).reduce((b, i) => b + i.amount, 0), 0), tone: "text-green" },
-              { l: "Rejadagi chiqim", v: -d.cal.days.reduce((a, x) => a + x.items.filter((i) => i.amount < 0).reduce((b, i) => b + i.amount, 0), 0), tone: "text-red" },
+              {
+                l: "Kutilayotgan kirim",
+                v: d.cal.days.reduce((a, x) => a + x.items.filter((i) => i.amount > 0).reduce((b, i) => b + i.amount, 0), 0),
+                tone: "text-green",
+              },
+              {
+                l: "Rejadagi chiqim",
+                v: -d.cal.days.reduce((a, x) => a + x.items.filter((i) => i.amount < 0).reduce((b, i) => b + i.amount, 0), 0),
+                tone: "text-red",
+              },
               { l: "Minimal qoldiq", v: d.cal.min, tone: d.cal.min < 0 ? "text-red" : "text-label" },
               { l: "30-kun oxirida", v: d.cal.days[d.cal.days.length - 1]?.balance ?? d.cal.free, tone: "text-label" },
             ].map((x) => (

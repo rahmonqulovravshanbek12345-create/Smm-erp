@@ -138,7 +138,10 @@ function Balances({ onPay, editable }: { onPay: (id: string) => void; editable: 
               </td>
               <td className={tdr}>
                 <div className="flex justify-end gap-1.5">
-                  <A href={`/moliya/akt?user=${u.id}`} className="inline-flex h-8 items-center rounded-full px-3 text-[13px] font-semibold text-accent hover:bg-fill">
+                  <A
+                    href={`/moliya/akt?user=${u.id}`}
+                    className="inline-flex h-8 items-center rounded-full px-3 text-[13px] font-semibold text-accent hover:bg-fill"
+                  >
                     Akt
                   </A>
                   {editable && led.balance > 0.5 && (
@@ -158,7 +161,19 @@ function Balances({ onPay, editable }: { onPay: (id: string) => void; editable: 
 
 const STATUS = { paid: { l: "To'langan", t: "green" }, partial: { l: "Qisman", t: "amber" }, unpaid: { l: "To'lanmagan", t: "gray" } } as const;
 
-export function AccrualTable({ userId, month, kind, editable, selectable }: { userId?: string; month?: string; kind?: string; editable?: boolean; selectable?: boolean }) {
+export function AccrualTable({
+  userId,
+  month,
+  kind,
+  editable,
+  selectable,
+}: {
+  userId?: string;
+  month?: string;
+  kind?: string;
+  editable?: boolean;
+  selectable?: boolean;
+}) {
   const { state, run } = useErp();
   const look = useLookup();
   const [sel, setSel] = useState<string[]>([]);
@@ -202,7 +217,16 @@ export function AccrualTable({ userId, month, kind, editable, selectable }: { us
         </thead>
         <tbody className="divide-y divide-sep">
           {rows.map((a) => (
-            <AccrualRow key={a.id} a={a} showUser={!userId} selectable={Boolean(selectable && editable)} checked={sel.includes(a.id)} onCheck={(v) => setSel(v ? [...sel, a.id] : sel.filter((x) => x !== a.id))} projectName={look.projectName(a.projectId)} userName={look.userName(a.userId)} />
+            <AccrualRow
+              key={a.id}
+              a={a}
+              showUser={!userId}
+              selectable={Boolean(selectable && editable)}
+              checked={sel.includes(a.id)}
+              onCheck={(v) => setSel(v ? [...sel, a.id] : sel.filter((x) => x !== a.id))}
+              projectName={look.projectName(a.projectId)}
+              userName={look.userName(a.userId)}
+            />
           ))}
         </tbody>
         <tfoot>
@@ -221,7 +245,23 @@ export function AccrualTable({ userId, month, kind, editable, selectable }: { us
   );
 }
 
-function AccrualRow({ a, showUser, selectable, checked, onCheck, projectName, userName }: { a: Accrual & { payStatus: "paid" | "partial" | "unpaid"; paid: number }; showUser: boolean; selectable: boolean; checked: boolean; onCheck: (v: boolean) => void; projectName: string; userName: string }) {
+function AccrualRow({
+  a,
+  showUser,
+  selectable,
+  checked,
+  onCheck,
+  projectName,
+  userName,
+}: {
+  a: Accrual & { payStatus: "paid" | "partial" | "unpaid"; paid: number };
+  showUser: boolean;
+  selectable: boolean;
+  checked: boolean;
+  onCheck: (v: boolean) => void;
+  projectName: string;
+  userName: string;
+}) {
   const st = STATUS[a.payStatus];
   return (
     <tr className="hover:bg-fill">
@@ -230,11 +270,17 @@ function AccrualRow({ a, showUser, selectable, checked, onCheck, projectName, us
       {showUser && <td className={`${td} text-label`}>{userName}</td>}
       <td className={td}>
         <div className="text-label">{a.title}</div>
-        {a.workType && a.qty > 0 && <div className="text-[12px] text-label3">{WORK_LABELS[a.workType]} · stavka {fmtMoney(a.rate)}</div>}
+        {a.workType && a.qty > 0 && (
+          <div className="text-[12px] text-label3">
+            {WORK_LABELS[a.workType]} · stavka {fmtMoney(a.rate)}
+          </div>
+        )}
       </td>
       <td className={`${td} text-label2`}>{a.projectId ? projectName : "—"}</td>
       <td className={td}>
-        <Badge tone={a.kind === "penalty" ? "red" : a.kind === "fixed" ? "violet" : a.kind === "project" ? "blue" : "gray"}>{ACCRUAL_KIND_LABELS[a.kind]}</Badge>
+        <Badge tone={a.kind === "penalty" ? "red" : a.kind === "fixed" ? "violet" : a.kind === "project" ? "blue" : "gray"}>
+          {ACCRUAL_KIND_LABELS[a.kind]}
+        </Badge>
       </td>
       <td className={tdr}>
         <Money v={a.amount} strong />
@@ -258,13 +304,24 @@ function Accruals({ editable }: { editable: boolean }) {
     <Card>
       <div className="flex flex-wrap gap-2 px-5 pb-3 pt-4">
         <MonthSelect value={month} onChange={setMonth} />
-        <Select value={userId} onChange={(e) => setUserId(e.target.value)} className="!w-52 !py-1.5 !text-[13px]" options={[{ value: "", label: "Barcha xodimlar" }, ...state.users.filter((u) => u.role !== "admin").map((u) => ({ value: u.id, label: u.name }))]} />
-        <Select value={kind} onChange={(e) => setKind(e.target.value)} className="!w-44 !py-1.5 !text-[13px]" options={[{ value: "", label: "Barcha turlar" }, ...Object.entries(ACCRUAL_KIND_LABELS).map(([value, label]) => ({ value, label }))]} />
+        <Select
+          value={userId}
+          onChange={(e) => setUserId(e.target.value)}
+          className="!w-52 !py-1.5 !text-[13px]"
+          options={[{ value: "", label: "Barcha xodimlar" }, ...state.users.filter((u) => u.role !== "admin").map((u) => ({ value: u.id, label: u.name }))]}
+        />
+        <Select
+          value={kind}
+          onChange={(e) => setKind(e.target.value)}
+          className="!w-44 !py-1.5 !text-[13px]"
+          options={[{ value: "", label: "Barcha turlar" }, ...Object.entries(ACCRUAL_KIND_LABELS).map(([value, label]) => ({ value, label }))]}
+        />
       </div>
       <AccrualTable userId={userId || undefined} month={month} kind={kind || undefined} editable={editable} selectable />
       <div className="px-5 pb-4">
         <Note>
-          Avtomatik: ishbay — vazifa qabul qilinganda yoki syomka topshirilganda; loyiha oyligi — loyiha davri yopilganda; fiks oylik — oy oxirida; operator bonusi — shartnoma tuzilganda. Holat (to'langan/qisman) to'lovlar eng eski yozuvlarga navbat bilan taqsimlanishidan kelib chiqadi.
+          Avtomatik: ishbay — vazifa qabul qilinganda yoki syomka topshirilganda; loyiha oyligi — loyiha davri yopilganda; fiks oylik — oy oxirida; operator
+          bonusi — shartnoma tuzilganda. Holat (to'langan/qisman) to'lovlar eng eski yozuvlarga navbat bilan taqsimlanishidan kelib chiqadi.
         </Note>
       </div>
     </Card>
@@ -290,15 +347,45 @@ function Sheet() {
               sheets={() => [
                 {
                   name: `Vedomost ${month}`,
-                  columns: ["Xodim", "Lavozim", "Oy boshi qoldig'i", "Ishbay", "Loyiha oyligi", "Fiks", "Bonus / jarima", "Jami hisoblandi", "To'landi", "Oy oxiri qoldig'i"],
-                  rows: rows.map((r) => [r.user.name, ROLE_LABELS[r.user.role], r.opening, k(r, ["piece"]), k(r, ["project"]), k(r, ["fixed"]), k(r, ["bonus", "manual", "penalty"]), r.accrued, r.paid, r.closing]),
+                  columns: [
+                    "Xodim",
+                    "Lavozim",
+                    "Oy boshi qoldig'i",
+                    "Ishbay",
+                    "Loyiha oyligi",
+                    "Fiks",
+                    "Bonus / jarima",
+                    "Jami hisoblandi",
+                    "To'landi",
+                    "Oy oxiri qoldig'i",
+                  ],
+                  rows: rows.map((r) => [
+                    r.user.name,
+                    ROLE_LABELS[r.user.role],
+                    r.opening,
+                    k(r, ["piece"]),
+                    k(r, ["project"]),
+                    k(r, ["fixed"]),
+                    k(r, ["bonus", "manual", "penalty"]),
+                    r.accrued,
+                    r.paid,
+                    r.closing,
+                  ]),
                 },
                 {
                   name: "Hisoblashlar",
                   columns: ["Sana", "Xodim", "Ish / izoh", "Loyiha", "Turi", "Summa", "Tasdiqlangan"],
                   rows: state.accruals
                     .filter((a) => a.date.startsWith(month))
-                    .map((a) => [a.date, state.users.find((u) => u.id === a.userId)?.name, a.title, state.projects.find((p) => p.id === a.projectId)?.name ?? "", ACCRUAL_KIND_LABELS[a.kind], a.amount, a.approved ? "ha" : "yo'q"]),
+                    .map((a) => [
+                      a.date,
+                      state.users.find((u) => u.id === a.userId)?.name,
+                      a.title,
+                      state.projects.find((p) => p.id === a.projectId)?.name ?? "",
+                      ACCRUAL_KIND_LABELS[a.kind],
+                      a.amount,
+                      a.approved ? "ha" : "yo'q",
+                    ]),
                 },
               ]}
             />
@@ -420,7 +507,21 @@ function Rates({ editable }: { editable: boolean }) {
             const p = get(u.id);
             const dirty = Boolean(drafts[u.id]);
             const num = (v: number, on: (n: number) => void) =>
-              editable ? <Input type="number" min={0} step={10000} value={v || ""} placeholder="—" onChange={(e) => on(Number(e.target.value) || 0)} className="!w-28 !py-1 text-right !text-[13px]" /> : v ? <Money v={v} /> : <span className="text-label3">—</span>;
+              editable ? (
+                <Input
+                  type="number"
+                  min={0}
+                  step={10000}
+                  value={v || ""}
+                  placeholder="—"
+                  onChange={(e) => on(Number(e.target.value) || 0)}
+                  className="!w-28 !py-1 text-right !text-[13px]"
+                />
+              ) : v ? (
+                <Money v={v} />
+              ) : (
+                <span className="text-label3">—</span>
+              );
             return (
               <tr key={u.id}>
                 <td className={td}>
@@ -442,8 +543,7 @@ function Rates({ editable }: { editable: boolean }) {
                         variant="primary"
                         onClick={() => {
                           if (run((c) => act.savePayProfile(c, { ...p, userId: u.id }), "Stavkalar saqlandi")) {
-                            const { [u.id]: _drop, ...rest } = drafts;
-                            setDrafts(rest);
+                            setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== u.id)));
                           }
                         }}
                       >
@@ -458,9 +558,11 @@ function Rates({ editable }: { editable: boolean }) {
         </tbody>
       </TableWrap>
       <div className="px-5 pb-4">
-        <Note>Yangi stavka keyingi hisoblashlarga qo'llanadi; oldin hisoblanganlar o'zgarmaydi. Loyiha oyligi xodim SMM, targetolog yoki marketolog sifatida biriktirilgan har bir loyiha uchun hisoblanadi.</Note>
+        <Note>
+          Yangi stavka keyingi hisoblashlarga qo'llanadi; oldin hisoblanganlar o'zgarmaydi. Loyiha oyligi xodim SMM, targetolog yoki marketolog sifatida
+          biriktirilgan har bir loyiha uchun hisoblanadi.
+        </Note>
       </div>
     </Card>
   );
 }
-

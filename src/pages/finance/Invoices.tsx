@@ -31,7 +31,9 @@ export function Invoices({ projectId }: { projectId?: string }) {
     [state, project, status, today],
   );
 
-  const all = state.invoices.filter((i) => !project || i.projectId === project).map((inv) => ({ inv, st: invoiceStatus(state, inv, today), paid: invoicePaid(state, inv) }));
+  const all = state.invoices
+    .filter((i) => !project || i.projectId === project)
+    .map((inv) => ({ inv, st: invoiceStatus(state, inv, today), paid: invoicePaid(state, inv) }));
   const month = monthKey(today);
   const issued = all.filter((r) => monthKey(r.inv.issueDate) === month).reduce((a, r) => a + r.inv.amount, 0);
   const open = all.filter((r) => r.st !== "paid").reduce((a, r) => a + r.inv.amount - r.paid, 0);
@@ -55,7 +57,12 @@ export function Invoices({ projectId }: { projectId?: string }) {
                   ...(Object.keys(PAYMENT_STATUS) as PayStatus[]).map((k) => ({ value: k, label: PAYMENT_STATUS[k].label })),
                 ]}
               />
-              <Select value={project} onChange={(e) => setProject(e.target.value)} className="!w-44 !py-1.5 !text-[13px]" options={[{ value: "", label: "Barcha mijozlar" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]} />
+              <Select
+                value={project}
+                onChange={(e) => setProject(e.target.value)}
+                className="!w-44 !py-1.5 !text-[13px]"
+                options={[{ value: "", label: "Barcha mijozlar" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]}
+              />
             </div>
           }
         />
@@ -101,7 +108,12 @@ export function Invoices({ projectId }: { projectId?: string }) {
                   </td>
                   <td className={`${td} whitespace-nowrap`}>
                     {editable && !inv.dueDate ? (
-                      <Input type="date" value="" onChange={(e) => run((c) => act.setInvoiceDue(c, inv.id, e.target.value), "Sana saqlandi")} className="!w-36 !py-1 !text-xs" />
+                      <Input
+                        type="date"
+                        value=""
+                        onChange={(e) => run((c) => act.setInvoiceDue(c, inv.id, e.target.value), "Sana saqlandi")}
+                        className="!w-36 !py-1 !text-xs"
+                      />
                     ) : inv.dueDate ? (
                       <>
                         {fmtDate(inv.dueDate)}
@@ -172,7 +184,18 @@ export function Invoices({ projectId }: { projectId?: string }) {
                   columns: ["Raqam", "Sana", "Mijoz", "Turi", "Davr", "Muddat", "Summa", "To'langan", "Qoldiq", "Holat"],
                   rows: all.map(({ inv, st, paid }) => {
                     const per = invoicePeriod(state, inv);
-                    return [inv.number, inv.issueDate, look.projectName(inv.projectId), PAYMENT_KIND_LABELS[inv.kind], per ? `${per.start} – ${per.end}` : "", inv.dueDate, inv.amount, paid, inv.amount - paid, PAYMENT_STATUS[st].label];
+                    return [
+                      inv.number,
+                      inv.issueDate,
+                      look.projectName(inv.projectId),
+                      PAYMENT_KIND_LABELS[inv.kind],
+                      per ? `${per.start} – ${per.end}` : "",
+                      inv.dueDate,
+                      inv.amount,
+                      paid,
+                      inv.amount - paid,
+                      PAYMENT_STATUS[st].label,
+                    ];
                   }),
                 },
               ]}

@@ -5,22 +5,7 @@ import { addFinanceHistory } from "./seed-finance";
 import { addOperationsHistory } from "./seed-history";
 import { addSalesHistory } from "./seed-sales";
 import { DEFAULT_TARIFFS } from "./tariffs";
-import type {
-  DocBlock,
-  DocState,
-  ErpState,
-  Lead,
-  Platform,
-  Post,
-  PostFormat,
-  PostStatus,
-  Project,
-  Shoot,
-  Task,
-  TaskStatus,
-  TargetReport,
-  User,
-} from "./types";
+import type { DocBlock, DocState, ErpState, Lead, Platform, Post, PostFormat, PostStatus, Project, Shoot, Task, TaskStatus, TargetReport, User } from "./types";
 
 export const SEED_VERSION = 7;
 
@@ -48,9 +33,10 @@ export function buildSeed(today: string): ErpState {
 
   const docs = (done: DocBlock[], texts: Partial<Record<DocBlock, string>>): Record<DocBlock, DocState> => {
     const blocks: DocBlock[] = ["brief", "strategy", "competitors", "swot", "audience"];
-    return Object.fromEntries(
-      blocks.map((b) => [b, { content: texts[b] ?? "", status: done.includes(b) ? "done" : "progress", updatedAt: at(-2) }]),
-    ) as Record<DocBlock, DocState>;
+    return Object.fromEntries(blocks.map((b) => [b, { content: texts[b] ?? "", status: done.includes(b) ? "done" : "progress", updatedAt: at(-2) }])) as Record<
+      DocBlock,
+      DocState
+    >;
   };
 
   const mebelDocs = {
@@ -60,8 +46,7 @@ export function buildSeed(today: string): ErpState {
       "Kontent ustunlari: 1) mahsulot obzorlari, 2) ishlab chiqarish (ishonch), 3) mijoz fikrlari, 4) foydali maslahatlar, 5) aksiyalar.\nKPI: ER 4%+, lid narxi 35 000 so'mdan past, oyiga 12–15 post.",
     competitors:
       "Mebel City — narx past, kontent sifati o'rta.\nLoft Home — dizayn kuchli, yetkazib berish sekin.\nComfort UZ — target faol, mijoz fikrlari kam.",
-    swot:
-      "S: o'z ishlab chiqarishi, 2 yil kafolat.\nW: Instagram'da video kontent kam.\nO: bo'lib to'lash bo'yicha hamkorlik.\nT: raqobatchilarning narx urushi.",
+    swot: "S: o'z ishlab chiqarishi, 2 yil kafolat.\nW: Instagram'da video kontent kam.\nO: bo'lib to'lash bo'yicha hamkorlik.\nT: raqobatchilarning narx urushi.",
     audience: "25–45 yosh, Toshkent, yangi uy olgan yoki ta'mir qilayotgan oilalar. Og'riq: sifat va kafolat, yetkazish muddati.",
   };
   const gymDocs = {
@@ -265,14 +250,7 @@ export function buildSeed(today: string): ErpState {
 
   // ---------- Postlar ----------
   const posts: Post[] = [];
-  const addPost = (
-    projectId: string,
-    date: string,
-    format: PostFormat,
-    topic: string,
-    status: PostStatus,
-    extra: Partial<Post> = {},
-  ) => {
+  const addPost = (projectId: string, date: string, format: PostFormat, topic: string, status: PostStatus, extra: Partial<Post> = {}) => {
     const p: Post = {
       id: id("post"),
       projectId,
@@ -328,7 +306,21 @@ export function buildSeed(today: string): ErpState {
       const date = addDays(start, Math.round((i * 29) / items.length) + 1);
       const rel = diffDays(date, today);
       const status: PostStatus =
-        i === lateIdx ? "design" : rel < 0 ? "published" : rel === 0 ? "approved" : rel <= 2 ? "client" : rel <= 4 ? "internal" : rel <= 7 ? (format === "video" ? "editing" : "design") : "plan";
+        i === lateIdx
+          ? "design"
+          : rel < 0
+            ? "published"
+            : rel === 0
+              ? "approved"
+              : rel <= 2
+                ? "client"
+                : rel <= 4
+                  ? "internal"
+                  : rel <= 7
+                    ? format === "video"
+                      ? "editing"
+                      : "design"
+                    : "plan";
       addPost(pid, date, format, topic, status, { forTarget: i % 4 === 0, platform: i % 5 === 3 ? "telegram" : "instagram" });
     });
   genPlan(P4, d(-12), [
@@ -346,20 +338,25 @@ export function buildSeed(today: string): ErpState {
     ["ai", "AI post: maktab uchun xarid ro'yxati"],
     ["image", "Kuzgi narxlar pasayishi"],
   ]);
-  genPlan(P6, d(-15), [
-    ["video", "Yangi burger: Double Cheese"],
-    ["image", "Kombo menyu −20%"],
-    ["video", "Oshxona — qanday tayyorlanadi"],
-    ["image", "Mijozlar fikri karuseli"],
-    ["video", "Kuryer bilan bir kun"],
-    ["ai", "AI post: burger tarixi"],
-    ["video", "Talabalar uchun aksiya"],
-    ["image", "Yangi filial — Chilonzor"],
-    ["video", "Challenge: 1 daqiqada burger"],
-    ["image", "Kechki menyu"],
-    ["video", "Sous retsepti siri"],
-    ["image", "Dam olish kunlari oilaviy set"],
-  ], 3);
+  genPlan(
+    P6,
+    d(-15),
+    [
+      ["video", "Yangi burger: Double Cheese"],
+      ["image", "Kombo menyu −20%"],
+      ["video", "Oshxona — qanday tayyorlanadi"],
+      ["image", "Mijozlar fikri karuseli"],
+      ["video", "Kuryer bilan bir kun"],
+      ["ai", "AI post: burger tarixi"],
+      ["video", "Talabalar uchun aksiya"],
+      ["image", "Yangi filial — Chilonzor"],
+      ["video", "Challenge: 1 daqiqada burger"],
+      ["image", "Kechki menyu"],
+      ["video", "Sous retsepti siri"],
+      ["image", "Dam olish kunlari oilaviy set"],
+    ],
+    3,
+  );
 
   // ---------- Syomka ----------
   const shoots: Shoot[] = [
@@ -413,15 +410,7 @@ export function buildSeed(today: string): ErpState {
   const addTask = (t: Omit<Task, "id" | "createdAt" | "createdBy"> & { createdBy?: string }) =>
     tasks.push({ id: id("task"), createdAt: at(-10), createdBy: "u_smm1", ...t });
 
-  const montaj = (
-    projectId: string,
-    postId: string,
-    assigneeId: string,
-    title: string,
-    deadline: string,
-    status: TaskStatus,
-    acceptedAt?: string,
-  ) =>
+  const montaj = (projectId: string, postId: string, assigneeId: string, title: string, deadline: string, status: TaskStatus, acceptedAt?: string) =>
     addTask({
       projectId,
       postId,
@@ -550,7 +539,16 @@ export function buildSeed(today: string): ErpState {
   });
   const leads: Lead[] = [
     lead({ id: "l_1", name: "Lazzat Burger", phone: "+998 90 123 45 67", stage: "new", source: "Meta Ads", createdAt: at(0, 8) }),
-    lead({ id: "l_2", name: "Oila Market", phone: "+998 93 765 43 21", stage: "new", operatorId: "u_op2", source: "Sayt", service: "Target reklama", createdAt: at(0, 9) }),
+    lead({
+      id: "l_2",
+      name: "Oila Market",
+      phone: "+998 93 765 43 21",
+      stage: "new",
+      operatorId: "u_op2",
+      source: "Sayt",
+      service: "Target reklama",
+      createdAt: at(0, 9),
+    }),
     lead({
       id: "l_3",
       name: "Grand Tour turagentligi",
@@ -580,11 +578,45 @@ export function buildSeed(today: string): ErpState {
     lead({ id: "l_mebel", name: "Sharq Mebel", phone: "+998 90 555 12 12", stage: "contract", projectId: P1, createdAt: at(-35) }),
     lead({ id: "l_gym", name: "FitLife Gym", phone: "+998 91 777 45 45", stage: "contract", projectId: P2, operatorId: "u_op2", createdAt: at(-50) }),
     lead({ id: "l_dent", name: "Dent Plus klinikasi", phone: "+998 99 404 40 40", stage: "contract", projectId: P3, createdAt: at(-9) }),
-    lead({ id: "l_baraka", name: "Baraka Market", phone: "+998 95 300 70 70", stage: "contract", projectId: P4, operatorId: "u_op2", source: "Tavsiya", createdAt: `${addDays(p4Start, -20)}T09:00:00.000Z` }),
-    lead({ id: "l_moda", name: "Moda House", phone: "+998 97 121 21 21", stage: "contract", projectId: P5, source: "Instagram", createdAt: `${addDays(p5Start, -18)}T09:00:00.000Z` }),
-    lead({ id: "l_burger", name: "Burger House", phone: "+998 93 555 66 77", stage: "contract", projectId: P6, operatorId: "u_op2", source: "Meta Ads", createdAt: `${addDays(p6Start, -15)}T09:00:00.000Z` }),
+    lead({
+      id: "l_baraka",
+      name: "Baraka Market",
+      phone: "+998 95 300 70 70",
+      stage: "contract",
+      projectId: P4,
+      operatorId: "u_op2",
+      source: "Tavsiya",
+      createdAt: `${addDays(p4Start, -20)}T09:00:00.000Z`,
+    }),
+    lead({
+      id: "l_moda",
+      name: "Moda House",
+      phone: "+998 97 121 21 21",
+      stage: "contract",
+      projectId: P5,
+      source: "Instagram",
+      createdAt: `${addDays(p5Start, -18)}T09:00:00.000Z`,
+    }),
+    lead({
+      id: "l_burger",
+      name: "Burger House",
+      phone: "+998 93 555 66 77",
+      stage: "contract",
+      projectId: P6,
+      operatorId: "u_op2",
+      source: "Meta Ads",
+      createdAt: `${addDays(p6Start, -15)}T09:00:00.000Z`,
+    }),
     lead({ id: "l_6", name: "Shirin Tort", phone: "+998 94 100 20 30", stage: "unfit", rejectReason: "Byudjet to'g'ri kelmadi", createdAt: at(-12) }),
-    lead({ id: "l_7", name: "Noma'lum", phone: "+998 00 000 00 00", stage: "lowquality", operatorId: "u_op2", rejectReason: "Raqam noto'g'ri", createdAt: at(-4) }),
+    lead({
+      id: "l_7",
+      name: "Noma'lum",
+      phone: "+998 00 000 00 00",
+      stage: "lowquality",
+      operatorId: "u_op2",
+      rejectReason: "Raqam noto'g'ri",
+      createdAt: at(-4),
+    }),
   ];
 
   const state: ErpState = {
@@ -599,11 +631,43 @@ export function buildSeed(today: string): ErpState {
     targetReports,
     reports: [],
     notifications: [
-      { id: "n_1", userId: "u_mk", text: "Yangi uchrashuv belgilandi: Grand Tour turagentligi, ertaga 15:00", href: "/crm", at: at(-1), read: false, telegram: "demo" },
-      { id: "n_2", userId: "u_mk", text: "Tasdiqlash so'rovi: Showroom bo'ylab tur (Sharq Mebel)", href: "/tasdiqlash", at: at(0, 7), read: false, telegram: "demo" },
-      { id: "n_3", userId: "u_sy", text: "Syomka belgilandi: Sharq Mebel, ertaga 11:00, Chilonzor", href: "/syomka", at: at(-3), read: false, telegram: "demo" },
+      {
+        id: "n_1",
+        userId: "u_mk",
+        text: "Yangi uchrashuv belgilandi: Grand Tour turagentligi, ertaga 15:00",
+        href: "/crm",
+        at: at(-1),
+        read: false,
+        telegram: "demo",
+      },
+      {
+        id: "n_2",
+        userId: "u_mk",
+        text: "Tasdiqlash so'rovi: Showroom bo'ylab tur (Sharq Mebel)",
+        href: "/tasdiqlash",
+        at: at(0, 7),
+        read: false,
+        telegram: "demo",
+      },
+      {
+        id: "n_3",
+        userId: "u_sy",
+        text: "Syomka belgilandi: Sharq Mebel, ertaga 11:00, Chilonzor",
+        href: "/syomka",
+        at: at(-3),
+        read: false,
+        telegram: "demo",
+      },
       { id: "n_4", userId: "u_mt2", text: "Yangi TZ: Trener maslahati: isinish (FitLife Gym)", href: "/montaj", at: at(-6), read: false, telegram: "demo" },
-      { id: "n_5", userId: "u_dz", text: "Ish qaytarildi: Karusel: MDF va LDSP — 3-slayddagi matn juda mayda", href: "/dizayn", at: at(-2), read: false, telegram: "demo" },
+      {
+        id: "n_5",
+        userId: "u_dz",
+        text: "Ish qaytarildi: Karusel: MDF va LDSP — 3-slayddagi matn juda mayda",
+        href: "/dizayn",
+        at: at(-2),
+        read: false,
+        telegram: "demo",
+      },
       { id: "n_6", userId: "u_mol", text: "FitLife Gym: oylik to'lov muddati o'tdi", href: "/moliya", at: at(-3), read: false, telegram: "demo" },
     ],
     activity: [

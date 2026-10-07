@@ -4,16 +4,7 @@ import { PostModal } from "../components/forms";
 import { A, Badge, Card, CardHeader, Empty, PageHeader, Ring, Select, Stat } from "../components/ui";
 import { diffDays, fmtDate, fmtMoney, relDays } from "../lib/dates";
 import { PLATFORM_LABELS, ROLE_LABELS, TASK_KIND_LABELS } from "../lib/labels";
-import {
-  isPostLate,
-  isTaskLate,
-  isTaskOpen,
-  periodPosts,
-  postNeedsWarning,
-  projectDebt,
-  targetReportMissing,
-  workBlockedReason,
-} from "../lib/rules";
+import { isPostLate, isTaskLate, isTaskOpen, periodPosts, postNeedsWarning, projectDebt, targetReportMissing, workBlockedReason } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
 import type { Role } from "../lib/types";
 
@@ -49,9 +40,7 @@ export function Dashboard() {
         const posts = u.role === "smm" ? state.posts.filter((p) => p.assigneeId === u.id && p.status !== "published") : [];
         const shoots = u.role === "syomka" ? state.shoots.filter((s) => s.operatorId === u.id && s.status === "planned") : [];
         const late =
-          tasks.filter((t) => isTaskLate(t, today)).length +
-          posts.filter((p) => isPostLate(p, today)).length +
-          shoots.filter((s) => s.date < today).length;
+          tasks.filter((t) => isTaskLate(t, today)).length + posts.filter((p) => isPostLate(p, today)).length + shoots.filter((s) => s.date < today).length;
         return { u, open: tasks.length + posts.length + shoots.length, late };
       });
     return rows.sort((a, b) => b.late - a.late || b.open - a.open);
@@ -61,15 +50,19 @@ export function Dashboard() {
 
   return (
     <>
-      <PageHeader
-        title="Nazorat paneli"
-        sub="Barcha loyihalar bo'yicha postlar va vazifalar vaqtida ketyaptimi"
-      />
+      <PageHeader title="Nazorat paneli" sub="Barcha loyihalar bo'yicha postlar va vazifalar vaqtida ketyaptimi" />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon="upload" color="blue" label="Bugun joylanishi kerak" value={d.todayPosts.length} tone={d.todayPosts.length ? "amber" : undefined} />
         <Stat icon="clock" color="red" label="Muddati o'tgan (Kechikdi)" value={lateCount} tone={lateCount ? "red" : "green"} />
-        <Stat icon="checkSeal" color="purple" label="Tasdiq kutayotganlar" value={d.internal.length} href="/tasdiqlash" tone={d.internal.length ? "amber" : undefined} />
+        <Stat
+          icon="checkSeal"
+          color="purple"
+          label="Tasdiq kutayotganlar"
+          value={d.internal.length}
+          href="/tasdiqlash"
+          tone={d.internal.length ? "amber" : undefined}
+        />
         <Stat icon="wallet" color="orange" label="Qarzdor loyihalar" value={d.debtors.length} href="/moliya" tone={d.debtors.length ? "red" : "green"} />
       </div>
 
@@ -85,7 +78,11 @@ export function Dashboard() {
               const blocked = workBlockedReason(state, p);
               const pct = posts.length ? Math.round((done / posts.length) * 100) : 0;
               return (
-                <A key={p.id} href={`/loyiha/${p.id}`} className="tile flex gap-4 rounded-[20px] p-4 transition duration-300 hover:-translate-y-0.5 hover:shadow-card">
+                <A
+                  key={p.id}
+                  href={`/loyiha/${p.id}`}
+                  className="tile flex gap-4 rounded-[20px] p-4 transition duration-300 hover:-translate-y-0.5 hover:shadow-card"
+                >
                   <Ring value={done} max={posts.length} size={72} stroke={9} color={late ? "orange" : "green"}>
                     <span className="tabular text-[15px] font-bold text-label">{pct}%</span>
                   </Ring>
@@ -152,7 +149,9 @@ export function Dashboard() {
                       <td className="px-5 py-2.5 text-label">Post: {p.topic}</td>
                       <td className="px-5 py-2.5 text-label2">{look.projectName(p.projectId)}</td>
                       <td className="px-5 py-2.5 text-label2">{look.userName(p.assigneeId)}</td>
-                      <td className="whitespace-nowrap px-5 py-2.5 text-red">{fmtDate(p.date)} · {diffDays(today, p.date)} kun</td>
+                      <td className="whitespace-nowrap px-5 py-2.5 text-red">
+                        {fmtDate(p.date)} · {diffDays(today, p.date)} kun
+                      </td>
                       <td className="px-5 py-2.5">
                         <PostBadge post={p} today={today} />
                       </td>
@@ -165,7 +164,9 @@ export function Dashboard() {
                       </td>
                       <td className="px-5 py-2.5 text-label2">{look.projectName(t.projectId)}</td>
                       <td className="px-5 py-2.5 text-label2">{look.userName(t.assigneeId)}</td>
-                      <td className="whitespace-nowrap px-5 py-2.5 text-red">{fmtDate(t.deadline)} · {diffDays(today, t.deadline)} kun</td>
+                      <td className="whitespace-nowrap px-5 py-2.5 text-red">
+                        {fmtDate(t.deadline)} · {diffDays(today, t.deadline)} kun
+                      </td>
                       <td className="px-5 py-2.5">
                         <TaskBadge task={t} today={today} />
                       </td>

@@ -49,7 +49,11 @@ export default {
       keyframes: {
         "sheet-up": { "0%": { transform: "translateY(24px) scale(0.98)", opacity: "0" }, "100%": { transform: "none", opacity: "1" } },
         "fade-in": { "0%": { opacity: "0" }, "100%": { opacity: "1" } },
-        island: { "0%": { transform: "translateX(-50%) scale(0.6)", opacity: "0" }, "60%": { transform: "translateX(-50%) scale(1.03)", opacity: "1" }, "100%": { transform: "translateX(-50%) scale(1)", opacity: "1" } },
+        island: {
+          "0%": { transform: "translateX(-50%) scale(0.6)", opacity: "0" },
+          "60%": { transform: "translateX(-50%) scale(1.03)", opacity: "1" },
+          "100%": { transform: "translateX(-50%) scale(1)", opacity: "1" },
+        },
         pop: { "0%": { transform: "scale(0.96)", opacity: "0" }, "100%": { transform: "scale(1)", opacity: "1" } },
       },
       animation: {

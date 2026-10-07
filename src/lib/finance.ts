@@ -7,20 +7,7 @@
 //  • Tranzit (mijoz reklama byudjeti) P&L'ga kirmaydi, Cash Flow'da alohida ko'rsatiladi.
 import { addDays, addMonths, diffDays, fmtMonth, monthKey, shiftMonthKey } from "./dates";
 import { currentPeriod, periodAt, type Period } from "./period";
-import type {
-  Accrual,
-  Article,
-  ArticleGroup,
-  Bill,
-  ErpState,
-  Invoice,
-  PayProfile,
-  Project,
-  Task,
-  Transaction,
-  User,
-  WorkType,
-} from "./types";
+import type { Accrual, Article, ArticleGroup, Bill, ErpState, Invoice, PayProfile, Project, Task, Transaction, User, WorkType } from "./types";
 
 // ---------- Moddalar ----------
 
@@ -406,7 +393,9 @@ export function payrollSheet(s: ErpState, month: string): PayrollRow[] {
       const byKind: PayrollRow["byKind"] = {};
       for (const a of ms) byKind[a.kind] = (byKind[a.kind] ?? 0) + a.amount;
       const accrued = ms.reduce((x, a) => x + a.amount, 0);
-      const paid = payoutsOf(s, u.id).filter((t) => monthKey(t.date) === month).reduce((x, t) => x + txUZS(s, t), 0);
+      const paid = payoutsOf(s, u.id)
+        .filter((t) => monthKey(t.date) === month)
+        .reduce((x, t) => x + txUZS(s, t), 0);
       return { user: u, opening, accrued, byKind, paid, closing: employeeBalance(s, u.id, end) };
     })
     .filter((r) => r.opening || r.accrued || r.paid || r.closing);
@@ -759,7 +748,9 @@ export function payables(s: ErpState, today: string) {
       return { vendor, outstanding, overdue };
     })
     .filter((r) => r.outstanding > 0.5);
-  const advances = receivables(s, today).filter((r) => r.advance > 0.5).map((r) => ({ project: r.project, amount: r.advance }));
+  const advances = receivables(s, today)
+    .filter((r) => r.advance > 0.5)
+    .map((r) => ({ project: r.project, amount: r.advance }));
   const transit = s.projects.map((project) => ({ project, amount: transitBalance(s, project.id) })).filter((r) => r.amount > 0.5);
   return { employees, vendors, advances, transit };
 }
@@ -911,8 +902,7 @@ export function paymentCalendar(s: ErpState, today: string, horizon = 45) {
 
 // ---------- Ko'rsatkichlar ----------
 
-export const lastMonths = (today: string, n: number) =>
-  Array.from({ length: n }, (_, i) => shiftMonthKey(monthKey(today), i - n + 1));
+export const lastMonths = (today: string, n: number) => Array.from({ length: n }, (_, i) => shiftMonthKey(monthKey(today), i - n + 1));
 
 /** MRR — faol loyihalarning oylik abonent to'lovlari yig'indisi. */
 export function mrr(s: ErpState, today: string): number {
@@ -920,7 +910,5 @@ export function mrr(s: ErpState, today: string): number {
 }
 
 export function clientCashIn(s: ErpState, month: string): number {
-  return s.transactions
-    .filter((t) => monthKey(t.date) === month && articleOf(s, t.articleId)?.group === "client")
-    .reduce((a, t) => a + signedUZS(s, t), 0);
+  return s.transactions.filter((t) => monthKey(t.date) === month && articleOf(s, t.articleId)?.group === "client").reduce((a, t) => a + signedUZS(s, t), 0);
 }

@@ -56,23 +56,33 @@ export function Transactions() {
                     const art = articleOf(state, t.articleId);
                     const acc = accountOf(state, t.accountId);
                     const sign = t.dir === "in" ? 1 : -1;
-                    return [t.date, art?.name, art ? GROUP_LABELS[art.group] : "", counterparty(t) ?? "", t.note, acc?.name, acc?.currency, sign * t.amount, sign * txUZS(state, t)];
+                    return [
+                      t.date,
+                      art?.name,
+                      art ? GROUP_LABELS[art.group] : "",
+                      counterparty(t) ?? "",
+                      t.note,
+                      acc?.name,
+                      acc?.currency,
+                      sign * t.amount,
+                      sign * txUZS(state, t),
+                    ];
                   }),
                 },
               ]}
             />
             {editable && (
-            <>
-              <Button onClick={() => setModal("transfer")}>
-                <Icon name="history" size={16} /> O'tkazma
-              </Button>
-              <Button variant="secondary" onClick={() => setModal("out")}>
-                − Chiqim
-              </Button>
-              <Button variant="primary" onClick={() => setModal("in")}>
-                + Kirim
-              </Button>
-            </>
+              <>
+                <Button onClick={() => setModal("transfer")}>
+                  <Icon name="history" size={16} /> O'tkazma
+                </Button>
+                <Button variant="secondary" onClick={() => setModal("out")}>
+                  − Chiqim
+                </Button>
+                <Button variant="primary" onClick={() => setModal("in")}>
+                  + Kirim
+                </Button>
+              </>
             )}
           </>
         }
@@ -102,7 +112,8 @@ export function Transactions() {
           title="Jurnal"
           sub={
             <>
-              Kirim <span className="font-semibold text-green">{fmtMoney(inSum)}</span> · chiqim <span className="font-semibold text-red">{fmtMoney(outSum)}</span> · o'tkazmalar hisobga olinmagan
+              Kirim <span className="font-semibold text-green">{fmtMoney(inSum)}</span> · chiqim{" "}
+              <span className="font-semibold text-red">{fmtMoney(outSum)}</span> · o'tkazmalar hisobga olinmagan
             </>
           }
         />
@@ -112,7 +123,12 @@ export function Transactions() {
             value={group}
             onChange={(e) => setGroup(e.target.value)}
             className="!w-52 !py-1.5 !text-[13px]"
-            options={[{ value: "", label: "Barcha guruhlar" }, ...Object.entries(GROUP_LABELS).filter(([k]) => k !== "vendor").map(([value, label]) => ({ value, label }))]}
+            options={[
+              { value: "", label: "Barcha guruhlar" },
+              ...Object.entries(GROUP_LABELS)
+                .filter(([k]) => k !== "vendor")
+                .map(([value, label]) => ({ value, label })),
+            ]}
           />
           <Input placeholder="Qidirish…" value={q} onChange={(e) => setQ(e.target.value)} className="!w-56 !py-1.5 !text-[13px]" />
           {account && (
@@ -167,7 +183,12 @@ export function Transactions() {
                     </td>
                     {editable && (
                       <td className={tdr}>
-                        <button type="button" title="O'chirish" className="rounded-full p-1.5 text-label3 transition hover:bg-red/12 hover:text-red" onClick={() => run((c) => act.deleteTransaction(c, t.id), "O'chirildi")}>
+                        <button
+                          type="button"
+                          title="O'chirish"
+                          className="rounded-full p-1.5 text-label3 transition hover:bg-red/12 hover:text-red"
+                          onClick={() => run((c) => act.deleteTransaction(c, t.id), "O'chirildi")}
+                        >
                           <Icon name="trash" size={15} />
                         </button>
                       </td>
@@ -182,7 +203,8 @@ export function Transactions() {
       {modal === "transfer" && <TransferModal onClose={() => setModal(null)} />}
       {(modal === "in" || modal === "out") && <TxModal dir={modal} onClose={() => setModal(null)} />}
       <p className="mt-3 px-1 text-[12px] text-label3">
-        Mijoz to'lovlari «Fakturalar»dan, ish haqi to'lovlari «Ish haqi»dan, ta'minotchiga to'lov «Debitor / Kreditor»dan kiritiladi — shunda ular hujjatga bog'lanadi.
+        Mijoz to'lovlari «Fakturalar»dan, ish haqi to'lovlari «Ish haqi»dan, ta'minotchiga to'lov «Debitor / Kreditor»dan kiritiladi — shunda ular hujjatga
+        bog'lanadi.
       </p>
     </>
   );

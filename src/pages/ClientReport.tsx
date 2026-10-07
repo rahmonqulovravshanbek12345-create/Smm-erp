@@ -51,8 +51,17 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
     { l: "Reklama sarfi", v: fmtShort(r.ads.spend), sub: usd(r.ads.spend), d: <Delta cur={r.ads.spend} prev={r.prevAds?.spend} goodUp={false} /> },
     { l: "Reklamadan lidlar", v: fmtNum(r.ads.leads), d: <Delta cur={r.ads.leads} prev={r.prevAds?.leads} /> },
     { l: "Bitta lid narxi", v: fmtShort(r.ads.cpl), sub: usd(r.ads.cpl), d: <Delta cur={r.ads.cpl} prev={r.prevAds?.cpl} goodUp={false} /> },
-    { l: "Qamrov", v: r.organic ? fmtShort(r.organic.reach).replace(" mln", "M").replace(" ming", "K") : fmtShort(r.ads.views).replace(" mln", "M").replace(" ming", "K"), sub: r.organic ? "organik + reklama" : "reklama ko'rishlari", d: r.organic ? <Delta cur={r.organic.reach} prev={r.prevOrganic?.reach} /> : null },
-    { l: "Yangi obunachilar", v: r.organic ? `+${fmtNum(r.organic.followers)}` : "—", d: r.organic ? <Delta cur={r.organic.followers} prev={r.prevOrganic?.followers} /> : null },
+    {
+      l: "Qamrov",
+      v: r.organic ? fmtShort(r.organic.reach).replace(" mln", "M").replace(" ming", "K") : fmtShort(r.ads.views).replace(" mln", "M").replace(" ming", "K"),
+      sub: r.organic ? "organik + reklama" : "reklama ko'rishlari",
+      d: r.organic ? <Delta cur={r.organic.reach} prev={r.prevOrganic?.reach} /> : null,
+    },
+    {
+      l: "Yangi obunachilar",
+      v: r.organic ? `+${fmtNum(r.organic.followers)}` : "—",
+      d: r.organic ? <Delta cur={r.organic.followers} prev={r.prevOrganic?.followers} /> : null,
+    },
   ];
 
   return (
@@ -66,7 +75,10 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
             value={String(idx)}
             onChange={(e) => navigate(`/hisobot/${projectId}/${e.target.value}`)}
             className="!w-64 !py-1.5 !text-[13px]"
-            options={periods.map((p) => ({ value: String(p.index), label: `${p.index + 1}-davr: ${fmtDate(p.start)} – ${fmtDate(p.end)}${p.end > today ? " (joriy)" : ""}` }))}
+            options={periods.map((p) => ({
+              value: String(p.index),
+              label: `${p.index + 1}-davr: ${fmtDate(p.start)} – ${fmtDate(p.end)}${p.end > today ? " (joriy)" : ""}`,
+            }))}
           />
           <Button onClick={copyLink}>
             <Icon name="link" size={15} /> Havola
@@ -97,7 +109,11 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
               <div className="mt-1">Tayyorlandi: {fmtDate(today)}</div>
             </div>
           </div>
-          {r.partial && <div className="relative mt-4 inline-flex rounded-full bg-white/15 px-3 py-1 text-[12px] font-semibold">Oraliq hisobot — davr hali yakunlanmagan</div>}
+          {r.partial && (
+            <div className="relative mt-4 inline-flex rounded-full bg-white/15 px-3 py-1 text-[12px] font-semibold">
+              Oraliq hisobot — davr hali yakunlanmagan
+            </div>
+          )}
         </div>
 
         {/* Asosiy ko'rsatkichlar */}
@@ -134,11 +150,19 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
             </div>
             <div>
               <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.05em] text-label3">Format</div>
-              <BarList color={VIZ.c1} format={(n) => `${n} ta`} rows={Object.entries(r.byFormat).map(([k, v]) => ({ label: FORMAT_LABELS[k as keyof typeof FORMAT_LABELS], value: v }))} />
+              <BarList
+                color={VIZ.c1}
+                format={(n) => `${n} ta`}
+                rows={Object.entries(r.byFormat).map(([k, v]) => ({ label: FORMAT_LABELS[k as keyof typeof FORMAT_LABELS], value: v }))}
+              />
             </div>
             <div>
               <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.05em] text-label3">Platforma</div>
-              <BarList color={VIZ.c3} format={(n) => `${n} ta`} rows={Object.entries(r.byPlatform).map(([k, v]) => ({ label: PLATFORM_LABELS[k as keyof typeof PLATFORM_LABELS], value: v }))} />
+              <BarList
+                color={VIZ.c3}
+                format={(n) => `${n} ta`}
+                rows={Object.entries(r.byPlatform).map(([k, v]) => ({ label: PLATFORM_LABELS[k as keyof typeof PLATFORM_LABELS], value: v }))}
+              />
             </div>
           </div>
           <div className="mt-5 overflow-x-auto">
@@ -179,7 +203,11 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
             <h2 className="text-[19px] font-bold tracking-tight text-label">Target reklama natijalari</h2>
             <p className="text-[13px] text-label2">Meta Ads · kunlik lidlar soni</p>
             <div className="mt-3">
-              <ColumnsChart height={200} labels={r.daily.map((d) => d.date.slice(8, 10))} bars={[{ label: "Lidlar", color: VIZ.c1, values: r.daily.map((d) => d.leads) }]} />
+              <ColumnsChart
+                height={200}
+                labels={r.daily.map((d) => d.date.slice(8, 10))}
+                bars={[{ label: "Lidlar", color: VIZ.c1, values: r.daily.map((d) => d.leads) }]}
+              />
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               {[
@@ -215,7 +243,9 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
                 </div>
               </>
             ) : (
-              <p className="mt-2 text-[14px] text-label2">{r.partial ? "Xulosa davr yakunida qo'shiladi." : "SMM menejer xulosasi hali kiritilmagan (loyiha kartasi → Oylik hisobot)."}</p>
+              <p className="mt-2 text-[14px] text-label2">
+                {r.partial ? "Xulosa davr yakunida qo'shiladi." : "SMM menejer xulosasi hali kiritilmagan (loyiha kartasi → Oylik hisobot)."}
+              </p>
             )}
           </Card>
           <Card className="p-5">

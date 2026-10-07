@@ -113,10 +113,17 @@ export function Button({
 
 export function IconButton({ icon, label, onClick, badge }: { icon: IconName; label: string; onClick?: () => void; badge?: number }) {
   return (
-    <button type="button" onClick={onClick} aria-label={label} className="glass relative flex h-10 w-10 items-center justify-center rounded-full text-label transition active:scale-95">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="glass relative flex h-10 w-10 items-center justify-center rounded-full text-label transition active:scale-95"
+    >
       <Icon name={icon} size={19} />
       {badge ? (
-        <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red px-1 text-center text-[11px] font-bold leading-[18px] text-white">{badge}</span>
+        <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red px-1 text-center text-[11px] font-bold leading-[18px] text-white">
+          {badge}
+        </span>
       ) : null}
     </button>
   );
@@ -212,7 +219,21 @@ export function Progress({ value, max }: { value: number; max: number }) {
 }
 
 /** Apple Watch aktivlik halqasi. */
-export function Ring({ value, max, size = 64, stroke = 8, color = "green", children }: { value: number; max: number; size?: number; stroke?: number; color?: "green" | "red" | "orange" | "accent"; children?: ReactNode }) {
+export function Ring({
+  value,
+  max,
+  size = 64,
+  stroke = 8,
+  color = "green",
+  children,
+}: {
+  value: number;
+  max: number;
+  size?: number;
+  stroke?: number;
+  color?: "green" | "red" | "orange" | "accent";
+  children?: ReactNode;
+}) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = max ? Math.min(1, value / max) : 0;
@@ -313,12 +334,13 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   return <textarea rows={3} {...props} className={`${inputCls} resize-y ${props.className ?? ""}`} />;
 }
 
-export function Select({
-  options,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement> & { options: { value: string; label: string }[] }) {
+export function Select({ options, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { options: { value: string; label: string }[] }) {
   return (
-    <select {...props} className={`${inputCls} cursor-pointer appearance-none bg-[length:16px] bg-[right_10px_center] bg-no-repeat pr-9 ${props.className ?? ""}`} style={{ backgroundImage: SELECT_ARROW, ...props.style }}>
+    <select
+      {...props}
+      className={`${inputCls} cursor-pointer appearance-none bg-[length:16px] bg-[right_10px_center] bg-no-repeat pr-9 ${props.className ?? ""}`}
+      style={{ backgroundImage: SELECT_ARROW, ...props.style }}
+    >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -371,7 +393,12 @@ export function Modal({
         <div className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-label/20 sm:hidden" />
         <div className="flex items-center justify-between gap-3 px-5 pb-2 pt-3 sm:pt-5">
           <h2 className="min-w-0 truncate text-[19px] font-bold tracking-tight text-label">{title}</h2>
-          <button type="button" onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-fill text-label2 transition hover:bg-fill2" aria-label="Yopish">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-fill text-label2 transition hover:bg-fill2"
+            aria-label="Yopish"
+          >
             <Icon name="x" size={16} strokeWidth={2.4} />
           </button>
         </div>
@@ -387,7 +414,12 @@ export function LinkOut({ href, children }: { href?: string; children?: ReactNod
   if (!href) return <span className="text-label3">—</span>;
   const url = /^https?:\/\//.test(href) ? href : `https://${href}`;
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 break-all font-medium text-accent hover:underline">
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex max-w-full items-center gap-1 break-all font-medium text-accent hover:underline"
+    >
       {children ?? href.replace(/^https?:\/\//, "")}
       <Icon name="arrowUpRight" size={13} className="shrink-0" />
     </a>

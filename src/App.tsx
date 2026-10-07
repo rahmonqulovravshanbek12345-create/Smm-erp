@@ -103,7 +103,20 @@ const NAV_GROUPS: { title?: string; collapsible?: string; items: NavItem[] }[] =
 ];
 
 const ALL_NAV = NAV_GROUPS.flatMap((g) => g.items);
-const TAB_PRIORITY: string[] = ["/mening", "/", "/moliya", "/crm", "/kontent", "/tasdiqlash", "/montaj", "/dizayn", "/syomka", "/target", "/loyihalar", "/hisobim"];
+const TAB_PRIORITY: string[] = [
+  "/mening",
+  "/",
+  "/moliya",
+  "/crm",
+  "/kontent",
+  "/tasdiqlash",
+  "/montaj",
+  "/dizayn",
+  "/syomka",
+  "/target",
+  "/loyihalar",
+  "/hisobim",
+];
 
 function route(full: string): { module: Module; node: ReactNode } {
   const path = full.split("?")[0]!;
@@ -282,7 +295,7 @@ export function App() {
                     <IconChip name={n.icon} color={n.color} size={28} />
                     <span className="flex-1 truncate">{n.label}</span>
                     {g.collapsible && items.length === 1 && all.length > 1 && <Icon name="chevronRight" size={14} className="text-label3" />}
-                {n.module === "notifications" && unread > 0 && (
+                    {n.module === "notifications" && unread > 0 && (
                       <span className="min-w-[22px] rounded-full bg-red px-1.5 text-center text-[12px] font-bold leading-[20px] text-white">{unread}</span>
                     )}
                   </A>
@@ -399,7 +412,11 @@ function Logo({ small }: { small?: boolean }) {
 
 function AccountButton({ me, onClick, open }: { me: User; onClick: () => void; open: boolean }) {
   return (
-    <button type="button" onClick={onClick} className={`flex w-full items-center gap-3 rounded-[16px] p-2 text-left transition ${open ? "bg-fill" : "hover:bg-fill"}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 rounded-[16px] p-2 text-left transition ${open ? "bg-fill" : "hover:bg-fill"}`}
+    >
       <Avatar name={me.name} size={38} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-semibold text-label">{me.name}</span>
@@ -492,7 +509,10 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-40 flex animate-fade-in items-end bg-black/25 lg:hidden" onMouseDown={onClose}>
-      <div className="glass-strong max-h-[85vh] w-full animate-sheet-up overflow-y-auto rounded-t-[30px] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+20px)]" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="glass-strong max-h-[85vh] w-full animate-sheet-up overflow-y-auto rounded-t-[30px] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+20px)]"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-label/20" />
         <div className="flex items-center justify-between py-3">
           <h2 className="text-[19px] font-bold tracking-tight text-label">{title}</h2>

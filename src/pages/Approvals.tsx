@@ -42,7 +42,10 @@ export function Approvals() {
                   {tasks.length === 0 && <div className="text-xs text-label2">Biriktirilgan fayl yo'q</div>}
                   {tasks.map((t) => (
                     <div key={t.id}>
-                      <span className="text-label2">{TASK_KIND_LABELS[t.kind]}{t.designType === "cover" ? " (oblojka)" : ""}:</span>{" "}
+                      <span className="text-label2">
+                        {TASK_KIND_LABELS[t.kind]}
+                        {t.designType === "cover" ? " (oblojka)" : ""}:
+                      </span>{" "}
                       <LinkOut href={t.resultLink}>{t.title}</LinkOut>
                     </div>
                   ))}

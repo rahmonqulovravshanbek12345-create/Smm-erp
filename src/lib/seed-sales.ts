@@ -88,6 +88,12 @@ export function addSalesHistory(s: ErpState, today: string) {
   const yesterday = addDays(today, -1);
   s.integrationLog = [
     { id: "il_1", at: `${today}T04:05:00.000Z`, kind: "cbu", ok: true, text: `Markaziy bank kursi: 1 USD = ${fmtNum(s.settings.usdRate)} so'm` },
-    { id: "il_2", at: `${today}T04:05:10.000Z`, kind: "meta", ok: true, text: `Meta Ads: FitLife Gym, Baraka Market, Burger House — ${fmtDate(yesterday)} kunlik hisobotlari olindi (demo)` },
+    {
+      id: "il_2",
+      at: `${today}T04:05:10.000Z`,
+      kind: "meta",
+      ok: true,
+      text: `Meta Ads: FitLife Gym, Baraka Market, Burger House — ${fmtDate(yesterday)} kunlik hisobotlari olindi (demo)`,
+    },
   ];
 }

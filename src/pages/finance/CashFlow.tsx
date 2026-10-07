@@ -50,14 +50,33 @@ export function CashFlow() {
           <CardHeader
             title="Oylik kirim va chiqim"
             sub="O'tkazmalarsiz, tranzit bilan birga"
-            right={<Legend items={[{ label: "Kirim", color: VIZ.c3 }, { label: "Chiqim", color: VIZ.c2 }]} />}
+            right={
+              <Legend
+                items={[
+                  { label: "Kirim", color: VIZ.c3 },
+                  { label: "Chiqim", color: VIZ.c2 },
+                ]}
+              />
+            }
           />
           <div className="px-3 pb-4">
             <ColumnsChart
               labels={months.map((m) => monthShort(m) + (m === cur ? "*" : ""))}
               bars={[
-                { label: "Kirim", color: VIZ.c3, values: months.map((m) => cf.sections.reduce((a, s) => a + s.rows.filter((r) => (r.values[m] ?? 0) > 0).reduce((b, r) => b + (r.values[m] ?? 0), 0), 0)) },
-                { label: "Chiqim", color: VIZ.c2, values: months.map((m) => -cf.sections.reduce((a, s) => a + s.rows.filter((r) => (r.values[m] ?? 0) < 0).reduce((b, r) => b + (r.values[m] ?? 0), 0), 0)) },
+                {
+                  label: "Kirim",
+                  color: VIZ.c3,
+                  values: months.map((m) =>
+                    cf.sections.reduce((a, s) => a + s.rows.filter((r) => (r.values[m] ?? 0) > 0).reduce((b, r) => b + (r.values[m] ?? 0), 0), 0),
+                  ),
+                },
+                {
+                  label: "Chiqim",
+                  color: VIZ.c2,
+                  values: months.map(
+                    (m) => -cf.sections.reduce((a, s) => a + s.rows.filter((r) => (r.values[m] ?? 0) < 0).reduce((b, r) => b + (r.values[m] ?? 0), 0), 0),
+                  ),
+                },
               ]}
             />
           </div>
@@ -198,7 +217,8 @@ export function CashFlow() {
         </TableWrap>
         <div className="px-5 pb-4">
           <Note>
-            Operatsion pul oqimi {months.length} oyda: <b>{fmtMoney(sumOf(opNet))}</b>. USD summalar tranzaksiya kunidagi kursda so'mga o'girilgan. Hisoblar o'rtasidagi o'tkazmalar natijaga ta'sir qilmaydi.
+            Operatsion pul oqimi {months.length} oyda: <b>{fmtMoney(sumOf(opNet))}</b>. USD summalar tranzaksiya kunidagi kursda so'mga o'girilgan. Hisoblar
+            o'rtasidagi o'tkazmalar natijaga ta'sir qilmaydi.
           </Note>
         </div>
       </Card>

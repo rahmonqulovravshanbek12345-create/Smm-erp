@@ -28,10 +28,12 @@ export function Target() {
   const missing = projects.filter((p) => targetReportMissing(state, p, today));
   const canReport = own || me.role === "admin";
 
-  const totals = history.reduce(
-    (a, r) => ({ spend: a.spend + r.spend, views: a.views + r.views, clicks: a.clicks + r.clicks, leads: a.leads + r.leads }),
-    { spend: 0, views: 0, clicks: 0, leads: 0 },
-  );
+  const totals = history.reduce((a, r) => ({ spend: a.spend + r.spend, views: a.views + r.views, clicks: a.clicks + r.clicks, leads: a.leads + r.leads }), {
+    spend: 0,
+    views: 0,
+    clicks: 0,
+    leads: 0,
+  });
 
   const account = metaAccountOf(state, projectId);
   const demo = isMetaDemo(state);
@@ -117,7 +119,12 @@ export function Target() {
                   ) : (
                     canReport && (
                       <div className="mt-2 flex gap-2">
-                        <Input type="date" value={launch[t.id] ?? today} onChange={(e) => setLaunch({ ...launch, [t.id]: e.target.value })} className="!w-40 !py-1.5 !text-xs" />
+                        <Input
+                          type="date"
+                          value={launch[t.id] ?? today}
+                          onChange={(e) => setLaunch({ ...launch, [t.id]: e.target.value })}
+                          className="!w-40 !py-1.5 !text-xs"
+                        />
                         <Button size="sm" variant="primary" onClick={() => run((c) => act.launchTarget(c, t.id, launch[t.id] ?? today), "Reklama yoqildi")}>
                           Reklamani yoqdim
                         </Button>
@@ -135,7 +142,12 @@ export function Target() {
             <CardHeader
               title="Kunlik hisobot"
               right={
-                <Select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="!w-48 !py-1 !text-xs" options={projects.map((p) => ({ value: p.id, label: p.name }))} />
+                <Select
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="!w-48 !py-1 !text-xs"
+                  options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                />
               }
             />
             {canReport ? (

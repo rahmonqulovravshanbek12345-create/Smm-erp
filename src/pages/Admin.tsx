@@ -130,7 +130,12 @@ export function Admin() {
               <Input value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} placeholder="Ism Familiya" className="!w-56" />
             </Field>
             <Field label="Rol">
-              <Select value={nu.role} onChange={(e) => setNu({ ...nu, role: e.target.value as Role })} options={ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] }))} className="!w-48" />
+              <Select
+                value={nu.role}
+                onChange={(e) => setNu({ ...nu, role: e.target.value as Role })}
+                options={ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
+                className="!w-48"
+              />
             </Field>
             <Button
               variant="primary"
@@ -185,7 +190,8 @@ export function Admin() {
             <div className="rounded-[14px] bg-fill p-3">
               <div className="text-[13px] font-semibold text-label">Demo uchun: hamma xabar bitta Telegram'ga</div>
               <p className="mt-0.5 text-xs text-label2">
-                Barcha xodimlarga bitta chat ID qo'yiladi. Har xabarda kimga ekanligi yoziladi (👤 Ism · Rol). Guruh ID'si (-100… bilan boshlanadi) ham bo'ladi — botni guruhga qo'shing.
+                Barcha xodimlarga bitta chat ID qo'yiladi. Har xabarda kimga ekanligi yoziladi (👤 Ism · Rol). Guruh ID'si (-100… bilan boshlanadi) ham bo'ladi
+                — botni guruhga qo'shing.
               </p>
               <div className="mt-2 flex gap-2">
                 <Input value={sharedChat} onChange={(e) => setSharedChat(e.target.value)} placeholder="masalan 123456789" className="!py-1.5 !text-[13px]" />
@@ -199,7 +205,8 @@ export function Admin() {
               <Button onClick={sendDigest}>Bugungi eslatmalarni yuborish</Button>
             </div>
             <p className="text-xs text-label3">
-              Eslatmalar: deadline, kechikkan ishlar, ertangi syomka, qarzlar, to'lov muddati, qayta aloqa. Haqiqiy tizimda har kuni ertalab avtomatik yuboriladi.
+              Eslatmalar: deadline, kechikkan ishlar, ertangi syomka, qarzlar, to'lov muddati, qayta aloqa. Haqiqiy tizimda har kuni ertalab avtomatik
+              yuboriladi.
             </p>
           </div>
         </Card>
@@ -285,11 +292,19 @@ export function Admin() {
             <p className="text-[12px] text-label3">Xodimlar stavkalari: Moliya → Ish haqi → Stavkalar.</p>
             <div className="border-t border-sep pt-4">
               <div className="mb-1 text-sm text-label">Demo ma'lumotlarni tiklash</div>
-              <p className="mb-2 text-xs text-label2">Mijozga ko'rsatishdan oldin barcha o'zgarishlarni o'chirib, boshlang'ich holatga qaytaradi. Telegram sozlamalari saqlanib qoladi.</p>
+              <p className="mb-2 text-xs text-label2">
+                Mijozga ko'rsatishdan oldin barcha o'zgarishlarni o'chirib, boshlang'ich holatga qaytaradi. Telegram sozlamalari saqlanib qoladi.
+              </p>
               {confirmReset ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-red">Barcha o'zgarishlar o'chiriladi.</span>
-                  <Button variant="danger" onClick={() => { reset(); setConfirmReset(false); }}>
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      reset();
+                      setConfirmReset(false);
+                    }}
+                  >
                     Ha, tiklash
                   </Button>
                   <Button variant="ghost" onClick={() => setConfirmReset(false)}>

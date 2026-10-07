@@ -2,15 +2,7 @@
 // ish haqi hisoblashlari va to'lovlari, doimiy xarajatlar, soliq, jihoz va dividend.
 // Hammasi bugungi sanaga nisbatan quriladi va deterministik (har safar bir xil natija).
 import { addDays, addMonths, diffDays, fmtMonth, monthKey, shiftMonthKey } from "./dates";
-import {
-  ART,
-  DEFAULT_ARTICLES,
-  clientCashIn,
-  employeeBalance,
-  pieceAccrual,
-  syncAccruals,
-  taskWorkType,
-} from "./finance";
+import { ART, DEFAULT_ARTICLES, clientCashIn, employeeBalance, pieceAccrual, syncAccruals, taskWorkType } from "./finance";
 import { periodAt } from "./period";
 import type { Accrual, ErpState, Invoice, Project, Transaction, WorkType } from "./types";
 
@@ -21,7 +13,7 @@ export function addFinanceHistory(s: ErpState, today: string): void {
   const curMonth = monthKey(today);
   const histStart = `${s.settings.payrollStart}-01`;
   /** Deterministik kurs: 12 500 – 12 700 oralig'ida. */
-  const rateOn = (date: string) => 12_500 + (((diffDays(date, today) * 37) % 200) + 200) % 200;
+  const rateOn = (date: string) => 12_500 + ((((diffDays(date, today) * 37) % 200) + 200) % 200);
 
   s.articles = DEFAULT_ARTICLES.map((a) => ({ ...a }));
   s.accounts = [
@@ -144,13 +136,31 @@ export function addFinanceHistory(s: ErpState, today: string): void {
       const per = periodAt(p, i)!;
       if (per.start > today || !active(p, per.start)) break;
       const inDate = addDays(per.start, 1);
-      tx({ date: inDate, accountId: "acc_usd", dir: "in", amount: p.adBudgetUsd, ...usd(inDate), articleId: ART.transitIn, projectId: p.id, note: `${i + 1}-davr reklama byudjeti` });
+      tx({
+        date: inDate,
+        accountId: "acc_usd",
+        dir: "in",
+        amount: p.adBudgetUsd,
+        ...usd(inDate),
+        articleId: ART.transitIn,
+        projectId: p.id,
+        note: `${i + 1}-davr reklama byudjeti`,
+      });
       for (const [k, share] of [
         [3, 0.5],
         [16, 0.45],
       ] as const) {
         const date = addDays(per.start, k);
-        tx({ date, accountId: "acc_usd", dir: "out", amount: Math.round(p.adBudgetUsd * share), ...usd(date), articleId: ART.transitOut, projectId: p.id, note: "Meta Ads to'ldirish" });
+        tx({
+          date,
+          accountId: "acc_usd",
+          dir: "out",
+          amount: Math.round(p.adBudgetUsd * share),
+          ...usd(date),
+          articleId: ART.transitOut,
+          projectId: p.id,
+          note: "Meta Ads to'ldirish",
+        });
       }
     }
   }
@@ -196,11 +206,13 @@ export function addFinanceHistory(s: ErpState, today: string): void {
         const date = addDays(per.start, 2 + Math.round((k * days) / v.shoots));
         if (isCurrent && date >= today) continue;
         piece("u_sy", "syomka", p.id, date, `${p.name}: syomka #${k + 1}`, `h-s:${p.id}:${i}:${k}`);
-        if (date >= histStart) tx({ date, accountId: "acc_cash", dir: "out", amount: 180_000, articleId: ART.transport, projectId: p.id, note: "Syomkaga taksi" });
+        if (date >= histStart)
+          tx({ date, accountId: "acc_cash", dir: "out", amount: 180_000, articleId: ART.transport, projectId: p.id, note: "Syomkaga taksi" });
       }
       if (p.id === "p_baraka") {
         const date = addDays(per.start, 5);
-        if (date >= histStart) tx({ date, accountId: "acc_card", dir: "out", amount: 350_000, articleId: ART.production, projectId: p.id, note: "Rekvizit va mahsulot namunalari" });
+        if (date >= histStart)
+          tx({ date, accountId: "acc_card", dir: "out", amount: 350_000, articleId: ART.production, projectId: p.id, note: "Rekvizit va mahsulot namunalari" });
       }
     }
   }
@@ -265,12 +277,23 @@ export function addFinanceHistory(s: ErpState, today: string): void {
 
   for (const m of months) {
     const isCur = m === curMonth;
-    const bill = (vendorId: string, articleId: string, amount: number, day: number, dueDay: number, payDay: number, account: string, note: string, payCurrent: boolean) => {
+    const bill = (
+      vendorId: string,
+      articleId: string,
+      amount: number,
+      day: number,
+      dueDay: number,
+      payDay: number,
+      account: string,
+      note: string,
+      payCurrent: boolean,
+    ) => {
       const date = `${m}-${String(day).padStart(2, "0")}`;
       if (date > today) return;
       const b = { id: id("bill"), vendorId, articleId, amount, date, dueDate: `${m}-${String(dueDay).padStart(2, "0")}`, note };
       s.bills.push(b);
-      if (!isCur || payCurrent) tx({ date: `${m}-${String(payDay).padStart(2, "0")}`, accountId: account, dir: "out", amount, articleId, vendorId, billId: b.id, note });
+      if (!isCur || payCurrent)
+        tx({ date: `${m}-${String(payDay).padStart(2, "0")}`, accountId: account, dir: "out", amount, articleId, vendorId, billId: b.id, note });
     };
     bill("v_rent", ART.rent, 4_500_000, 1, 5, 4, "acc_bank", "Ofis ijarasi", false);
     bill("v_soft", ART.software, 1_300_000, 3, 10, 8, "acc_card", "Adobe CC, Canva Pro, CapCut obunalari", false);
@@ -291,7 +314,15 @@ export function addFinanceHistory(s: ErpState, today: string): void {
   for (const m of months.slice(0, -1)) {
     const cash = clientCashIn(s, m);
     const payDate = `${shiftMonthKey(m, 1)}-15`;
-    if (cash > 0) tx({ date: payDate, accountId: "acc_bank", dir: "out", amount: Math.round((cash * 0.04) / 1000) * 1000, articleId: ART.tax, note: `Aylanma soliq — ${fmtMonth(m)} tushumidan` });
+    if (cash > 0)
+      tx({
+        date: payDate,
+        accountId: "acc_bank",
+        dir: "out",
+        amount: Math.round((cash * 0.04) / 1000) * 1000,
+        articleId: ART.tax,
+        note: `Aylanma soliq — ${fmtMonth(m)} tushumidan`,
+      });
   }
 
   tx({ date: d(-75), accountId: "acc_bank", dir: "out", amount: 24_000_000, articleId: ART.equipment, note: "Sony A7 IV kamera + obyektiv" });
@@ -323,7 +354,15 @@ export function addFinanceHistory(s: ErpState, today: string): void {
     if (advDate <= today) {
       for (const prof of s.payProfiles) {
         if (prof.fixed <= 0) continue;
-        tx({ date: advDate, accountId: "acc_cash", dir: "out", amount: Math.round(prof.fixed * 0.35), articleId: ART.payroll, userId: prof.userId, note: `${fmtMonth(m)} uchun avans` });
+        tx({
+          date: advDate,
+          accountId: "acc_cash",
+          dir: "out",
+          amount: Math.round(prof.fixed * 0.35),
+          articleId: ART.payroll,
+          userId: prof.userId,
+          note: `${fmtMonth(m)} uchun avans`,
+        });
       }
     }
   }

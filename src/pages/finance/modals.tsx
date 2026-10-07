@@ -10,14 +10,27 @@ import { useAccountOptions } from "./common";
 /** Hisob tanlash + USD bo'lsa kurs maydoni. */
 function useMoneyFields(defaultAccount = "acc_bank") {
   const { state, today } = useErp();
-  const [accountId, setAccountId] = useState(state.accounts.some((a) => a.id === defaultAccount) ? defaultAccount : state.accounts[0]?.id ?? "");
+  const [accountId, setAccountId] = useState(state.accounts.some((a) => a.id === defaultAccount) ? defaultAccount : (state.accounts[0]?.id ?? ""));
   const [amount, setAmount] = useState("");
   const [rate, setRate] = useState(String(state.settings.usdRate));
   const [date, setDate] = useState(today);
   const isUsd = accountOf(state, accountId)?.currency === "USD";
   const value = Number(amount) || 0;
   const uzs = isUsd ? value * (Number(rate) || 0) : value;
-  return { accountId, setAccountId, amount, setAmount, rate, setRate, date, setDate, isUsd, value, uzs, rateNum: isUsd ? Number(rate) || state.settings.usdRate : undefined };
+  return {
+    accountId,
+    setAccountId,
+    amount,
+    setAmount,
+    rate,
+    setRate,
+    date,
+    setDate,
+    isUsd,
+    value,
+    uzs,
+    rateNum: isUsd ? Number(rate) || state.settings.usdRate : undefined,
+  };
 }
 
 function MoneyFields({ m, label = "Summa" }: { m: ReturnType<typeof useMoneyFields>; label?: string }) {
@@ -73,21 +86,40 @@ export function TxModal({ dir, onClose }: { dir: "in" | "out"; onClose: () => vo
 
   const save = () => {
     const ok = run(
-      (c) => act.addTransaction(c, { date: m.date, accountId: m.accountId, dir, amount: m.value, rate: m.rateNum, articleId, projectId: projectId || undefined, note }),
+      (c) =>
+        act.addTransaction(c, {
+          date: m.date,
+          accountId: m.accountId,
+          dir,
+          amount: m.value,
+          rate: m.rateNum,
+          articleId,
+          projectId: projectId || undefined,
+          note,
+        }),
       dir === "in" ? "Kirim qayd etildi" : "Chiqim qayd etildi",
     );
     if (ok) onClose();
   };
 
   return (
-    <Modal open onClose={onClose} title={dir === "in" ? "Yangi kirim" : "Yangi chiqim"} footer={<Footer onClose={onClose} onSave={save} label="Saqlash" disabled={!m.value || (needsProject && !projectId)} />}>
+    <Modal
+      open
+      onClose={onClose}
+      title={dir === "in" ? "Yangi kirim" : "Yangi chiqim"}
+      footer={<Footer onClose={onClose} onSave={save} label="Saqlash" disabled={!m.value || (needsProject && !projectId)} />}
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Modda" className="sm:col-span-2">
           <Select value={articleId} onChange={(e) => setArticleId(e.target.value)} options={articles.map((a) => ({ value: a.id, label: a.name }))} />
         </Field>
         <MoneyFields m={m} />
         <Field label={needsProject ? "Loyiha (majburiy)" : "Loyiha (ixtiyoriy)"} hint="Loyihaga bog'langan xarajat loyiha tannarxiga kiradi">
-          <Select value={projectId} onChange={(e) => setProjectId(e.target.value)} options={[{ value: "", label: "— umumiy —" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]} />
+          <Select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            options={[{ value: "", label: "— umumiy —" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]}
+          />
         </Field>
         <Field label="Izoh" className="sm:col-span-2">
           <Input value={note} onChange={(e) => setNote(e.target.value)} />
@@ -119,7 +151,12 @@ export function TransferModal({ onClose }: { onClose: () => void }) {
     if (run((c) => act.addTransfer(c, { from, to, amountFrom: a, amountTo, rate: cf !== ct ? r : undefined, date, note }), "O'tkazma bajarildi")) onClose();
   };
   return (
-    <Modal open onClose={onClose} title="Hisoblar o'rtasida o'tkazma" footer={<Footer onClose={onClose} onSave={save} label="O'tkazish" disabled={!a || from === to} />}>
+    <Modal
+      open
+      onClose={onClose}
+      title="Hisoblar o'rtasida o'tkazma"
+      footer={<Footer onClose={onClose} onSave={save} label="O'tkazish" disabled={!a || from === to} />}
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Qayerdan">
           <Select value={from} onChange={(e) => setFrom(e.target.value)} options={accounts} />
@@ -158,12 +195,21 @@ export function InvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClos
   const amountSet = m.amount !== "";
   const save = () => {
     const value = amountSet ? m.value : left;
-    if (run((c) => act.recordClientPayment(c, invoice.id, { amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note }), "To'lov qabul qilindi")) onClose();
+    if (
+      run((c) => act.recordClientPayment(c, invoice.id, { amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note }), "To'lov qabul qilindi")
+    )
+      onClose();
   };
   return (
-    <Modal open onClose={onClose} title={`To'lov: ${invoice.number} — ${look.projectName(invoice.projectId)}`} footer={<Footer onClose={onClose} onSave={save} label="Qabul qilish" />}>
+    <Modal
+      open
+      onClose={onClose}
+      title={`To'lov: ${invoice.number} — ${look.projectName(invoice.projectId)}`}
+      footer={<Footer onClose={onClose} onSave={save} label="Qabul qilish" />}
+    >
       <p className="mb-3 text-[14px] text-label2">
-        Faktura: <b className="text-label">{fmtMoney(invoice.amount)}</b> · qolgan: <b className="text-label">{fmtMoney(left)}</b>. Qisman to'lov ham qayd etiladi.
+        Faktura: <b className="text-label">{fmtMoney(invoice.amount)}</b> · qolgan: <b className="text-label">{fmtMoney(left)}</b>. Qisman to'lov ham qayd
+        etiladi.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <MoneyFields m={{ ...m, amount: amountSet ? m.amount : String(left) }} />
@@ -186,7 +232,12 @@ export function ExtraInvoiceModal({ onClose }: { onClose: () => void }) {
     if (run((c) => act.createExtraInvoice(c, { projectId, amount: Number(amount), issueDate, dueDate, note }), "Faktura chiqarildi")) onClose();
   };
   return (
-    <Modal open onClose={onClose} title="Qo'shimcha xizmat uchun faktura" footer={<Footer onClose={onClose} onSave={save} label="Chiqarish" disabled={!Number(amount)} />}>
+    <Modal
+      open
+      onClose={onClose}
+      title="Qo'shimcha xizmat uchun faktura"
+      footer={<Footer onClose={onClose} onSave={save} label="Chiqarish" disabled={!Number(amount)} />}
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Loyiha" className="sm:col-span-2">
           <Select value={projectId} onChange={(e) => setProjectId(e.target.value)} options={state.projects.map((p) => ({ value: p.id, label: p.name }))} />
@@ -222,7 +273,13 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
   const value = amountSet ? m.value : Math.max(0, balance);
   const save = () => {
     const n = note || (kind === "advance" ? "Avans" : "Ish haqi");
-    if (run((c) => act.payEmployee(c, { userId: uid, amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note: n }), "To'lov qayd etildi — xodimga xabar ketdi")) onClose();
+    if (
+      run(
+        (c) => act.payEmployee(c, { userId: uid, amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note: n }),
+        "To'lov qayd etildi — xodimga xabar ketdi",
+      )
+    )
+      onClose();
   };
   return (
     <Modal open onClose={onClose} title="Xodimga to'lov" footer={<Footer onClose={onClose} onSave={save} label="To'lash" disabled={!value} />}>
@@ -246,7 +303,8 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
         </Field>
       </div>
       <Banner tone={balance > 0 ? "amber" : "green"}>
-        Joriy qoldiq: {balance >= 0 ? `kompaniya xodimga ${fmtMoney(balance)} qarzdor` : `xodimga ${fmtMoney(-balance)} avans berilgan`}. To'lov eng eski hisoblashlarni navbat bilan yopadi.
+        Joriy qoldiq: {balance >= 0 ? `kompaniya xodimga ${fmtMoney(balance)} qarzdor` : `xodimga ${fmtMoney(-balance)} avans berilgan`}. To'lov eng eski
+        hisoblashlarni navbat bilan yopadi.
       </Banner>
     </Modal>
   );
@@ -265,7 +323,12 @@ export function ManualAccrualModal({ userId, onClose }: { userId?: string; onClo
     if (run((c) => act.addManualAccrual(c, { userId: uid, kind, amount: Number(amount), projectId, date, title }), "Hisoblash qo'shildi")) onClose();
   };
   return (
-    <Modal open onClose={onClose} title="Bonus, jarima yoki qo'shimcha hisoblash" footer={<Footer onClose={onClose} onSave={save} label="Qo'shish" disabled={!Number(amount) || !title.trim()} />}>
+    <Modal
+      open
+      onClose={onClose}
+      title="Bonus, jarima yoki qo'shimcha hisoblash"
+      footer={<Footer onClose={onClose} onSave={save} label="Qo'shish" disabled={!Number(amount) || !title.trim()} />}
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Xodim">
           <Select value={uid} onChange={(e) => setUid(e.target.value)} options={userOptions(staff)} />
@@ -288,7 +351,11 @@ export function ManualAccrualModal({ userId, onClose }: { userId?: string; onClo
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
         <Field label="Loyiha (ixtiyoriy)" hint="Loyihaga bog'lansa, loyiha tannarxiga kiradi">
-          <Select value={projectId} onChange={(e) => setProjectId(e.target.value)} options={[{ value: "", label: "— umumiy —" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]} />
+          <Select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            options={[{ value: "", label: "— umumiy —" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]}
+          />
         </Field>
         <Field label="Izoh (sabab)">
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Masalan: KPI bajarildi" />
@@ -311,10 +378,21 @@ export function BillModal({ onClose }: { onClose: () => void }) {
   const [note, setNote] = useState("");
   const [projectId, setProjectId] = useState("");
   const save = () => {
-    if (run((c) => act.addBill(c, { vendorId, articleId, amount: Number(amount), date, dueDate, note, projectId: projectId || undefined }), "Xarajat hujjati qo'shildi")) onClose();
+    if (
+      run(
+        (c) => act.addBill(c, { vendorId, articleId, amount: Number(amount), date, dueDate, note, projectId: projectId || undefined }),
+        "Xarajat hujjati qo'shildi",
+      )
+    )
+      onClose();
   };
   return (
-    <Modal open onClose={onClose} title="Ta'minotchidan xarajat hujjati" footer={<Footer onClose={onClose} onSave={save} label="Qo'shish" disabled={!Number(amount)} />}>
+    <Modal
+      open
+      onClose={onClose}
+      title="Ta'minotchidan xarajat hujjati"
+      footer={<Footer onClose={onClose} onSave={save} label="Qo'shish" disabled={!Number(amount)} />}
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Ta'minotchi">
           <Select value={vendorId} onChange={(e) => setVendorId(e.target.value)} options={state.vendors.map((v) => ({ value: v.id, label: v.name }))} />
@@ -326,7 +404,11 @@ export function BillModal({ onClose }: { onClose: () => void }) {
           <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
         <Field label="Loyiha (ixtiyoriy)">
-          <Select value={projectId} onChange={(e) => setProjectId(e.target.value)} options={[{ value: "", label: "— umumiy —" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]} />
+          <Select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            options={[{ value: "", label: "— umumiy —" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]}
+          />
         </Field>
         <Field label="Hujjat sanasi">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -348,10 +430,16 @@ export function PayBillModal({ bill, onClose }: { bill: Bill; onClose: () => voi
   const m = useMoneyFields("acc_bank");
   const amountSet = m.amount !== "";
   const save = () => {
-    if (run((c) => act.payBill(c, bill.id, { amount: amountSet ? m.value : left, date: m.date, accountId: m.accountId, rate: m.rateNum }), "To'landi")) onClose();
+    if (run((c) => act.payBill(c, bill.id, { amount: amountSet ? m.value : left, date: m.date, accountId: m.accountId, rate: m.rateNum }), "To'landi"))
+      onClose();
   };
   return (
-    <Modal open onClose={onClose} title={`To'lov: ${state.vendors.find((v) => v.id === bill.vendorId)?.name}`} footer={<Footer onClose={onClose} onSave={save} label="To'lash" />}>
+    <Modal
+      open
+      onClose={onClose}
+      title={`To'lov: ${state.vendors.find((v) => v.id === bill.vendorId)?.name}`}
+      footer={<Footer onClose={onClose} onSave={save} label="To'lash" />}
+    >
       <p className="mb-3 text-[14px] text-label2">
         {bill.note} · qolgan: <b className="text-label">{fmtMoney(left)}</b>
       </p>

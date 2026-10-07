@@ -1,19 +1,6 @@
 import { useMemo, useState } from "react";
-import {
-  BarList,
-  ColumnsChart,
-  Legend,
-  VIZ,
-  fmtShort,
-} from "../components/charts";
-import {
-  A,
-  Card,
-  CardHeader,
-  PageHeader,
-  Select,
-  Stat,
-} from "../components/ui";
+import { BarList, ColumnsChart, Legend, VIZ, fmtShort } from "../components/charts";
+import { A, Card, CardHeader, PageHeader, Select, Stat } from "../components/ui";
 import { fmtMoney, monthShort } from "../lib/dates";
 import { lastMonths } from "../lib/finance";
 import { FUNNEL, salesAnalytics } from "../lib/sales";
@@ -26,10 +13,7 @@ export function SalesAnalytics() {
   const { state, today } = useErp();
   const [span, setSpan] = useState("6");
   const months = useMemo(() => lastMonths(today, Number(span)), [today, span]);
-  const a = useMemo(
-    () => salesAnalytics(state, months, today),
-    [state, months, today],
-  );
+  const a = useMemo(() => salesAnalytics(state, months, today), [state, months, today]);
   const top = a.funnel[0]?.count || 1;
   const ratio = a.cacFull ? a.ltv / a.cacFull : 0;
 
@@ -40,10 +24,7 @@ export function SalesAnalytics() {
         sub="Lid qayerdan keladi, qayerda yo'qoladi va bitta mijoz qanchaga tushadi"
         actions={
           <>
-            <A
-              href="/crm"
-              className="inline-flex h-10 items-center rounded-full px-4 text-[15px] font-semibold text-accent hover:bg-fill"
-            >
+            <A href="/crm" className="inline-flex h-10 items-center rounded-full px-4 text-[15px] font-semibold text-accent hover:bg-fill">
               ← CRM
             </A>
             <ExportButton
@@ -51,59 +32,17 @@ export function SalesAnalytics() {
               sheets={() => [
                 {
                   name: "Manbalar",
-                  columns: [
-                    "Manba",
-                    "Lidlar",
-                    "Bog'lanildi",
-                    "Uchrashuv",
-                    "Shartnoma",
-                    "Sifatsiz",
-                    "Konversiya %",
-                    "MRR (so'm)",
-                  ],
-                  rows: a.bySource.map((r) => [
-                    r.label,
-                    r.leads,
-                    r.contacted,
-                    r.meetings,
-                    r.contracts,
-                    r.lowquality,
-                    Number(r.conv.toFixed(1)),
-                    r.mrr,
-                  ]),
+                  columns: ["Manba", "Lidlar", "Bog'lanildi", "Uchrashuv", "Shartnoma", "Sifatsiz", "Konversiya %", "MRR (so'm)"],
+                  rows: a.bySource.map((r) => [r.label, r.leads, r.contacted, r.meetings, r.contracts, r.lowquality, Number(r.conv.toFixed(1)), r.mrr]),
                 },
                 {
                   name: "Operatorlar",
-                  columns: [
-                    "Operator",
-                    "Lidlar",
-                    "Bog'lanildi",
-                    "Uchrashuv",
-                    "Shartnoma",
-                    "Konversiya %",
-                    "Bonus (so'm)",
-                  ],
-                  rows: a.byOperator.map((r) => [
-                    r.label,
-                    r.leads,
-                    r.contacted,
-                    r.meetings,
-                    r.contracts,
-                    Number(r.conv.toFixed(1)),
-                    r.bonus,
-                  ]),
+                  columns: ["Operator", "Lidlar", "Bog'lanildi", "Uchrashuv", "Shartnoma", "Konversiya %", "Bonus (so'm)"],
+                  rows: a.byOperator.map((r) => [r.label, r.leads, r.contacted, r.meetings, r.contracts, Number(r.conv.toFixed(1)), r.bonus]),
                 },
                 {
                   name: "Lidlar",
-                  columns: [
-                    "Sana",
-                    "Nomi",
-                    "Telefon",
-                    "Manba",
-                    "Xizmat",
-                    "Bosqich",
-                    "Rad sababi",
-                  ],
+                  columns: ["Sana", "Nomi", "Telefon", "Manba", "Xizmat", "Bosqich", "Rad sababi"],
                   rows: a.leads.map((l) => [
                     l.createdAt.slice(0, 10),
                     l.name,
@@ -132,31 +71,10 @@ export function SalesAnalytics() {
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
         <Stat icon="users" color="blue" label="Lidlar" value={a.leads.length} />
-        <Stat
-          icon="checkSeal"
-          color="green"
-          label="Shartnomalar"
-          value={a.contracts}
-          tone="green"
-        />
-        <Stat
-          icon="gauge"
-          color="indigo"
-          label="Lid → shartnoma"
-          value={`${a.conv.toFixed(1)}%`}
-        />
-        <Stat
-          icon="clock"
-          color="orange"
-          label="O'rtacha sotuv sikli"
-          value={`${Math.round(a.avgCycle)} kun`}
-        />
-        <Stat
-          icon="wallet"
-          color="pink"
-          label="Mijoz jalb qilish narxi (CAC)"
-          value={fmtShort(a.cacFull)}
-        />
+        <Stat icon="checkSeal" color="green" label="Shartnomalar" value={a.contracts} tone="green" />
+        <Stat icon="gauge" color="indigo" label="Lid → shartnoma" value={`${a.conv.toFixed(1)}%`} />
+        <Stat icon="clock" color="orange" label="O'rtacha sotuv sikli" value={`${Math.round(a.avgCycle)} kun`} />
+        <Stat icon="wallet" color="pink" label="Mijoz jalb qilish narxi (CAC)" value={fmtShort(a.cacFull)} />
         <Stat
           icon="sparkle"
           color="teal"
@@ -168,11 +86,7 @@ export function SalesAnalytics() {
 
       <div className="grid gap-4 xl:grid-cols-5">
         <Card className="xl:col-span-2">
-          <CardHeader
-            icon={{ name: "list", color: "blue" }}
-            title="Voronka"
-            sub="Har bosqichga yetgan lidlar va keyingisiga o'tish foizi"
-          />
+          <CardHeader icon={{ name: "list", color: "blue" }} title="Voronka" sub="Har bosqichga yetgan lidlar va keyingisiga o'tish foizi" />
           <div className="space-y-2.5 px-5 pb-5">
             {a.funnel.map((f, i) => {
               const prev = a.funnel[i - 1]?.count;
@@ -183,11 +97,7 @@ export function SalesAnalytics() {
                     <span className="font-medium text-label">{f.label}</span>
                     <span className="tabular text-label2">
                       <b className="text-label">{f.count}</b>
-                      {prev ? (
-                        <span className="ml-2 text-[12px]">
-                          → {((f.count / prev) * 100).toFixed(0)}%
-                        </span>
-                      ) : null}
+                      {prev ? <span className="ml-2 text-[12px]">→ {((f.count / prev) * 100).toFixed(0)}%</span> : null}
                     </span>
                   </div>
                   <div className="h-7 w-full rounded-[10px] bg-fill">
@@ -242,11 +152,7 @@ export function SalesAnalytics() {
         </Card>
 
         <Card className="xl:col-span-5">
-          <CardHeader
-            icon={{ name: "target", color: "pink" }}
-            title="Manbalar kesimida"
-            sub="Qaysi kanal sifatli mijoz olib keladi"
-          />
+          <CardHeader icon={{ name: "target", color: "pink" }} title="Manbalar kesimida" sub="Qaysi kanal sifatli mijoz olib keladi" />
           <TableWrap min={860}>
             <thead>
               <tr className="border-y border-sep">
@@ -263,23 +169,13 @@ export function SalesAnalytics() {
             <tbody className="divide-y divide-sep">
               {a.bySource.map((r) => (
                 <tr key={r.key} className="hover:bg-fill">
-                  <td className={`${td} font-semibold text-label`}>
-                    {r.label}
-                  </td>
+                  <td className={`${td} font-semibold text-label`}>{r.label}</td>
                   <td className={tdr}>{r.leads}</td>
                   <td className={tdr}>{r.contacted}</td>
                   <td className={tdr}>{r.meetings}</td>
                   <td className={`${tdr} font-semibold`}>{r.contracts}</td>
-                  <td
-                    className={`${tdr} ${r.lowquality / r.leads > 0.5 ? "text-red" : "text-label2"}`}
-                  >
-                    {((r.lowquality / r.leads) * 100).toFixed(0)}%
-                  </td>
-                  <td
-                    className={`${tdr} font-semibold ${r.conv >= 10 ? "text-green" : "text-label"}`}
-                  >
-                    {r.conv.toFixed(1)}%
-                  </td>
+                  <td className={`${tdr} ${r.lowquality / r.leads > 0.5 ? "text-red" : "text-label2"}`}>{((r.lowquality / r.leads) * 100).toFixed(0)}%</td>
+                  <td className={`${tdr} font-semibold ${r.conv >= 10 ? "text-green" : "text-label"}`}>{r.conv.toFixed(1)}%</td>
                   <td className={tdr}>
                     <Money v={r.mrr} />
                   </td>
@@ -290,10 +186,7 @@ export function SalesAnalytics() {
         </Card>
 
         <Card className="xl:col-span-3">
-          <CardHeader
-            icon={{ name: "phone", color: "green" }}
-            title="Operatorlar samaradorligi"
-          />
+          <CardHeader icon={{ name: "phone", color: "green" }} title="Operatorlar samaradorligi" />
           <TableWrap min={640}>
             <thead>
               <tr className="border-y border-sep">
@@ -308,9 +201,7 @@ export function SalesAnalytics() {
             <tbody className="divide-y divide-sep">
               {a.byOperator.map((r) => (
                 <tr key={r.key}>
-                  <td className={`${td} font-semibold text-label`}>
-                    {r.label}
-                  </td>
+                  <td className={`${td} font-semibold text-label`}>{r.label}</td>
                   <td className={tdr}>{r.leads}</td>
                   <td className={tdr}>
                     {r.meetings}{" "}
@@ -331,17 +222,11 @@ export function SalesAnalytics() {
         </Card>
 
         <Card className="xl:col-span-2">
-          <CardHeader
-            icon={{ name: "wallet", color: "pink" }}
-            title="Mijoz iqtisodiyoti"
-          />
+          <CardHeader icon={{ name: "wallet", color: "pink" }} title="Mijoz iqtisodiyoti" />
           <ul className="space-y-2 px-5 pb-5 text-[14px]">
             {[
               ["Agentlik reklamasiga sarf", fmtMoney(a.marketing)],
-              [
-                "Operatorlar xarajati (oylik + bonus)",
-                fmtMoney(a.operatorCost),
-              ],
+              ["Operatorlar xarajati (oylik + bonus)", fmtMoney(a.operatorCost)],
               ["Yangi mijozlar", `${a.newClients} ta`],
               ["CAC — faqat reklama", fmtMoney(a.cacAds)],
               ["CAC — to'liq", fmtMoney(a.cacFull)],
@@ -350,10 +235,7 @@ export function SalesAnalytics() {
               ["O'rtacha hamkorlik (hozirgacha)", `${a.avgLife.toFixed(1)} oy`],
               ["LTV (mijozdan yalpi foyda)", fmtMoney(a.ltv)],
             ].map(([k, v]) => (
-              <li
-                key={k}
-                className="flex justify-between gap-3 border-b border-sep pb-2 last:border-0"
-              >
+              <li key={k} className="flex justify-between gap-3 border-b border-sep pb-2 last:border-0">
                 <span className="text-label2">{k}</span>
                 <span className="tabular font-semibold text-label">{v}</span>
               </li>
@@ -362,11 +244,7 @@ export function SalesAnalytics() {
         </Card>
 
         <Card className="xl:col-span-3">
-          <CardHeader
-            icon={{ name: "alert", color: "orange" }}
-            title="Nega shartnoma bo'lmadi"
-            sub="«To'g'ri kelmadi» sabablari"
-          />
+          <CardHeader icon={{ name: "alert", color: "orange" }} title="Nega shartnoma bo'lmadi" sub="«To'g'ri kelmadi» sabablari" />
           <div className="px-5 pb-5">
             <BarList color={VIZ.c2} format={(n) => `${n} ta`} rows={a.unfit} />
           </div>
@@ -378,19 +256,13 @@ export function SalesAnalytics() {
             sub={`${a.lowquality.reduce((x, r) => x + r.value, 0)} ta — reklama sozlamalarini tekshiring`}
           />
           <div className="px-5 pb-5">
-            <BarList
-              color={VIZ.neg}
-              format={(n) => `${n} ta`}
-              rows={a.lowquality}
-            />
+            <BarList color={VIZ.neg} format={(n) => `${n} ta`} rows={a.lowquality} />
           </div>
         </Card>
       </div>
       <Note>
-        CAC = (agentlik reklamasi + operatorlar xarajati) ÷ yangi mijozlar. LTV
-        = o'rtacha oylik to'lov × yalpi marja × o'rtacha hamkorlik muddati
-        (hozirgacha — konservativ baho). LTV : CAC 3:1 dan yuqori bo'lsa sotuv
-        kanali foydali.
+        CAC = (agentlik reklamasi + operatorlar xarajati) ÷ yangi mijozlar. LTV = o'rtacha oylik to'lov × yalpi marja × o'rtacha hamkorlik muddati (hozirgacha —
+        konservativ baho). LTV : CAC 3:1 dan yuqori bo'lsa sotuv kanali foydali.
       </Note>
     </>
   );

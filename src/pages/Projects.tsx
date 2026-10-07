@@ -170,9 +170,12 @@ function Info({ p }: { p: Project }) {
         {row(
           "Ijtimoiy tarmoqlar",
           <span className="flex flex-col">
-            {p.links.split("\n").filter(Boolean).map((l) => (
-              <LinkOut key={l} href={l} />
-            ))}
+            {p.links
+              .split("\n")
+              .filter(Boolean)
+              .map((l) => (
+                <LinkOut key={l} href={l} />
+              ))}
           </span>,
         )}
         <h3 className="mb-2 mt-4 text-sm font-semibold text-label">Jamoa</h3>
@@ -207,7 +210,12 @@ function Info({ p }: { p: Project }) {
               />
             </Field>
             <label className="flex items-start gap-2 text-sm">
-              <input type="checkbox" checked={p.pauseWork} onChange={(e) => run((c) => act.updateProject(c, p.id, { pauseWork: e.target.checked }), "Saqlandi")} className="mt-1" />
+              <input
+                type="checkbox"
+                checked={p.pauseWork}
+                onChange={(e) => run((c) => act.updateProject(c, p.id, { pauseWork: e.target.checked }), "Saqlandi")}
+                className="mt-1"
+              />
               <span>
                 <span className="text-label">Ishni to'xtatish</span>
                 <span className="block text-xs text-label2">Belgilansa, bu loyiha uchun yangi post, syomka va TZ ochilmaydi (qo'lda boshqariladi)</span>
@@ -224,15 +232,15 @@ function Marketing({ p }: { p: Project }) {
   const { me, run } = useErp();
   const editable = canEdit(me.role, "marketing");
   const allDone = Object.values(p.docs).every((d) => d.status === "done");
-  const [drafts, setDrafts] = useState<Record<DocBlock, string>>(() => Object.fromEntries(DOC_BLOCKS.map((b) => [b.id, p.docs[b.id].content])) as Record<DocBlock, string>);
+  const [drafts, setDrafts] = useState<Record<DocBlock, string>>(
+    () => Object.fromEntries(DOC_BLOCKS.map((b) => [b.id, p.docs[b.id].content])) as Record<DocBlock, string>,
+  );
 
   return (
     <>
       <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
-          <div className="text-sm font-semibold text-label">
-            Tayyor bloklar: {Object.values(p.docs).filter((d) => d.status === "done").length}/5
-          </div>
+          <div className="text-sm font-semibold text-label">Tayyor bloklar: {Object.values(p.docs).filter((d) => d.status === "done").length}/5</div>
           <div className="text-xs text-label2">
             {p.handedOffAt ? `SMM menejer va targetologga uzatilgan: ${fmtDateTime(p.handedOffAt)}` : "Hammasi «Tayyor» bo'lgach uzatish tugmasi ishlaydi"}
           </div>
@@ -379,7 +387,11 @@ function Reports({ p }: { p: Project }) {
               Joriy davr rejasi: {posts.length} ta, joylandi: {done} ta
             </div>
             <Field label="Xulosa" className="sm:col-span-2">
-              <Textarea value={f.summary} onChange={(e) => setF({ ...f, summary: e.target.value })} placeholder={`Reja: ${posts.length} post, joylandi: ${done}. …`} />
+              <Textarea
+                value={f.summary}
+                onChange={(e) => setF({ ...f, summary: e.target.value })}
+                placeholder={`Reja: ${posts.length} post, joylandi: ${done}. …`}
+              />
             </Field>
             <div className="flex justify-end sm:col-span-2">
               <Button
@@ -413,7 +425,10 @@ function Reports({ p }: { p: Project }) {
           sub="Mijozga — ERP ma'lumotlaridan avtomatik tuziladigan hisobot"
           right={
             p.periodStart && (
-              <A href={`/hisobot/${p.id}`} className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-[13px] font-semibold text-white">
+              <A
+                href={`/hisobot/${p.id}`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-[13px] font-semibold text-white"
+              >
                 Mijoz uchun hisobot
               </A>
             )

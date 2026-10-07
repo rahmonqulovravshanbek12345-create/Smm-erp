@@ -28,7 +28,7 @@ export function Recon() {
   const project = state.projects.find((p) => p.id === clientId);
   const user = state.users.find((u) => u.id === userId);
   const company = state.settings.companyName;
-  const party = kind === "client" ? project?.name ?? "—" : user?.name ?? "—";
+  const party = kind === "client" ? (project?.name ?? "—") : (user?.name ?? "—");
   const partyRole = kind === "client" ? `mijoz (${project?.contactName ?? ""})` : `xodim (${user ? ROLE_LABELS[user.role] : ""})`;
 
   const conclusion =
@@ -55,25 +55,25 @@ export function Recon() {
           sub="Solishtirma dalolatnoma: mijoz yoki xodim bilan hisob-kitob"
           actions={
             <>
-            <ExportButton
-              filename={`akt-sverka-${party}-${to}`}
-              sheets={() => [
-                {
-                  name: "Akt-sverka",
-                  title: [`Akt-sverka: ${company} — ${party}`, `${from} – ${to}`],
-                  columns: ["№", "Sana", "Hujjat / operatsiya", debitLabel, creditLabel],
-                  rows: [
-                    ["", "", "Davr boshidagi saldo", kind === "client" ? r.opening : -r.opening, null],
-                    ...r.rows.map((x, i) => [i + 1, x.date, x.doc, x.debit || null, x.credit || null]),
-                    ["", "", "Davr aylanmasi", r.debit, r.credit],
-                    ["", "", "Davr oxiridagi saldo", kind === "client" ? r.closing : -r.closing, null],
-                  ],
-                },
-              ]}
-            />
-            <Button variant="primary" onClick={() => window.print()}>
-              <Icon name="upload" size={16} /> Chop etish / PDF
-            </Button>
+              <ExportButton
+                filename={`akt-sverka-${party}-${to}`}
+                sheets={() => [
+                  {
+                    name: "Akt-sverka",
+                    title: [`Akt-sverka: ${company} — ${party}`, `${from} – ${to}`],
+                    columns: ["№", "Sana", "Hujjat / operatsiya", debitLabel, creditLabel],
+                    rows: [
+                      ["", "", "Davr boshidagi saldo", kind === "client" ? r.opening : -r.opening, null],
+                      ...r.rows.map((x, i) => [i + 1, x.date, x.doc, x.debit || null, x.credit || null]),
+                      ["", "", "Davr aylanmasi", r.debit, r.credit],
+                      ["", "", "Davr oxiridagi saldo", kind === "client" ? r.closing : -r.closing, null],
+                    ],
+                  },
+                ]}
+              />
+              <Button variant="primary" onClick={() => window.print()}>
+                <Icon name="upload" size={16} /> Chop etish / PDF
+              </Button>
             </>
           }
         />
@@ -93,7 +93,11 @@ export function Recon() {
             </Field>
           ) : (
             <Field label="Xodim">
-              <Select value={userId} onChange={(e) => setUserId(e.target.value)} options={state.users.filter((u) => u.role !== "admin").map((u) => ({ value: u.id, label: `${u.name} — ${ROLE_LABELS[u.role]}` }))} />
+              <Select
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                options={state.users.filter((u) => u.role !== "admin").map((u) => ({ value: u.id, label: `${u.name} — ${ROLE_LABELS[u.role]}` }))}
+              />
             </Field>
           )}
           <Field label="Davr boshi">
@@ -140,7 +144,9 @@ export function Recon() {
                 <td className="py-2" colSpan={3}>
                   Davr boshidagi saldo
                 </td>
-                <td className="py-2 pr-2 text-right">{(kind === "client" ? r.opening : -r.opening) > 0.5 ? <Money v={Math.abs(r.opening)} /> : Math.abs(r.opening) <= 0.5 ? "0" : ""}</td>
+                <td className="py-2 pr-2 text-right">
+                  {(kind === "client" ? r.opening : -r.opening) > 0.5 ? <Money v={Math.abs(r.opening)} /> : Math.abs(r.opening) <= 0.5 ? "0" : ""}
+                </td>
                 <td className="py-2 text-right">{(kind === "client" ? r.opening : -r.opening) < -0.5 ? <Money v={Math.abs(r.opening)} /> : ""}</td>
               </tr>
               {r.rows.map((x, i) => (
@@ -174,7 +180,9 @@ export function Recon() {
                 <td className="py-2" colSpan={3}>
                   Davr oxiridagi saldo
                 </td>
-                <td className="py-2 pr-2 text-right">{(kind === "client" ? r.closing : -r.closing) > 0.5 ? <Money v={Math.abs(r.closing)} strong /> : Math.abs(r.closing) <= 0.5 ? "0" : ""}</td>
+                <td className="py-2 pr-2 text-right">
+                  {(kind === "client" ? r.closing : -r.closing) > 0.5 ? <Money v={Math.abs(r.closing)} strong /> : Math.abs(r.closing) <= 0.5 ? "0" : ""}
+                </td>
                 <td className="py-2 text-right">{(kind === "client" ? r.closing : -r.closing) < -0.5 ? <Money v={Math.abs(r.closing)} strong /> : ""}</td>
               </tr>
             </tbody>

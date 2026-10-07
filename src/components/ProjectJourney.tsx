@@ -33,9 +33,24 @@ export function ProjectJourney({ project: p }: { project: Project }) {
   const paidPre = prepayPaid(state, p.id);
 
   const steps: Step[] = [
-    { title: "Shartnoma", who: look.userName(state.leads.find((l) => l.projectId === p.id)?.operatorId), state: "done", detail: `${p.contractNo} · ${fmtDate(p.contractDate)}` },
-    { title: "Oldindan to'lov", who: "Moliya", state: paidPre ? "done" : "current", detail: paidPre ? `${p.prepayType}% to'langan` : `${p.prepayType}% kutilmoqda — ish to'lovdan keyin` },
-    { title: "Strategiya", who: look.userName(p.marketologId), state: !paidPre ? "todo" : p.handedOffAt ? "done" : "current", detail: p.handedOffAt ? "SMM va targetologga uzatilgan" : `${docsDone}/5 blok tayyor` },
+    {
+      title: "Shartnoma",
+      who: look.userName(state.leads.find((l) => l.projectId === p.id)?.operatorId),
+      state: "done",
+      detail: `${p.contractNo} · ${fmtDate(p.contractDate)}`,
+    },
+    {
+      title: "Oldindan to'lov",
+      who: "Moliya",
+      state: paidPre ? "done" : "current",
+      detail: paidPre ? `${p.prepayType}% to'langan` : `${p.prepayType}% kutilmoqda — ish to'lovdan keyin`,
+    },
+    {
+      title: "Strategiya",
+      who: look.userName(p.marketologId),
+      state: !paidPre ? "todo" : p.handedOffAt ? "done" : "current",
+      detail: p.handedOffAt ? "SMM va targetologga uzatilgan" : `${docsDone}/5 blok tayyor`,
+    },
     {
       title: "Kontent reja",
       who: look.userName(p.smmId),
@@ -64,19 +79,32 @@ export function ProjectJourney({ project: p }: { project: Project }) {
       title: "Keyingi oy to'lovi",
       who: "Moliya",
       state: !per ? "todo" : nextInvSt === "overdue" ? "problem" : nextInvSt === "paid" ? "done" : "current",
-      detail: !per ? "Davr boshlangach" : nextInv ? `${nextInv.number}: ${nextInvSt === "overdue" ? "muddati o'tgan" : nextInvSt === "paid" ? "to'langan" : `muddat ${fmtDate(nextInv.dueDate)}`}` : `Davr tugashi ${fmtDate(per.end)}`,
+      detail: !per
+        ? "Davr boshlangach"
+        : nextInv
+          ? `${nextInv.number}: ${nextInvSt === "overdue" ? "muddati o'tgan" : nextInvSt === "paid" ? "to'langan" : `muddat ${fmtDate(nextInv.dueDate)}`}`
+          : `Davr tugashi ${fmtDate(per.end)}`,
     },
   ];
   const next = steps.find((s) => s.state === "problem") ?? steps.find((s) => s.state === "current");
-  const color: Record<StepState, string> = { done: "bg-green text-white", current: "bg-accent text-white", todo: "bg-fill text-label3", problem: "bg-red text-white" };
+  const color: Record<StepState, string> = {
+    done: "bg-green text-white",
+    current: "bg-accent text-white",
+    todo: "bg-fill text-label3",
+    problem: "bg-red text-white",
+  };
 
   if (p.status === "closed") return null;
   return (
     <Card className="mb-5 p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-[13px] font-semibold uppercase tracking-[0.05em] text-label3">Loyiha yo'li {per ? `· ${per.index + 1}-davr (har oy 4–8 bosqichlar takrorlanadi)` : ""}</div>
+        <div className="text-[13px] font-semibold uppercase tracking-[0.05em] text-label3">
+          Loyiha yo'li {per ? `· ${per.index + 1}-davr (har oy 4–8 bosqichlar takrorlanadi)` : ""}
+        </div>
         {next && (
-          <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-semibold ${next.state === "problem" ? "bg-red/12 text-red" : "bg-accent/12 text-accent"}`}>
+          <div
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-semibold ${next.state === "problem" ? "bg-red/12 text-red" : "bg-accent/12 text-accent"}`}
+          >
             <Icon name={next.state === "problem" ? "alert" : "arrowUpRight"} size={15} />
             Keyingi qadam: {next.who} — {next.title.toLowerCase()} ({next.detail})
           </div>

@@ -33,7 +33,11 @@ export function MyAccount() {
 
   return (
     <>
-      <PageHeader title="Mening hisobim" sub="Ish haqim: nima uchun hisoblandi, qachon to'landi, qancha qoldi" actions={<MonthSelect value={month} onChange={setMonth} />} />
+      <PageHeader
+        title="Mening hisobim"
+        sub="Ish haqim: nima uchun hisoblandi, qachon to'landi, qancha qoldi"
+        actions={<MonthSelect value={month} onChange={setMonth} />}
+      />
       <Card className="mb-5 flex flex-wrap items-center gap-4 p-5">
         <Avatar name={me.name} size={56} />
         <div className="min-w-0 flex-1">
@@ -77,7 +81,12 @@ export function MyAccount() {
               {byProject.size === 0 ? (
                 <Empty>Hisoblash yo'q</Empty>
               ) : (
-                <BarList color={VIZ.c1} rows={[...byProject.entries()].sort((a, b) => b[1] - a[1]).map(([pid, v]) => ({ label: pid ? look.projectName(pid) : "Umumiy (fiks, bonus)", value: v }))} />
+                <BarList
+                  color={VIZ.c1}
+                  rows={[...byProject.entries()]
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([pid, v]) => ({ label: pid ? look.projectName(pid) : "Umumiy (fiks, bonus)", value: v }))}
+                />
               )}
             </div>
           </Card>
@@ -85,20 +94,26 @@ export function MyAccount() {
             <CardHeader title="To'lovlar" sub="Menga to'langan pul" />
             <ul className="divide-y divide-sep">
               {led.payouts.length === 0 && <Empty>To'lov yo'q</Empty>}
-              {[...led.payouts].reverse().slice(0, 8).map((t) => (
-                <li key={t.id} className="flex items-center justify-between gap-2 px-5 py-2.5 text-[14px]">
-                  <div>
-                    <div className="text-label">{t.note || "Ish haqi"}</div>
-                    <div className="text-[12px] text-label3">{fmtDate(t.date)}</div>
-                  </div>
-                  <Money v={txUZS(state, t)} strong />
-                </li>
-              ))}
+              {[...led.payouts]
+                .reverse()
+                .slice(0, 8)
+                .map((t) => (
+                  <li key={t.id} className="flex items-center justify-between gap-2 px-5 py-2.5 text-[14px]">
+                    <div>
+                      <div className="text-label">{t.note || "Ish haqi"}</div>
+                      <div className="text-[12px] text-label3">{fmtDate(t.date)}</div>
+                    </div>
+                    <Money v={txUZS(state, t)} strong />
+                  </li>
+                ))}
             </ul>
           </Card>
         </>
       </div>
-      <Note>To'lovlar eng eski hisoblashlarni navbat bilan yopadi — shuning uchun har bir ishning holati (to'langan, qisman, to'lanmagan) aniq ko'rinadi. Savol bo'lsa, moliya bo'limidan akt-sverka so'rang.</Note>
+      <Note>
+        To'lovlar eng eski hisoblashlarni navbat bilan yopadi — shuning uchun har bir ishning holati (to'langan, qisman, to'lanmagan) aniq ko'rinadi. Savol
+        bo'lsa, moliya bo'limidan akt-sverka so'rang.
+      </Note>
     </>
   );
 }

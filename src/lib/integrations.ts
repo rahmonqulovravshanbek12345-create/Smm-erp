@@ -42,7 +42,7 @@ export function demoMetaRow(s: ErpState, p: Project, date: string): MetaRow {
   const seed = [...(p.id + date)].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
   const r = (k: number) => ((seed >>> k) % 1000) / 1000;
   const budgetUsd = p.adBudgetUsd ?? 300;
-  const spend = Math.round(((budgetUsd * s.settings.usdRate * 0.95) / 30) * (0.82 + r(1) * 0.36) / 1000) * 1000;
+  const spend = Math.round((((budgetUsd * s.settings.usdRate * 0.95) / 30) * (0.82 + r(1) * 0.36)) / 1000) * 1000;
   const views = Math.round(spend / (11 + r(3) * 3));
   const clicks = Math.round(views * (0.016 + r(5) * 0.006));
   const learn = 1 + 0.4 * Math.min(1, diffDays(date, p.periodStart ?? date) / 150);
@@ -77,7 +77,14 @@ export async function testMetaToken(cfg: Integrations["meta"]): Promise<string> 
 }
 
 /** Reklama kabinetining kunlik ko'rsatkichlari (Insights API, time_increment=1). */
-export async function fetchMetaDays(cfg: Integrations["meta"], account: string, since: string, until: string, usdRate: number, projectId: string): Promise<MetaRow[]> {
+export async function fetchMetaDays(
+  cfg: Integrations["meta"],
+  account: string,
+  since: string,
+  until: string,
+  usdRate: number,
+  projectId: string,
+): Promise<MetaRow[]> {
   const act = account.startsWith("act_") ? account : `act_${account}`;
   const params = new URLSearchParams({
     level: "account",
@@ -151,5 +158,5 @@ export async function fetchCbuRate(date?: string): Promise<{ rate: number; date:
   const rate = Number(row?.Rate);
   if (!row || !(rate > 0)) throw new Error("Markaziy bank javobida kurs topilmadi");
   const [dd, mm, yyyy] = (row.Date ?? "").split(".");
-  return { rate, date: yyyy && mm && dd ? `${yyyy}-${mm}-${dd}` : date ?? "" };
+  return { rate, date: yyyy && mm && dd ? `${yyyy}-${mm}-${dd}` : (date ?? "") };
 }

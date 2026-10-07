@@ -102,9 +102,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       void sendTelegram(token, o.chatId, o.text).then((ok) =>
         setState((prev) => ({
           ...prev,
-          notifications: prev.notifications.map((n) =>
-            n.id === o.notificationId ? { ...n, telegram: ok ? "sent" : "failed" } : n,
-          ),
+          notifications: prev.notifications.map((n) => (n.id === o.notificationId ? { ...n, telegram: ok ? "sent" : "failed" } : n)),
         })),
       );
     }
@@ -176,10 +174,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const me = state.users.find((u) => u.id === state.currentUserId) ?? state.users[0]!;
 
-  const value = useMemo(
-    () => ({ state, me, today, run, reset, toast, showToast }),
-    [state, me, today, run, reset, toast, showToast],
-  );
+  const value = useMemo(() => ({ state, me, today, run, reset, toast, showToast }), [state, me, today, run, reset, toast, showToast]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
@@ -196,8 +191,8 @@ export function useLookup() {
     const users = new Map(state.users.map((u) => [u.id, u]));
     const projects = new Map(state.projects.map((p) => [p.id, p]));
     return {
-      userName: (id?: string) => (id ? users.get(id)?.name ?? "—" : "—"),
-      projectName: (id?: string) => (id ? projects.get(id)?.name ?? "—" : "—"),
+      userName: (id?: string) => (id ? (users.get(id)?.name ?? "—") : "—"),
+      projectName: (id?: string) => (id ? (projects.get(id)?.name ?? "—") : "—"),
       project: (id?: string) => (id ? projects.get(id) : undefined),
       usersByRole: (role: User["role"]) => state.users.filter((u) => u.role === role && u.active),
     };

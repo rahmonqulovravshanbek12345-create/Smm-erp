@@ -105,7 +105,12 @@ export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
       const project = s.projects.find((x) => x.id === p.projectId);
       if (!boss && project?.smmId !== me.id) continue;
       if (postNeedsWarning(p, today)) {
-        out.push({ id: `pw-${p.id}`, text: `Post sanasiga ${diffDays(p.date, today)} kun qoldi, hali mijoz tasdig'ida emas: ${p.topic}`, href: "/kontent", tone: "amber" });
+        out.push({
+          id: `pw-${p.id}`,
+          text: `Post sanasiga ${diffDays(p.date, today)} kun qoldi, hali mijoz tasdig'ida emas: ${p.topic}`,
+          href: "/kontent",
+          tone: "amber",
+        });
       }
     }
   }
@@ -119,7 +124,13 @@ export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
       const per = currentPeriod(p, today);
       if (per) {
         const left = diffDays(per.end, today);
-        if (left <= 3) out.push({ id: `per-${p.id}-${per.index}`, text: `${p.name}: davr tugashiga ${left} kun qoldi — keyingi oy to'lovi`, href: "/moliya", tone: "amber" });
+        if (left <= 3)
+          out.push({
+            id: `per-${p.id}-${per.index}`,
+            text: `${p.name}: davr tugashiga ${left} kun qoldi — keyingi oy to'lovi`,
+            href: "/moliya",
+            tone: "amber",
+          });
       }
       for (const inv of s.invoices) {
         if (inv.projectId !== p.id) continue;

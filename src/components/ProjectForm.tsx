@@ -89,9 +89,16 @@ export function ProjectFormModal({
             value={f.tariffId ?? ""}
             onChange={(e) => {
               const t = tariffOf(state, e.target.value);
-              setF((x) => (t ? { ...x, tariffId: t.id, tariff: tariffLabel(t), monthlyFee: t.price, prepayType: t.prepayType } : { ...x, tariffId: undefined, tariff: x.tariffId ? "Individual" : x.tariff }));
+              setF((x) =>
+                t
+                  ? { ...x, tariffId: t.id, tariff: tariffLabel(t), monthlyFee: t.price, prepayType: t.prepayType }
+                  : { ...x, tariffId: undefined, tariff: x.tariffId ? "Individual" : x.tariff },
+              );
             }}
-            options={[...state.tariffs.filter((t) => t.active || t.id === f.tariffId).map((t) => ({ value: t.id, label: `${t.name} — ${fmtMoney(t.price)}` })), { value: "", label: "Individual shartlar" }]}
+            options={[
+              ...state.tariffs.filter((t) => t.active || t.id === f.tariffId).map((t) => ({ value: t.id, label: `${t.name} — ${fmtMoney(t.price)}` })),
+              { value: "", label: "Individual shartlar" },
+            ]}
           />
         </Field>
         {!f.tariffId && (
@@ -127,7 +134,11 @@ export function ProjectFormModal({
           <Select value={f.smmId} onChange={(e) => set("smmId", e.target.value)} options={userOptions(look.usersByRole("smm"))} />
         </Field>
         <Field label="Targetolog">
-          <Select value={f.targetologId ?? ""} onChange={(e) => set("targetologId", e.target.value)} options={userOptions(look.usersByRole("targetolog"), "— yo'q —")} />
+          <Select
+            value={f.targetologId ?? ""}
+            onChange={(e) => set("targetologId", e.target.value)}
+            options={userOptions(look.usersByRole("targetolog"), "— yo'q —")}
+          />
         </Field>
       </div>
     </Modal>

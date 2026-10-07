@@ -55,7 +55,10 @@ export function salesAnalytics(s: ErpState, months: string[], today: string) {
       .sort((a, b) => b.leads - a.leads);
   };
   const userName = (id: string) => s.users.find((u: User) => u.id === id)?.name ?? "—";
-  const bySource = group((l) => l.source, (k) => k);
+  const bySource = group(
+    (l) => l.source,
+    (k) => k,
+  );
   const byOperator = group((l) => l.operatorId, userName).map((r) => ({
     ...r,
     bonus: s.accruals.filter((a) => a.userId === r.key && a.kind === "bonus" && a.date >= from && a.date < to).reduce((x, a) => x + a.amount, 0),
@@ -82,9 +85,7 @@ export function salesAnalytics(s: ErpState, months: string[], today: string) {
   const avgCycle = cycles.length ? cycles.reduce((a, b) => a + b, 0) / cycles.length : 0;
 
   // Mijoz jalb qilish narxi
-  const marketing = -s.transactions
-    .filter((t) => t.articleId === ART.marketing && t.date >= from && t.date < to)
-    .reduce((a, t) => a + signedUZS(s, t), 0);
+  const marketing = -s.transactions.filter((t) => t.articleId === ART.marketing && t.date >= from && t.date < to).reduce((a, t) => a + signedUZS(s, t), 0);
   const operatorCost = s.accruals
     .filter((a) => a.date >= from && a.date < to && s.users.find((u) => u.id === a.userId)?.role === "operator")
     .reduce((x, a) => x + a.amount, 0);
@@ -124,4 +125,3 @@ export function salesAnalytics(s: ErpState, months: string[], today: string) {
     ltv,
   };
 }
-

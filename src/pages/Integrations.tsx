@@ -42,7 +42,13 @@ export function Integrations() {
       n = act.applyMetaSync(c, res);
     });
     const err = res.filter((r) => r.error).length;
-    showToast(err ? `⚠ ${err} ta loyihada xatolik — jurnalga qarang` : n ? `${n} ta kunlik hisobot olindi${demo ? " (demo)" : ""}` : "Hamma hisobotlar joyida — yangi ma'lumot yo'q");
+    showToast(
+      err
+        ? `⚠ ${err} ta loyihada xatolik — jurnalga qarang`
+        : n
+          ? `${n} ta kunlik hisobot olindi${demo ? " (demo)" : ""}`
+          : "Hamma hisobotlar joyida — yangi ma'lumot yo'q",
+    );
   };
   const pullRate = async () => {
     setBusy("cbu");
@@ -63,7 +69,8 @@ export function Integrations() {
     <>
       <PageHeader title="Integratsiyalar" sub="Tashqi tizimlardan ma'lumot qo'lda kiritilmaydi — o'zi olinadi" />
       <Banner tone="amber">
-        Demo: tokenlar faqat shu brauzerda saqlanadi va so'rovlar brauzerdan yuboriladi. Haqiqiy tizimda bu ishni server har kuni ertalab bajaradi, tokenlar hech kimga ko'rinmaydi.
+        Demo: tokenlar faqat shu brauzerda saqlanadi va so'rovlar brauzerdan yuboriladi. Haqiqiy tizimda bu ishni server har kuni ertalab bajaradi, tokenlar
+        hech kimga ko'rinmaydi.
       </Banner>
 
       <div className="grid gap-4 xl:grid-cols-3">
@@ -94,7 +101,11 @@ export function Integrations() {
               />
             </Field>
             <Field label="Graph API versiyasi">
-              <Input defaultValue={meta.apiVersion} disabled={!editable} onBlur={(e) => /^v\d+\.\d+$/.test(e.target.value.trim()) && saveMeta({ apiVersion: e.target.value.trim() }, "Saqlandi")} />
+              <Input
+                defaultValue={meta.apiVersion}
+                disabled={!editable}
+                onBlur={(e) => /^v\d+\.\d+$/.test(e.target.value.trim()) && saveMeta({ apiVersion: e.target.value.trim() }, "Saqlandi")}
+              />
             </Field>
             <label className="flex items-center gap-2 self-end pb-2.5 text-[14px] text-label">
               <input type="checkbox" checked={meta.autoSync} disabled={!editable} onChange={(e) => saveMeta({ autoSync: e.target.checked }, "Saqlandi")} />
@@ -158,7 +169,9 @@ export function Integrations() {
             <summary className="cursor-pointer font-semibold text-label">Token va kabinet ID qayerdan olinadi?</summary>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
               <li>Meta Business Suite → Biznes sozlamalari → Tizim foydalanuvchilari → yangi foydalanuvchi.</li>
-              <li>«Token yaratish»: ilovani tanlang va <b>ads_read</b> ruxsatini belgilang. Tokenni yuqoriga kiriting.</li>
+              <li>
+                «Token yaratish»: ilovani tanlang va <b>ads_read</b> ruxsatini belgilang. Tokenni yuqoriga kiriting.
+              </li>
               <li>Tizim foydalanuvchisiga mijozning reklama kabinetini biriktiring.</li>
               <li>Kabinet ID — Ads Manager manzilidagi act= dan keyingi raqam.</li>
             </ol>
@@ -167,7 +180,11 @@ export function Integrations() {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader icon={{ name: "wallet", color: "green" }} title="Markaziy bank kursi" sub="USD tranzaksiyalar va reklama sarfi shu kurs bilan so'mga o'giriladi" />
+            <CardHeader
+              icon={{ name: "wallet", color: "green" }}
+              title="Markaziy bank kursi"
+              sub="USD tranzaksiyalar va reklama sarfi shu kurs bilan so'mga o'giriladi"
+            />
             <div className="px-5 pb-4">
               <div className="tabular text-[30px] font-bold tracking-tight text-label">1 USD = {fmtNum(state.settings.usdRate)} so'm</div>
               <div className="mt-0.5 text-[13px] text-label2">{cbu.rateDate ? `${fmtDate(cbu.rateDate)} holatiga` : "Sana noma'lum"}</div>
@@ -177,7 +194,15 @@ export function Integrations() {
                     {busy === "cbu" ? "Olinmoqda…" : "Markaziy bankdan yangilash"}
                   </Button>
                   <div className="mt-3 flex gap-2">
-                    <Input type="number" min={0} placeholder="Qo'lda: 12650" value={manualRate} onChange={(e) => setManualRate(e.target.value)} aria-label="Kursni qo'lda kiritish" className="!py-1.5" />
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="Qo'lda: 12650"
+                      value={manualRate}
+                      onChange={(e) => setManualRate(e.target.value)}
+                      aria-label="Kursni qo'lda kiritish"
+                      className="!py-1.5"
+                    />
                     <Button
                       onClick={() => {
                         if (run((c) => act.setUsdRate(c, Number(manualRate), today, "manual"), "Kurs saqlandi")) setManualRate("");
@@ -188,7 +213,11 @@ export function Integrations() {
                     </Button>
                   </div>
                   <label className="mt-3 flex items-center gap-2 text-[14px] text-label">
-                    <input type="checkbox" checked={cbu.autoUpdate} onChange={(e) => run((c) => (c.s.settings.integrations.cbu.autoUpdate = e.target.checked), "Saqlandi")} />
+                    <input
+                      type="checkbox"
+                      checked={cbu.autoUpdate}
+                      onChange={(e) => run((c) => (c.s.settings.integrations.cbu.autoUpdate = e.target.checked), "Saqlandi")}
+                    />
                     Har kuni avtomatik yangilash
                   </label>
                 </>
@@ -201,7 +230,13 @@ export function Integrations() {
             <div className="space-y-1 px-5 pb-4 text-[14px] text-label">
               <div className="flex items-center justify-between">
                 <span className="text-label2">Holat</span>
-                {tg.enabled && tg.botToken ? <Badge tone="green">Ishlayapti</Badge> : tg.enabled ? <Badge tone="gray">Demo (token yo'q)</Badge> : <Badge tone="red">O'chirilgan</Badge>}
+                {tg.enabled && tg.botToken ? (
+                  <Badge tone="green">Ishlayapti</Badge>
+                ) : tg.enabled ? (
+                  <Badge tone="gray">Demo (token yo'q)</Badge>
+                ) : (
+                  <Badge tone="red">O'chirilgan</Badge>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-label2">Ulangan xodimlar</span>

@@ -49,29 +49,84 @@ export function MyDay() {
     }
     for (const sh of state.shoots) {
       if (sh.operatorId !== me.id || sh.status !== "planned") continue;
-      out.push({ id: sh.id, title: `Syomka: ${look.projectName(sh.projectId)}`, sub: `${sh.time} · ${sh.location} · ${sh.videoCount} video`, date: sh.date, late: sh.date < today, href: "/syomka", icon: "camera", color: "gray" });
+      out.push({
+        id: sh.id,
+        title: `Syomka: ${look.projectName(sh.projectId)}`,
+        sub: `${sh.time} · ${sh.location} · ${sh.videoCount} video`,
+        date: sh.date,
+        late: sh.date < today,
+        href: "/syomka",
+        icon: "camera",
+        color: "gray",
+      });
     }
     if (me.role === "smm") {
       for (const p of state.posts) {
         if (p.assigneeId !== me.id || p.status === "published" || diffDays(p.date, today) > 3) continue;
-        out.push({ id: p.id, title: p.topic, sub: `Post · ${look.projectName(p.projectId)}`, date: p.date, late: isPostLate(p, today), href: "/kontent", icon: "calendar", color: "red" });
+        out.push({
+          id: p.id,
+          title: p.topic,
+          sub: `Post · ${look.projectName(p.projectId)}`,
+          date: p.date,
+          late: isPostLate(p, today),
+          href: "/kontent",
+          icon: "calendar",
+          color: "red",
+        });
       }
       for (const t of state.tasks) {
         if (t.status !== "review" || look.project(t.projectId)?.smmId !== me.id) continue;
-        out.push({ id: `r-${t.id}`, title: `Qabul qiling: ${t.title}`, sub: `${TASK_KIND_LABELS[t.kind]} tayyor · ${look.userName(t.assigneeId)}`, late: false, href: t.kind === "montaj" ? "/montaj" : "/dizayn", icon: "checkSeal", color: "purple" });
+        out.push({
+          id: `r-${t.id}`,
+          title: `Qabul qiling: ${t.title}`,
+          sub: `${TASK_KIND_LABELS[t.kind]} tayyor · ${look.userName(t.assigneeId)}`,
+          late: false,
+          href: t.kind === "montaj" ? "/montaj" : "/dizayn",
+          icon: "checkSeal",
+          color: "purple",
+        });
       }
     }
     if (me.role === "operator") {
       for (const l of state.leads) {
         if (l.operatorId !== me.id || ["contract", "unfit", "lowquality"].includes(l.stage)) continue;
         if (l.stage === "new" || (l.nextContactDate && l.nextContactDate <= today))
-          out.push({ id: l.id, title: `Qo'ng'iroq: ${l.name}`, sub: `${l.phone} · ${l.service}`, date: l.nextContactDate, late: Boolean(l.nextContactDate && l.nextContactDate < today), href: "/crm", icon: "phone", color: "green" });
+          out.push({
+            id: l.id,
+            title: `Qo'ng'iroq: ${l.name}`,
+            sub: `${l.phone} · ${l.service}`,
+            date: l.nextContactDate,
+            late: Boolean(l.nextContactDate && l.nextContactDate < today),
+            href: "/crm",
+            icon: "phone",
+            color: "green",
+          });
       }
     }
     if (me.role === "marketolog") {
       const internal = state.posts.filter((p) => p.status === "internal").length;
-      if (internal) out.push({ id: "appr", title: `${internal} ta material tasdiq kutyapti`, sub: "Ichki tasdiq", late: false, href: "/tasdiqlash", icon: "checkSeal", color: "purple" });
-      for (const l of state.leads) if (l.meeting?.marketologId === me.id && l.stage === "meeting" && l.meeting.date >= today) out.push({ id: l.id, title: `Uchrashuv: ${l.name}`, sub: `${l.meeting.time} · ${l.phone}`, date: l.meeting.date, late: false, href: "/crm", icon: "users", color: "green" });
+      if (internal)
+        out.push({
+          id: "appr",
+          title: `${internal} ta material tasdiq kutyapti`,
+          sub: "Ichki tasdiq",
+          late: false,
+          href: "/tasdiqlash",
+          icon: "checkSeal",
+          color: "purple",
+        });
+      for (const l of state.leads)
+        if (l.meeting?.marketologId === me.id && l.stage === "meeting" && l.meeting.date >= today)
+          out.push({
+            id: l.id,
+            title: `Uchrashuv: ${l.name}`,
+            sub: `${l.meeting.time} · ${l.phone}`,
+            date: l.meeting.date,
+            late: false,
+            href: "/crm",
+            icon: "users",
+            color: "green",
+          });
     }
     return out.sort((a, b) => Number(b.late) - Number(a.late) || (a.date ?? "9").localeCompare(b.date ?? "9"));
   }, [state, me, today, look]);
@@ -95,7 +150,15 @@ export function MyDay() {
 
       <div className="grid gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader title="Mening ishlarim" sub="Avval kechikkanlar, keyin muddati yaqinlari" right={<A href={homeFor(me.role) === "/mening" ? "/kontent" : homeFor(me.role)} className="text-[13px] font-semibold text-accent">Ish oynam</A>} />
+          <CardHeader
+            title="Mening ishlarim"
+            sub="Avval kechikkanlar, keyin muddati yaqinlari"
+            right={
+              <A href={homeFor(me.role) === "/mening" ? "/kontent" : homeFor(me.role)} className="text-[13px] font-semibold text-accent">
+                Ish oynam
+              </A>
+            }
+          />
           {todos.length === 0 ? (
             <Empty>Hamma ish bajarilgan. Ajoyib!</Empty>
           ) : (
@@ -109,7 +172,11 @@ export function MyDay() {
                       <div className="truncate text-[13px] text-label2">{t.sub}</div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      {t.date && <span className={`text-[12px] font-semibold ${t.late ? "text-red" : t.date === today ? "text-orange" : "text-label2"}`}>{relDays(t.date, today)}</span>}
+                      {t.date && (
+                        <span className={`text-[12px] font-semibold ${t.late ? "text-red" : t.date === today ? "text-orange" : "text-label2"}`}>
+                          {relDays(t.date, today)}
+                        </span>
+                      )}
                       {t.badge ?? (t.late ? <Badge tone="red">Kechikdi</Badge> : null)}
                     </div>
                   </A>

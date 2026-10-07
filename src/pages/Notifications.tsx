@@ -55,10 +55,7 @@ export function Notifications() {
           <ul className="divide-y divide-sep">
             {mine.map((n) => (
               <li key={n.id} className={`px-4 py-2.5 text-sm ${n.read ? "opacity-60" : ""}`}>
-                <A
-                  href={n.href ?? "/bildirishnomalar"}
-                  className="block text-label hover:underline"
-                >
+                <A href={n.href ?? "/bildirishnomalar"} className="block text-label hover:underline">
                   {!n.read && <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green" />}
                   {n.text}
                 </A>

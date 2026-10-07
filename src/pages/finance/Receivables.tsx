@@ -117,7 +117,15 @@ export function Receivables() {
                   <td className={tdr}>{r.notDue ? <Money v={r.notDue} /> : "—"}</td>
                   <td className={`${tdr} text-orange`}>{r.d30 ? <Money v={r.d30} /> : "—"}</td>
                   <td className={tdr}>{r.d60 ? <Money v={r.d60} /> : "—"}</td>
-                  <td className={tdr}>{r.d60plus ? <span className="font-semibold text-red"><Money v={r.d60plus} /></span> : "—"}</td>
+                  <td className={tdr}>
+                    {r.d60plus ? (
+                      <span className="font-semibold text-red">
+                        <Money v={r.d60plus} />
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className={tdr}>
                     <A href={`/moliya/akt?client=${r.project.id}`} className="text-[13px] font-semibold text-accent">
                       Akt-sverka
@@ -130,7 +138,16 @@ export function Receivables() {
         </Card>
 
         <Card>
-          <CardHeader icon={{ name: "users", color: "indigo" }} title="Kreditorlik: xodimlar" sub="Hisoblangan, lekin hali to'lanmagan ish haqi" right={<A href="/moliya/ish-haqi" className="text-[13px] font-semibold text-accent">Ish haqi</A>} />
+          <CardHeader
+            icon={{ name: "users", color: "indigo" }}
+            title="Kreditorlik: xodimlar"
+            sub="Hisoblangan, lekin hali to'lanmagan ish haqi"
+            right={
+              <A href="/moliya/ish-haqi" className="text-[13px] font-semibold text-accent">
+                Ish haqi
+              </A>
+            }
+          />
           {empOwed.length === 0 ? (
             <Empty>Xodimlardan qarz yo'q</Empty>
           ) : (
@@ -220,7 +237,8 @@ export function Receivables() {
         </Card>
       </div>
       <Note>
-        Olingan avans — to'langan, lekin hali ko'rsatilmagan xizmat (kelgusi kunlar daromadi). Tranzit — mijozning reklama uchun bergan, Meta'ga hali sarflanmagan puli. Ikkisi ham mijozga tegishli mablag'.
+        Olingan avans — to'langan, lekin hali ko'rsatilmagan xizmat (kelgusi kunlar daromadi). Tranzit — mijozning reklama uchun bergan, Meta'ga hali
+        sarflanmagan puli. Ikkisi ham mijozga tegishli mablag'.
       </Note>
       {payUser && <PayEmployeeModal userId={payUser} onClose={() => setPayUser(null)} />}
       {payBill && <PayBillModal bill={payBill} onClose={() => setPayBill(null)} />}

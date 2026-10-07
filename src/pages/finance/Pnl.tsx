@@ -61,7 +61,12 @@ export function Pnl() {
             ]}
           />
           {view === "months" && (
-            <Select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="!w-48 !py-1.5 !text-[13px]" options={[{ value: "", label: "Butun agentlik" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]} />
+            <Select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              className="!w-48 !py-1.5 !text-[13px]"
+              options={[{ value: "", label: "Butun agentlik" }, ...state.projects.map((p) => ({ value: p.id, label: p.name }))]}
+            />
           )}
           <Select
             value={span}
@@ -81,7 +86,8 @@ export function Pnl() {
           <PnlTable r={r} cur={cur} />
           <div className="px-5 pb-4">
             <Note>
-              Mijozning reklama byudjeti (tranzit) va jihoz xaridi (kapital xarajat) foyda-zararga kirmaydi. Aylanma soliq to'langan oyida. Joriy oy ({monthShort(cur)}) — bugungi kungacha.
+              Mijozning reklama byudjeti (tranzit) va jihoz xaridi (kapital xarajat) foyda-zararga kirmaydi. Aylanma soliq to'langan oyida. Joriy oy (
+              {monthShort(cur)}) — bugungi kungacha.
               {projectId && " Loyiha bo'yicha: faqat shu loyihaga bog'langan daromad va xarajatlar; doimiy xarajat ulushi «Loyihalar kesimida» ko'rinishida."}
             </Note>
           </div>
@@ -89,7 +95,10 @@ export function Pnl() {
       ) : (
         <div className="grid gap-4 xl:grid-cols-3">
           <Card className="xl:col-span-2">
-            <CardHeader title="Loyihalar rentabelligi" sub={`${monthShort(months[0]!)} – ${monthShort(months[months.length - 1]!)} · doimiy xarajat daromad ulushiga ko'ra taqsimlangan`} />
+            <CardHeader
+              title="Loyihalar rentabelligi"
+              sub={`${monthShort(months[0]!)} – ${monthShort(months[months.length - 1]!)} · doimiy xarajat daromad ulushiga ko'ra taqsimlangan`}
+            />
             <TableWrap min={820}>
               <thead>
                 <tr className="border-y border-sep">
@@ -181,7 +190,10 @@ export function Pnl() {
           <Card>
             <CardHeader title="Sof foyda reytingi" sub="Kim pul topib beryapti, kim zarar" />
             <div className="px-5 pb-5">
-              <BarList signed rows={profit.map((x) => ({ label: x.project.name, value: x.net, sub: `Marja ${x.marginPct.toFixed(0)}% · daromad ${fmtMoney(x.revenue)}` }))} />
+              <BarList
+                signed
+                rows={profit.map((x) => ({ label: x.project.name, value: x.net, sub: `Marja ${x.marginPct.toFixed(0)}% · daromad ${fmtMoney(x.revenue)}` }))}
+              />
             </div>
             <div className="border-t border-sep px-5 py-4">
               <div className="mb-2 text-[13px] font-semibold text-label">Marja (doimiy xarajatsiz)</div>

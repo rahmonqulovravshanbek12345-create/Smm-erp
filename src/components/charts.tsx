@@ -141,7 +141,15 @@ export function ColumnsChart({ labels, bars, line, height = 240 }: { labels: str
                 {lab}
               </text>
             )}
-            <rect x={pad.l + band * i} y={pad.t} width={band} height={ih} fill="transparent" onMouseEnter={() => setHover(i)} onTouchStart={() => setHover(i)} />
+            <rect
+              x={pad.l + band * i}
+              y={pad.t}
+              width={band}
+              height={ih}
+              fill="transparent"
+              onMouseEnter={() => setHover(i)}
+              onTouchStart={() => setHover(i)}
+            />
           </g>
         ))}
         {line && (
@@ -246,7 +254,17 @@ export function LineChart({ labels, series, height = 200 }: { labels: string[]; 
 }
 
 /** Gorizontal ustunlar ro'yxati; signed — musbat/manfiy (foyda/zarar) ikki rangda, nol o'rtada. */
-export function BarList({ rows, color = VIZ.c1, signed, format = fmtShort }: { rows: { label: ReactNode; value: number; sub?: ReactNode }[]; color?: string; signed?: boolean; format?: (n: number) => string }) {
+export function BarList({
+  rows,
+  color = VIZ.c1,
+  signed,
+  format = fmtShort,
+}: {
+  rows: { label: ReactNode; value: number; sub?: ReactNode }[];
+  color?: string;
+  signed?: boolean;
+  format?: (n: number) => string;
+}) {
   const max = Math.max(1, ...rows.map((r) => Math.abs(r.value)));
   const hasNeg = signed && rows.some((r) => r.value < 0);
   return (
@@ -288,7 +306,14 @@ export function StackBar({ parts }: { parts: { label: string; value: number; col
         {total > 0 &&
           parts
             .filter((p) => p.value > 0)
-            .map((p) => <span key={p.label} title={`${p.label}: ${fmtMoney(p.value)}`} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${(p.value / total) * 100}%`, background: p.color }} />)}
+            .map((p) => (
+              <span
+                key={p.label}
+                title={`${p.label}: ${fmtMoney(p.value)}`}
+                className="h-full first:rounded-l-full last:rounded-r-full"
+                style={{ width: `${(p.value / total) * 100}%`, background: p.color }}
+              />
+            ))}
       </div>
       <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
         {parts.map((p) => (
