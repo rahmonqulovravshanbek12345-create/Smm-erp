@@ -413,9 +413,13 @@ export function Modal({
 /** Namunaviy ma'lumotdagi havolalar ("demo-…", "demo_…") hech qayerga olib bormaydi — begona sahifa ochilmasin. */
 export const isDemoLink = (href: string) => /\/demo[-_]/i.test(href);
 
+/** Foydalanuvchi kiritgan havola faqat http(s) bo'lib ochiladi: "javascript:" va "data:" ishlamaydi. */
+export const safeExternalUrl = (href: string) =>
+  /^https?:\/\//i.test(href.trim()) ? href.trim() : `https://${href.trim().replace(/^[a-z][a-z0-9+.-]*:\/*/i, "")}`;
+
 export function LinkOut({ href, children }: { href?: string; children?: ReactNode }) {
   if (!href) return <span className="text-label3">—</span>;
-  const url = /^https?:\/\//.test(href) ? href : `https://${href}`;
+  const url = safeExternalUrl(href);
   if (isDemoLink(url)) {
     return (
       <span

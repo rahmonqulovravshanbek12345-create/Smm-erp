@@ -45,7 +45,7 @@ export async function watch(page: Page): Promise<Problems> {
 }
 
 /** Ilovani ochadi (kerak bo'lsa toza demo bilan) va berilgan foydalanuvchi sifatida kiradi. */
-export async function openAs(page: Page, user: UserId, hash = "") {
+export async function openAs(page: Page, user: UserId | (string & {}), hash = "") {
   await page.goto("./");
   await expect(page.locator("#root")).not.toBeEmpty();
   await page.evaluate(
