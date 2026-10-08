@@ -20,6 +20,12 @@ const DYNAMIC: Partial<Record<UserId, string[]>> = {
     "/integratsiyalar",
     "/loyiha/p_mebel",
     "/hisobot/p_mebel",
+    "/loyiha/p_optika",
+    "/loyiha/p_avtolux",
+    "/hujjat/shartnoma/p_optika",
+    "/hujjat/shartnoma/p_avtolux",
+    "/hujjat/shartnoma/p_mebel",
+    "/hisobot/p_avtolux",
     "/hujjat/shartnoma/p_gym",
     "/hujjat/dalolatnoma/p_mebel/4",
     "/taklif/tk_kids",
@@ -42,7 +48,7 @@ for (const uid of Object.keys(USERS) as UserId[]) {
       expect(await page.evaluate(() => location.hash), `${path} — ruxsat bor sahifadan yo'naltirildi`).toBe(`#${path}`);
       expect(await horizontalOverflow(page), `${path} — gorizontal scroll`).toBeLessThanOrEqual(1);
       const text = await page.locator("main").innerText();
-      expect(text, `${path} — ekranda NaN/undefined`).not.toMatch(/\bNaN\b|undefined|\[object Object\]/);
+      expect(text, `${path} — ekranda NaN/undefined`).not.toMatch(/\bNaN\b|undefined|Infinity|Invalid Date|\[object Object\]/);
     }
     expect(p.errors).toEqual([]);
     expect(p.external).toEqual([]);

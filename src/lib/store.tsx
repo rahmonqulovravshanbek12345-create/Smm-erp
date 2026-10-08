@@ -2,6 +2,7 @@
 // u bildirishnoma, faoliyat tarixi va Telegram xabarlarini bir joyda boshqaradi.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { nowISO, todayISO } from "./dates";
+import { linkFor } from "./routes";
 import { syncAll } from "./store-sync";
 import { buildSeed, SEED_VERSION } from "./seed";
 import { sendTelegram, telegramText } from "./telegram";
@@ -134,7 +135,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               id,
               userId: uid,
               text,
-              href,
+              // Oluvchi ocha olmaydigan sahifaga havola berilmaydi (masalan, direktorda «Mening hisobim» yo'q)
+              href: linkFor(to?.role, href),
               at: nowISO(),
               read: false,
               telegram: !tg.enabled ? "off" : live ? "sent" : "demo",

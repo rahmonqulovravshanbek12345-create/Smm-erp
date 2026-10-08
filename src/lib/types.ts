@@ -70,6 +70,8 @@ export interface ProjectService {
   tariffId?: string;
   /** Paket nomi yoki ish tavsifi. */
   title: string;
+  /** SMM paketiga target reklama ham kiradi (masalan, «Biznes», «Premium»). */
+  withTarget?: boolean;
   /** Oylik xizmat — oylik haq; bir martalik — umumiy narx (so'm). */
   price: number;
   /** Performance: reklama byudjetidan foiz (oylik haqqa qo'shiladi). */

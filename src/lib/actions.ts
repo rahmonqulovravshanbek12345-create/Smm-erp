@@ -2,14 +2,15 @@
 import { addDays, diffDays, fmtDate, fmtDateShort, fmtMonth, fmtMoney, fmtNum, nowISO } from "./dates";
 import { contentTypes, findQuota, quotaText, typeName } from "./content";
 import type { MetaResult } from "./integrations";
-import { ART, accountOf, articleOf, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
-import { DOC_BLOCKS, FORMAT_LABELS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, TASK_KIND_LABELS } from "./labels";
+import { ART, accountOf, articleOf, billPaid, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
+import { DOC_BLOCKS, FORMAT_LABELS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, ROLE_LABELS, TASK_KIND_LABELS } from "./labels";
 import {
   hasAds,
   isRecurring,
   recurringFee,
   recurringLines,
   serviceLabel,
+  serviceHasAds,
   servicePrepayPaid,
   servicesSummary,
   stageIndex,
@@ -17,6 +18,8 @@ import {
   type ServiceInput,
 } from "./services";
 import { postStage, workBlockedReason } from "./rules";
+import { isSettled } from "./money";
+import { currentPeriod } from "./period";
 import { newId, type Ctx } from "./store";
 import { acceptedIds, defaultPicks, nextProposalNumber, proposalPrice, tariffOf, tariffService } from "./tariffs";
 import type {
@@ -300,6 +303,16 @@ export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { 
   const p = findProject(c, projectId);
   if (!p) return;
   validateService(input);
+  // Reklama yoki SMM xizmatiga mas'ul xodim bo'lmasa — birinchi faol xodim tayinlanadi (keyin o'zgartirish mumkin)
+  const needRole = (role: "targetolog" | "smm", field: "targetologId" | "smmId") => {
+    if (p[field]) return;
+    const u = c.s.users.find((x) => x.role === role && x.active);
+    if (!u) throw new Error(`${ROLE_LABELS[role]} yo'q — avval Admin bo'limida xodim qo'shing`);
+    p[field] = u.id;
+    c.notify([u.id], `${p.name}: sizga biriktirildi (${serviceLabel(input.kind)})`, `/loyiha/${p.id}`);
+  };
+  if (serviceHasAds(input)) needRole("targetolog", "targetologId");
+  if (input.kind === "smm") needRole("smm", "smmId");
   const hadRecurring = recurringLines(p, c.s.settings.usdRate).length > 0;
   const svc = buildService(input, c.today);
   p.services.push(svc);
@@ -308,7 +321,14 @@ export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { 
     // Ilgari faqat bir martalik xizmat bo'lgan mijozda oylik xizmat boshlansa — 1-davr oldindan to'lovi
     if (!hadRecurring && !p.periodStart) recurringStartInvoices(c, p, c.today, o.dueDate ?? c.today, "");
   } else serviceStartInvoice(c, p, svc, c.today, o.dueDate ?? c.today);
-  c.notify([p.marketologId, ...financeIds(c)], `${p.name}: yangi xizmat — ${serviceLabel(svc.kind)} (${fmtMoney(svc.price)})`, `/loyiha/${p.id}`);
+  const midPeriod = isRecurring(svc.kind) && hadRecurring && Boolean(currentPeriod(p, c.today));
+  c.notify(
+    [p.marketologId, ...financeIds(c)],
+    `${p.name}: yangi xizmat — ${serviceLabel(svc.kind)} (${fmtMoney(svc.price)})${
+      midPeriod ? ". Joriy davr uchun faktura chiqmaydi — keyingi davrdan boshlab; kerak bo'lsa «Qo'shimcha xizmat» fakturasi chiqaring" : ""
+    }`,
+    `/loyiha/${p.id}`,
+  );
   c.notify([svc.assigneeId], `${p.name}: sizga yangi ish — ${serviceLabel(svc.kind)}${svc.deadline ? `, muddat ${fmtDate(svc.deadline)}` : ""}`, "/mening");
   c.log(`${p.name}: xizmat qo'shildi — ${serviceLabel(svc.kind)}`, `/loyiha/${p.id}`);
 }
@@ -923,11 +943,31 @@ export function setInvoiceDue(c: Ctx, invoiceId: string, dueDate: string) {
   c.log(`${inv.number}: to'lov sanasi ${fmtDate(dueDate)}`, "/moliya/fakturalar");
 }
 
+/** Pul harakati sanasi kelajakda bo'lmasligi va USD hisobda kurs bo'lishi shart. */
+function assertMoney(c: Ctx, o: { date: string; accountId: string; rate?: number }): number {
+  if (!o.date) throw new Error("Sanani kiriting");
+  if (o.date > c.today) throw new Error("Sana kelajakda bo'lishi mumkin emas — to'lov kelgan kunni kiriting");
+  const acc = accountOf(c.s, o.accountId);
+  if (!acc) throw new Error("Hisobni tanlang");
+  if (acc.currency !== "USD") return 1;
+  if (!(o.rate && o.rate > 0)) throw new Error("USD hisob uchun kursni kiriting");
+  return o.rate;
+}
+
+/** Summa qolgan qarzdan keskin oshsa (odatda xato: nol ortiqcha yoki valyuta chalkashligi) — rad etiladi. */
+function assertNotOverpaid(uzs: number, outstanding: number) {
+  if (uzs > outstanding * 1.05 + 1000) {
+    throw new Error(`To'lov summasi (${fmtMoney(uzs)}) qolgan qarzdan (${fmtMoney(outstanding)}) ancha oshib ketdi — summani va valyutani tekshiring`);
+  }
+}
+
 /** Mijoz to'lovi fakturaga bog'lanadi. USD hisobga tushsa — kurs bilan. */
 export function recordClientPayment(c: Ctx, invoiceId: string, o: { amount: number; date: string; accountId: string; rate?: number; note: string }) {
   const inv = c.s.invoices.find((x) => x.id === invoiceId);
   if (!inv) throw new Error("Faktura topilmadi");
   if (!(o.amount > 0)) throw new Error("Summani kiriting");
+  const fx = assertMoney(c, o);
+  assertNotOverpaid(o.amount * fx, Math.max(0, inv.amount - invoicePaid(c.s, inv)));
   c.s.transactions.push({
     id: newId("tx"),
     date: o.date,
@@ -942,7 +982,7 @@ export function recordClientPayment(c: Ctx, invoiceId: string, o: { amount: numb
     createdBy: c.me.id,
   });
   const p = findProject(c, inv.projectId);
-  if (inv.kind === "prepay" && p && invoicePaid(c.s, inv) >= inv.amount - 1) {
+  if (inv.kind === "prepay" && p && isSettled(inv.amount, invoicePaid(c.s, inv))) {
     c.notify([p.marketologId, p.smmId], `${p.name}: oldindan to'lov keldi — ish boshlanadi`, `/loyiha/${p.id}`);
   }
   c.log(`${p?.name}: to'lov qabul qilindi — ${inv.number}, ${fmtMoney(txUZS(c.s, c.s.transactions[c.s.transactions.length - 1]!))}`, "/moliya/fakturalar");
@@ -958,6 +998,7 @@ export function createExtraInvoice(c: Ctx, o: { projectId: string; amount: numbe
 /** Erkin kirim yoki chiqim (xarajat, soliq, dividend, tranzit va h.k.). */
 export function addTransaction(c: Ctx, t: Omit<Transaction, "id" | "createdBy">) {
   if (!(t.amount > 0)) throw new Error("Summani kiriting");
+  assertMoney(c, t);
   const art = c.s.articles.find((a) => a.id === t.articleId);
   if (!art) throw new Error("Moddani tanlang");
   c.s.transactions.push({ ...t, dir: art.dir, id: newId("tx"), createdBy: c.me.id });
@@ -971,6 +1012,8 @@ export function addTransaction(c: Ctx, t: Omit<Transaction, "id" | "createdBy">)
 export function addTransfer(c: Ctx, o: { from: string; to: string; amountFrom: number; amountTo: number; rate?: number; date: string; note: string }) {
   if (o.from === o.to) throw new Error("Turli hisoblarni tanlang");
   if (!(o.amountFrom > 0) || !(o.amountTo > 0)) throw new Error("Summani kiriting");
+  if (!o.date) throw new Error("Sanani kiriting");
+  if (o.date > c.today) throw new Error("Sana kelajakda bo'lishi mumkin emas");
   const tid = newId("trf");
   const base = { date: o.date, transferId: tid, note: o.note, createdBy: c.me.id };
   c.s.transactions.push({ ...base, id: newId("tx"), accountId: o.from, dir: "out", amount: o.amountFrom, rate: o.rate, articleId: ART.transferOut });
@@ -995,6 +1038,8 @@ export function payBill(c: Ctx, billId: string, o: { amount: number; date: strin
   const b = c.s.bills.find((x) => x.id === billId);
   if (!b) return;
   if (!(o.amount > 0)) throw new Error("Summani kiriting");
+  const fx = assertMoney(c, o);
+  assertNotOverpaid(o.amount * fx, Math.max(0, b.amount - billPaid(c.s, b)));
   c.s.transactions.push({
     id: newId("tx"),
     date: o.date,
@@ -1015,6 +1060,7 @@ export function payBill(c: Ctx, billId: string, o: { amount: number; date: strin
 /** Xodimga to'lov yoki avans. FIFO bo'yicha eng eski hisoblashlarni yopadi. */
 export function payEmployee(c: Ctx, o: { userId: string; amount: number; date: string; accountId: string; rate?: number; note: string }) {
   if (!(o.amount > 0)) throw new Error("Summani kiriting");
+  assertMoney(c, o);
   c.s.transactions.push({
     id: newId("tx"),
     date: o.date,
@@ -1092,6 +1138,10 @@ export function setBudget(c: Ctx, month: string, line: BudgetLine["line"], amoun
 export function closeProject(c: Ctx, projectId: string, date: string) {
   const p = findProject(c, projectId);
   if (!p) return;
+  const open = p.services.filter((x) => !isRecurring(x.kind) && x.status === "active");
+  if (open.length) {
+    throw new Error(`Avval bir martalik ishlarni topshiring yoki to'xtating: ${open.map((x) => serviceLabel(x.kind)).join(", ")}`);
+  }
   p.status = "closed";
   p.closedAt = date;
   p.pauseWork = true;

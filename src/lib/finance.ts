@@ -7,7 +7,8 @@
 //  • Tranzit (mijoz reklama byudjeti) P&L'ga kirmaydi, Cash Flow'da alohida ko'rsatiladi.
 import { addDays, addMonths, diffDays, fmtMonth, monthKey, shiftMonthKey } from "./dates";
 import { currentPeriod, periodAt, type Period } from "./period";
-import { invoiceLines, recurringFee, recurringLines, serviceLabel, serviceOf } from "./services";
+import { isSettled, outstandingOf } from "./money";
+import { hasAds, hasContent, invoiceLines, recurringFee, recurringLines, serviceLabel, serviceOf } from "./services";
 import type { Accrual, Article, ArticleGroup, Bill, ErpState, Invoice, PayProfile, Project, Task, Transaction, User, WorkType } from "./types";
 
 // ---------- Moddalar ----------
@@ -110,11 +111,11 @@ export function invoicePaid(s: ErpState, inv: Invoice, upTo?: string): number {
   return sum;
 }
 
-export const invoiceOutstanding = (s: ErpState, inv: Invoice) => Math.max(0, inv.amount - invoicePaid(s, inv));
+export const invoiceOutstanding = (s: ErpState, inv: Invoice) => outstandingOf(inv.amount, invoicePaid(s, inv));
 
 export function invoiceStatus(s: ErpState, inv: Invoice, today: string): PayStatus {
   const paid = invoicePaid(s, inv);
-  if (paid >= inv.amount - 1) return "paid";
+  if (isSettled(inv.amount, paid)) return "paid";
   if (inv.dueDate && inv.dueDate < today) return "overdue";
   if (paid > 0) return "partial";
   return "pending";
@@ -140,7 +141,7 @@ export function projectDebt(s: ErpState, projectId: string, today: string): Debt
 /** Oylik xizmatlar bo'yicha oldindan to'lov (bir martalik xizmatlarniki — alohida). */
 export function prepayPaid(s: ErpState, projectId: string): boolean {
   const pre = s.invoices.find((i) => i.projectId === projectId && i.kind === "prepay" && !i.serviceId);
-  return !pre || invoicePaid(s, pre) >= pre.amount - 1;
+  return !pre || isSettled(pre.amount, invoicePaid(s, pre));
 }
 
 export function nextInvoiceNumber(s: ErpState): string {
@@ -294,7 +295,8 @@ export function pieceAccrual(
 }
 
 /** Xodim loyiha oyligini qaysi loyihalardan oladi (SMM, targetolog yoki marketolog sifatida). */
-export const projectStaff = (p: Project) => [p.smmId, p.targetologId, p.marketologId].filter((x): x is string => Boolean(x));
+export const projectStaff = (p: Project) =>
+  [hasContent(p) ? p.smmId : undefined, hasAds(p) ? p.targetologId : undefined, p.marketologId].filter((x): x is string => Boolean(x));
 
 /**
  * Davriy hisoblashlar:
@@ -378,7 +380,7 @@ export function employeeLedger(s: ErpState, userId: string) {
     if (a.amount < 0) return { ...a, paid: 0, payStatus: "paid" };
     const paid = Math.min(a.amount, Math.max(0, pool));
     pool -= paid;
-    return { ...a, paid, payStatus: paid >= a.amount - 1 ? "paid" : paid > 0 ? "partial" : "unpaid" };
+    return { ...a, paid, payStatus: isSettled(a.amount, paid) ? "paid" : paid > 0 ? "partial" : "unpaid" };
   });
   const accrued = accruals.reduce((x, a) => x + a.amount, 0);
   return { rows, payouts, accrued, paid: paidTotal, balance: accrued - paidTotal };
@@ -741,7 +743,7 @@ export function receivables(s: ErpState, today: string): ReceivableRow[] {
         const paid = invoicePaid(s, inv);
         row.invoiced += inv.amount;
         row.paid += paid;
-        const out = Math.max(0, inv.amount - paid);
+        const out = outstandingOf(inv.amount, paid);
         if (out > 0) {
           const late = inv.dueDate ? diffDays(today, inv.dueDate) : 0;
           if (late <= 0) row.notDue += out;
@@ -769,7 +771,7 @@ export function payables(s: ErpState, today: string) {
       let outstanding = 0;
       let overdue = 0;
       for (const b of bills) {
-        const o = Math.max(0, b.amount - billPaid(s, b));
+        const o = outstandingOf(b.amount, billPaid(s, b));
         outstanding += o;
         if (b.dueDate < today) overdue += o;
       }
@@ -886,8 +888,8 @@ export function paymentCalendar(s: ErpState, today: string, horizon = 45) {
   // Chiqim: ta'minotchi hujjatlari
   const vname = (id: string) => s.vendors.find((v) => v.id === id)?.name ?? "—";
   for (const b of s.bills) {
-    const out = b.amount - billPaid(s, b);
-    if (out <= 0.5) continue;
+    const out = outstandingOf(b.amount, billPaid(s, b));
+    if (out <= 0) continue;
     push(b.dueDate, { label: `${vname(b.vendorId)} — ${b.note}`, amount: -out, kind: "vendor", forecast: false, overdue: b.dueDate < today });
   }
   // Chiqim (prognoz): takrorlanuvchi xarajatlar — har ta'minotchining oxirgi hujjati keyingi oyga ko'chiriladi

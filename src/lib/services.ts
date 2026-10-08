@@ -1,5 +1,6 @@
 // Xizmatlar: oylik (SMM, target, performance) va bir martalik bosqichli (video, branding, sayt).
 // Bitta mijozda bir nechta xizmat bo'lishi mumkin; har birining o'z narxi, mas'uli va holati bor.
+import { isSettled } from "./money";
 import type { ErpState, Invoice, InvoiceLine, Project, ProjectService, Role, ServiceKind, ServiceStage } from "./types";
 
 /** Xizmat ma'lumotlari (loyiha yaratishda yoki keyin qo'shishda). */
@@ -100,10 +101,13 @@ export function servicesOf(p: Project): ProjectService[] {
 }
 
 export const hasService = (p: Project, k: ServiceKind) => servicesOf(p).some((x) => x.kind === k);
+/** Xizmat reklama ishini o'z ichiga oladimi (target, performance yoki target kiritilgan SMM paketi). */
+export const serviceHasAds = (x: Pick<ProjectService, "kind" | "withTarget">) =>
+  x.kind === "target" || x.kind === "performance" || (x.kind === "smm" && Boolean(x.withTarget));
 /** Kontent reja kerakmi (SMM xizmati bor). */
 export const hasContent = (p: Project) => !p.services?.length || hasService(p, "smm");
 /** Reklama ishi bormi (target yoki performance). */
-export const hasAds = (p: Project) => hasService(p, "target") || hasService(p, "performance") || (!p.services?.length && Boolean(p.targetologId));
+export const hasAds = (p: Project) => servicesOf(p).some((x) => x.status === "active" && serviceHasAds(x)) || (!p.services?.length && Boolean(p.targetologId));
 export const recurringServices = (p: Project) => servicesOf(p).filter((x) => isRecurring(x.kind) && x.status === "active");
 export const oneTimeServices = (p: Project) => servicesOf(p).filter((x) => !isRecurring(x.kind));
 /** Oylik xizmati bor loyiha — hisob davri, abonent fakturasi va loyiha oyligi shu loyihalar uchun. */
@@ -163,7 +167,7 @@ export function invoiceLines(s: ErpState, inv: Invoice): InvoiceLine[] {
 /** Bir martalik xizmat bo'yicha oldindan to'lov kelganmi (faktura bo'lmasa — ha). */
 export function servicePrepayPaid(s: ErpState, serviceId: string, paidOf: (inv: Invoice) => number): boolean {
   const pre = s.invoices.find((i) => i.serviceId === serviceId && i.kind === "prepay");
-  return !pre || paidOf(pre) >= pre.amount - 1;
+  return !pre || isSettled(pre.amount, paidOf(pre));
 }
 
 /** Xizmat ijrochisi (bir martalik — o'zi; oylik — loyiha jamoasidan). */

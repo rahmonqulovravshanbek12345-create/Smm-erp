@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ProjectInput } from "../lib/actions";
 import { fmtMoney } from "../lib/dates";
-import { AD_CHANNELS, SERVICE_META, adPctAmount, isRecurring, serviceLabel, serviceMeta, type ServiceInput } from "../lib/services";
+import { AD_CHANNELS, SERVICE_META, adPctAmount, isRecurring, serviceHasAds, serviceLabel, serviceMeta, type ServiceInput } from "../lib/services";
 import { useErp, useLookup } from "../lib/store";
 import { serviceFromTariff, tariffOf, tariffService } from "../lib/tariffs";
 import type { Project, ServiceKind } from "../lib/types";
@@ -187,7 +187,7 @@ export function ProjectFormModal({
   const set = <K extends keyof ProjectInput>(k: K, v: ProjectInput[K]) => setF((x) => ({ ...x, [k]: v }));
   const kinds = new Set(f.services.map((x) => x.kind));
   const hasSmm = kinds.has("smm");
-  const hasAds = kinds.has("target") || kinds.has("performance");
+  const hasAds = f.services.some(serviceHasAds);
   const recurring = f.services.filter((x) => isRecurring(x.kind));
   const usdRate = state.settings.usdRate;
   const monthly = recurring.reduce(
