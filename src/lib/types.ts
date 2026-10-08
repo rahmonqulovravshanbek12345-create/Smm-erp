@@ -152,6 +152,8 @@ export interface Tariff {
   designs: number;
   /** Faqat matnli postlar soni. */
   texts?: number;
+  /** Target uchun alohida reklama videolari (oyiga). */
+  targetVideos?: number;
   stories: number;
   shoots: number;
   platforms: Platform[];
@@ -199,6 +201,8 @@ export interface ContentType {
   name: string;
   format: PostFormat;
   active: boolean;
+  /** Reklama uchun (target video): organik joylanmaydi, tayyor bo'lgach targetologga beriladi. */
+  forAds?: boolean;
 }
 
 /** Marketologning SMM menejerga oylik topshirig'i: loyiha × oy × kontent turi bo'yicha son. */

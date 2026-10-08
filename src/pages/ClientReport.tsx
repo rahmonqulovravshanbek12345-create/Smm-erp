@@ -3,7 +3,7 @@ import { BarList, ColumnsChart, VIZ, fmtShort } from "../components/charts";
 import { Icon } from "../components/icons";
 import { A, Badge, Button, Card, Empty, Ring, Select, navigate } from "../components/ui";
 import { fmtDate, fmtDateShort, fmtMoney, fmtNum } from "../lib/dates";
-import { FORMAT_LABELS, PLATFORM_LABELS } from "../lib/labels";
+import { FORMAT_LABELS, PLATFORM_LABELS, platformsText } from "../lib/labels";
 import { clientReport, delta, periodProgress, reportPeriods } from "../lib/report";
 import { useErp, useLookup } from "../lib/store";
 
@@ -147,6 +147,11 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
                   <b>{planned}</b> ta rejadan <b>{pubN}</b> tasi joylandi
                 </div>
                 <div className="mt-1 text-label2">O'z vaqtida: {onTimePct.toFixed(0)}%</div>
+                {r.published.some((x) => !x.platforms.length) && (
+                  <div className="mt-1 text-label2">
+                    shundan {r.published.filter((x) => !x.platforms.length).length} tasi — reklama uchun video (targetga topshirildi)
+                  </div>
+                )}
               </div>
             </div>
             <div>
@@ -179,7 +184,7 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
                     <td className="whitespace-nowrap py-1.5 pr-2 text-label2">{fmtDateShort(p.date)}</td>
                     <td className="py-1.5 pr-2 text-label">{p.topic}</td>
                     <td className="py-1.5 pr-2 text-label2">{FORMAT_LABELS[p.format]}</td>
-                    <td className="py-1.5 pr-2 text-label2">{p.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")}</td>
+                    <td className="py-1.5 pr-2 text-label2">{platformsText(p.platforms)}</td>
                     <td className="py-1.5">
                       {p.status === "published" ? (
                         <Badge tone="green">Joylandi {p.publishedAt && p.publishedAt > p.date ? "(+1 kun)" : ""}</Badge>

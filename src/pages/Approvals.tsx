@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Badge, Button, Card, Empty, Input, LinkOut, PageHeader } from "../components/ui";
 import * as act from "../lib/actions";
 import { fmtDate, relDays } from "../lib/dates";
-import { FORMAT_LABELS, PLATFORM_LABELS, TASK_KIND_LABELS } from "../lib/labels";
+import { FORMAT_LABELS, TASK_KIND_LABELS, platformsText } from "../lib/labels";
 import { useErp, useLookup } from "../lib/store";
 
 /** Marketolog: SMM menejer yuborgan video, post va oblojkalarni tasdiqlaydi yoki izoh bilan qaytaradi. */
@@ -30,8 +30,7 @@ export function Approvals() {
                   <div>
                     <div className="font-medium text-label">{p.topic}</div>
                     <div className="mt-0.5 text-xs text-label2">
-                      {look.projectName(p.projectId)} · {p.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")} · {FORMAT_LABELS[p.format]} · SMM:{" "}
-                      {look.userName(p.assigneeId)}
+                      {look.projectName(p.projectId)} · {platformsText(p.platforms)} · {FORMAT_LABELS[p.format]} · SMM: {look.userName(p.assigneeId)}
                     </div>
                   </div>
                   <Badge tone={p.date <= today ? "red" : "amber"}>

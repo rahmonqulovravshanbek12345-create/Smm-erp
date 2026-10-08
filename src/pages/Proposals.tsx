@@ -267,6 +267,7 @@ function TariffScope({ t }: { t: Tariff }) {
           `${t.shoots} ta syomka kuni`,
           t.platforms.map((p) => PLATFORM_LABELS[p]).join(" + "),
           t.target ? `Target reklama · byudjet tavsiyasi $${fmtNum(t.adBudgetUsd)}/oy` : "Target reklamasiz",
+          ...(t.target && t.targetVideos ? [`${t.targetVideos} ta alohida reklama videosi oyiga`] : []),
         ]
       : kind === "target" || kind === "performance"
         ? [
@@ -438,7 +439,7 @@ function TariffModal({ tariff, service, onClose }: { tariff?: Tariff; service: S
   const smm = kind === "smm";
   const [features, setFeatures] = useState(f.features.join("\n"));
   const set = <K extends keyof Tariff>(k: K, v: Tariff[K]) => setF((x) => ({ ...x, [k]: v }));
-  const num = (k: "price" | "posts" | "videos" | "designs" | "texts" | "stories" | "shoots" | "adBudgetUsd" | "adPct", label: string) => (
+  const num = (k: "price" | "posts" | "videos" | "designs" | "texts" | "stories" | "shoots" | "targetVideos" | "adBudgetUsd" | "adPct", label: string) => (
     <Field label={label}>
       <Input type="number" min={0} value={f[k] ?? 0} onChange={(e) => set(k, Number(e.target.value) || 0)} />
     </Field>
@@ -491,6 +492,7 @@ function TariffModal({ tariff, service, onClose }: { tariff?: Tariff; service: S
             {num("texts", "Matnli post oyiga")}
             {num("stories", "Stories")}
             {num("shoots", "Syomka kunlari")}
+            {f.target && num("targetVideos", "Target uchun reklama videosi oyiga")}
           </>
         )}
         {kind === "performance" && num("adPct", "Reklama byudjetidan foiz (%)")}
@@ -688,6 +690,7 @@ export function ProposalPage({ id }: { id: string }) {
                   ["Syomka kunlari", (t) => `${t.shoots} ta`],
                   ["Platformalar", (t) => t.platforms.map((x) => PLATFORM_LABELS[x]).join(" + ")],
                   ["Target reklama", (t) => (t.target ? "✓" : "—")],
+                  ["  reklama videolari oyiga", (t) => (t.target && t.targetVideos ? `${t.targetVideos} ta` : "—")],
                   ["Reklama byudjeti tavsiyasi", (t) => (t.target ? `$${fmtNum(t.adBudgetUsd)}/oy` : "—")],
                   ["Oldindan to'lov", (t) => `${t.prepayType}%`],
                 ]

@@ -3,7 +3,7 @@ import { DebtBadge, PostBadge, TaskBadge } from "../components/bits";
 import { PostModal } from "../components/forms";
 import { A, Badge, Card, CardHeader, Empty, PageHeader, Ring, Select, Stat } from "../components/ui";
 import { diffDays, fmtDate, fmtMoney, relDays } from "../lib/dates";
-import { PLATFORM_LABELS, ROLE_LABELS, TASK_KIND_LABELS } from "../lib/labels";
+import { ROLE_LABELS, TASK_KIND_LABELS, platformsText } from "../lib/labels";
 import { isPostLate, isTaskLate, isTaskOpen, periodPosts, postNeedsWarning, projectDebt, targetReportMissing, workBlockedReason } from "../lib/rules";
 import { hasContent, oneTimeServices } from "../lib/services";
 import { useErp, useLookup } from "../lib/store";
@@ -124,7 +124,7 @@ export function Dashboard() {
                   <button type="button" onClick={() => setOpenPost(p.id)} className="w-full px-5 py-2.5 text-left hover:bg-fill">
                     <div className="text-sm text-label">{p.topic}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-label2">
-                      {look.projectName(p.projectId)} · {p.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")} <PostBadge post={p} today={today} />
+                      {look.projectName(p.projectId)} · {platformsText(p.platforms)} <PostBadge post={p} today={today} />
                     </div>
                   </button>
                 </li>

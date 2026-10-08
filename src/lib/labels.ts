@@ -113,9 +113,13 @@ export const PAYMENT_KIND_LABELS = {
   extra: "Qo'shimcha xizmat",
 };
 
-export function postStatusMeta(id: PostStatus) {
-  return POST_STATUSES.find((s) => s.id === id) ?? POST_STATUSES[0]!;
+export function postStatusMeta(id: PostStatus, adVideo = false) {
+  const m = POST_STATUSES.find((s) => s.id === id) ?? POST_STATUSES[0]!;
+  return adVideo && id === "published" ? { ...m, label: "Targetologga berildi" } : m;
 }
+
+/** Postning platformalari matni; reklama videosida — «Reklama uchun (target)». */
+export const platformsText = (ps: Platform[]) => (ps.length ? ps.map((x) => PLATFORM_LABELS[x]).join(", ") : "Reklama uchun (target)");
 
 export function taskStatusMeta(id: TaskStatus) {
   return TASK_STATUSES.find((s) => s.id === id) ?? TASK_STATUSES[0]!;

@@ -1,9 +1,9 @@
 // Biznes amallari. Har biri Ctx oladi: holatni o'zgartiradi, bildirishnoma yuboradi va tarixga yozadi.
 import { addDays, diffDays, fmtDate, fmtDateShort, fmtDeadline, fmtMonth, fmtMoney, fmtNum, nowISO } from "./dates";
-import { contentTypes, findQuota, quotaText, typeName } from "./content";
+import { contentTypes, findQuota, isAdType, quotaText, typeName } from "./content";
 import type { MetaResult } from "./integrations";
 import { ART, accountOf, articleOf, billPaid, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
-import { DOC_BLOCKS, FORMAT_LABELS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, ROLE_LABELS, TASK_KIND_LABELS } from "./labels";
+import { DOC_BLOCKS, FORMAT_LABELS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, ROLE_LABELS, TASK_KIND_LABELS, platformsText } from "./labels";
 import {
   hasAds,
   isRecurring,
@@ -619,7 +619,10 @@ export function handOff(c: Ctx, projectId: string) {
 // ---------- Kontent ----------
 
 export function savePost(c: Ctx, data: Omit<Post, "id" | "createdAt" | "status"> & { id?: string; status?: PostStatus }) {
-  if (!data.platforms?.length) throw new Error("Kamida bitta platformani tanlang");
+  // Target video organik joylanmaydi: platformasiz, tayyor bo'lgach targetologga beriladi
+  const ad = isAdType(c.s, data.typeId);
+  if (ad) data = { ...data, platforms: [], platformNotes: {}, forTarget: true };
+  else if (!data.platforms?.length) throw new Error("Kamida bitta platformani tanlang");
   if (data.id) {
     const p = c.s.posts.find((x) => x.id === data.id);
     if (!p) return;
@@ -679,7 +682,7 @@ export function clientApproved(c: Ctx, postId: string) {
   c.log(`${p.topic}: mijoz tasdiqladi`, "/kontent");
 }
 
-const platformList = (ps: Platform[]) => ps.map((x) => PLATFORM_LABELS[x]).join(", ");
+const platformList = platformsText;
 
 /**
  * Joylandi: platforma berilsa — faqat shu platformada; berilmasa — hamma platformada.
@@ -688,6 +691,7 @@ const platformList = (ps: Platform[]) => ps.map((x) => PLATFORM_LABELS[x]).join(
 export function publishPost(c: Ctx, postId: string, platform?: Platform) {
   const p = c.s.posts.find((x) => x.id === postId);
   if (!p) return;
+  if (!p.platforms.length) return handToTarget(c, postId);
   p.publishedOn ??= {};
   for (const pl of platform ? [platform] : p.platforms) p.publishedOn[pl] ??= c.today;
   const pending = p.platforms.filter((x) => !p.publishedOn?.[x]);
@@ -706,6 +710,31 @@ export function publishPost(c: Ctx, postId: string, platform?: Platform) {
   }
   c.notify([pr?.marketologId, pr?.targetologId, p.assigneeId], `Joylandi: ${p.topic} (${pr?.name ?? "—"}, ${platformList(p.platforms)})`, "/kontent");
   c.log(`${p.topic}: joylandi (${platformList(p.platforms)})`, "/kontent");
+}
+
+/** Target video tayyor: targetologga TZ (material) ketadi, rejada «Targetologga berildi» deb sanaladi. */
+export function handToTarget(c: Ctx, postId: string) {
+  const p = c.s.posts.find((x) => x.id === postId);
+  if (!p || p.status === "published") return;
+  if (p.platforms.length) throw new Error("Bu post platformaga joylanadi — «Joylandi» tugmasidan foydalaning");
+  if (postStage(p.status) < postStage("approved")) throw new Error("Avval tasdiqdan o'tkazing (ichki va mijoz tasdig'i)");
+  const pr = findProject(c, p.projectId);
+  if (!pr?.targetologId || !hasAds(pr)) throw new Error("Loyihada target xizmati yoki targetolog yo'q");
+  createTask(c, {
+    kind: "target",
+    projectId: p.projectId,
+    postId: p.id,
+    assigneeId: pr.targetologId,
+    title: `Reklama videosi: ${p.topic}`,
+    brief: "Tayyor reklama videosi — kampaniyaga qo'ying va natijani hisobotda belgilang",
+    deadline: addDays(c.today, 1),
+    deadlineTime: "18:00",
+  });
+  p.forTarget = true;
+  p.status = "published";
+  p.publishedAt = c.today;
+  c.notify([pr.marketologId], `${pr.name}: reklama videosi targetologga berildi — ${p.topic}`, "/target");
+  c.log(`${p.topic}: reklama videosi targetologga berildi (${pr.name})`, "/target");
 }
 
 /** Xato bilan qo'yilgan «joylandi» belgisini olib tashlash. */

@@ -2,7 +2,7 @@
 // turli sanalarda va tasodifiy amallar ketma-ketligidan keyin ham modullar bir-biriga mos kelishi tekshiriladi.
 import { describe, expect, it } from "vitest";
 import * as act from "./actions";
-import { postTypeId, contentTypes } from "./content";
+import { contentTypes, isAdType, postTypeId } from "./content";
 import { addDays, diffDays, monthKey, shiftMonthKey } from "./dates";
 import {
   accountBalance,
@@ -99,7 +99,12 @@ function check(s: ErpState, today: string): string[] {
   }
   for (const x of s.posts) {
     if (!projIds.has(x.projectId)) fail(`post ${x.topic}: loyiha yo'q`);
-    if (!x.platforms.length) fail(`post ${x.topic}: platforma yo'q`);
+    // Oddiy post kamida bitta platformada; reklama videosi (target) — platformasiz, targetologga beriladi
+    const ad = isAdType(s, x.typeId);
+    if (!ad && !x.platforms.length) fail(`post ${x.topic}: platforma yo'q`);
+    if (ad && x.platforms.length) fail(`post ${x.topic}: reklama videosi platformaga bog'langan`);
+    if (ad && x.status === "published" && !s.tasks.some((t) => t.postId === x.id && t.kind === "target"))
+      fail(`post ${x.topic}: reklama videosi «berildi», lekin targetologga TZ yo'q`);
     if (!typeIds.has(postTypeId(x))) fail(`post ${x.topic}: noma'lum tur ${postTypeId(x)}`);
     for (const pl of Object.keys(x.publishedOn ?? {}))
       if (!x.platforms.includes(pl as never)) fail(`post ${x.topic}: ${pl} platformada emas, lekin joylangan deb belgilangan`);

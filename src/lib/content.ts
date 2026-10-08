@@ -1,13 +1,18 @@
 // Kontent turlari va marketologning oylik topshirig'i (loyiha × oy × tur bo'yicha son).
 import { monthKey } from "./dates";
+import { hasAds } from "./services";
 import { tariffOf } from "./tariffs";
 import type { ContentType, ErpState, Post, PostFormat, Project, Quota, Tariff } from "./types";
+
+/** Target uchun alohida reklama videosi (organik joylanmaydi). */
+export const AD_VIDEO = "ct_target_video";
 
 export const DEFAULT_CONTENT_TYPES: ContentType[] = [
   { id: "ct_video", name: "Video (reels)", format: "video", active: true },
   { id: "ct_design", name: "Dizayn (rasm, karusel)", format: "image", active: true },
   { id: "ct_text", name: "Matn (faqat matnli post)", format: "text", active: true },
   { id: "ct_stories", name: "Stories", format: "image", active: true },
+  { id: AD_VIDEO, name: "Target video (reklama uchun)", format: "video", active: true, forAds: true },
 ];
 
 /** Syomka kunlari topshiriqda alohida sanaladi (postlardan emas, syomkalardan). */
@@ -17,8 +22,18 @@ export const SHOOT_LABEL = "Syomka kuni";
 const BY_FORMAT: Record<PostFormat, string> = { video: "ct_video", image: "ct_design", text: "ct_text", ai: "ct_design" };
 
 export function contentTypes(s: ErpState): ContentType[] {
-  return s.settings.contentTypes?.length ? s.settings.contentTypes : DEFAULT_CONTENT_TYPES;
+  const saved = s.settings.contentTypes;
+  if (!saved?.length) return DEFAULT_CONTENT_TYPES;
+  // Keyinroq qo'shilgan standart turlar (masalan, target video) eski saqlangan ro'yxatda ham chiqsin
+  const missing = DEFAULT_CONTENT_TYPES.filter((d) => !saved.some((t) => t.id === d.id));
+  return missing.length ? [...saved, ...missing] : saved;
 }
+
+/** Loyiha uchun kerakli turlar: target video faqat reklama xizmati bor mijozda. */
+export const typesFor = (s: ErpState, p?: Project) => contentTypes(s).filter((t) => !t.forAds || !p || hasAds(p));
+
+/** Tur reklama uchunmi (target video). */
+export const isAdType = (s: ErpState, typeId?: string) => Boolean(typeId && contentTypes(s).find((t) => t.id === typeId)?.forAds);
 
 export const typeName = (s: ErpState, id: string) => (id === SHOOT_KEY ? SHOOT_LABEL : (contentTypes(s).find((t) => t.id === id)?.name ?? "—"));
 
@@ -35,6 +50,7 @@ export function tariffQuota(t?: Tariff): Record<string, number> {
     ct_design: t.designs,
     ct_text: t.texts ?? 0,
     ct_stories: t.stories,
+    [AD_VIDEO]: t.targetVideos ?? 0,
     [SHOOT_KEY]: t.shoots,
   };
 }
@@ -66,7 +82,7 @@ export function quotaProgress(s: ErpState, p: Project, month: string): QuotaRow[
   const posts = s.posts.filter((x) => x.projectId === p.id && monthKey(x.date) === month);
   const shoots = s.shoots.filter((x) => x.projectId === p.id && monthKey(x.date) === month);
   const keys = [
-    ...contentTypes(s)
+    ...typesFor(s, p)
       .filter((t) => t.active || counts[t.id])
       .map((t) => t.id),
     SHOOT_KEY,

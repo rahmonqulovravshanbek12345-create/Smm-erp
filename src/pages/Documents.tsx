@@ -149,7 +149,10 @@ export function DocumentView({ kind, id, index }: { kind: string; id: string; in
       const per = reportPeriods(p, today).find((x) => x.index === index);
       if (per) {
         title = `Dalolatnoma — ${p.name}, ${index + 1}-davr`;
-        const posts = state.posts.filter((x) => x.projectId === p.id && x.date >= per.start && x.date < per.end && x.status === "published");
+        const done = state.posts.filter((x) => x.projectId === p.id && x.date >= per.start && x.date < per.end && x.status === "published");
+        // Reklama videolari organik joylanmaydi — dalolatnomada alohida qator
+        const posts = done.filter((x) => x.platforms.length);
+        const adVideos = done.length - posts.length;
         const byFmt = Object.entries(posts.reduce<Record<string, number>>((a, x) => ((a[x.format] = (a[x.format] ?? 0) + 1), a), {}))
           .map(([k, v]) => `${FORMAT_LABELS[k as keyof typeof FORMAT_LABELS].toLowerCase()} — ${v} ta`)
           .join(", ");
@@ -157,7 +160,7 @@ export function DocumentView({ kind, id, index }: { kind: string; id: string; in
         const ad = state.targetReports.filter((r) => r.projectId === p.id && r.date >= per.start && r.date < per.end);
         const rows = [
           {
-            name: `Ijtimoiy tarmoqlarni yuritish: kontent reja, ${posts.length} ta post joylandi (${byFmt || "—"})`,
+            name: `Ijtimoiy tarmoqlarni yuritish: kontent reja, ${posts.length} ta post joylandi (${byFmt || "—"})${adVideos ? `; target uchun ${adVideos} ta reklama videosi tayyorlab berildi` : ""}`,
             unit: "oy",
             qty: 1,
             price: amount,

@@ -243,3 +243,33 @@ test("SMM menejer montajyorga TZ beradi: deadline soati bilan", async ({ page })
   await expect(page.getByText(/, 14:30/).first()).toBeVisible();
   expect(p.errors).toEqual([]);
 });
+
+test("Target video: SMM rejaga qo'shadi (platformasiz) → tasdiqdan keyin targetologga beradi → targetolog TZ oladi", async ({ page }) => {
+  const p = await watch(page);
+  await openAs(page, "u_smm2", "/kontent");
+  await page.getByRole("button", { name: "+ Post" }).click();
+  await dialog(page).getByLabel("Loyiha").selectOption({ label: "FitLife Gym" });
+  await dialog(page).getByLabel("Turi").selectOption({ label: "Target video (reklama uchun)" });
+  await expect(dialog(page).getByText(/platformalarga joylanmaydi/)).toBeVisible();
+  await expect(dialog(page).getByRole("button", { name: /Instagram/ })).toHaveCount(0);
+  await dialog(page).getByPlaceholder("Masalan: Yangi kolleksiya obzori").fill("E2E reklama videosi");
+  await dialog(page).getByRole("button", { name: "Saqlash" }).click();
+  let s = await state(page);
+  const post = s.posts.find((x: { topic: string }) => x.topic === "E2E reklama videosi");
+  expect(post.platforms).toEqual([]);
+  expect(post.typeId).toBe("ct_target_video");
+
+  await page.getByRole("button", { name: "Ro'yxat" }).click();
+  await page.getByText("E2E reklama videosi").first().click();
+  await expect(dialog(page).getByRole("button", { name: "→ Targetologga berish" })).toHaveCount(0);
+  await dialog(page).locator("select", { hasText: "Status:" }).selectOption("approved");
+  await dialog(page).getByRole("button", { name: "→ Targetologga berish" }).click();
+  s = await state(page);
+  expect(s.posts.find((x: { id: string }) => x.id === post.id).status).toBe("published");
+  const task = s.tasks.find((t: { postId?: string; kind: string }) => t.postId === post.id && t.kind === "target");
+  expect(task.assigneeId).toBe("u_tg");
+
+  await openAs(page, "u_tg", "/target");
+  await expect(page.getByText("Reklama videosi: E2E reklama videosi").first()).toBeVisible();
+  expect(p.errors).toEqual([]);
+});

@@ -1,6 +1,6 @@
 import { fmtDate } from "../lib/dates";
 import { invoiceStatus, prepayPaid } from "../lib/finance";
-import { POST_STATUSES } from "../lib/labels";
+import { POST_STATUSES, postStatusMeta } from "../lib/labels";
 import { currentPeriod, isPostLate, isTaskLate, periodPosts, postStage } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
 import { quotaProgress } from "../lib/content";
@@ -186,7 +186,9 @@ export function PostJourney({ post, today }: { post: Post; today: string }) {
               </span>
               <span className={`h-[2px] flex-1 ${i === steps.length - 1 ? "opacity-0" : done ? "bg-green/60" : "bg-fill2"}`} />
             </div>
-            <span className={`text-[11px] leading-tight ${active ? "font-semibold text-label" : "text-label3"}`}>{s.label}</span>
+            <span className={`text-[11px] leading-tight ${active ? "font-semibold text-label" : "text-label3"}`}>
+              {postStatusMeta(s.id, !post.platforms.length).label}
+            </span>
           </li>
         );
       })}

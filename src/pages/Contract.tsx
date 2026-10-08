@@ -14,6 +14,7 @@ const GOAL: Record<string, string> = {
   ct_design: "Profil lentasining yagona vizual uslubi",
   ct_text: "Ma'lumot berish, e'lonlar",
   ct_stories: "Faol auditoriya bilan kundalik aloqa",
+  ct_target_video: "Reklama kampaniyalari uchun kreativ (organik joylanmaydi)",
   [SHOOT_KEY]: "Kontent uchun xom material",
 };
 
