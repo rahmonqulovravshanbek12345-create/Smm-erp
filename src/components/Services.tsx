@@ -386,7 +386,10 @@ function AddServiceModal({ project: p, onClose }: { project: Project; onClose: (
         </Field>
       )}
       {isRecurring(svc.kind) && p.monthlyFee > 0 && (
-        <p className="mt-3 text-xs text-label2">Oylik xizmat keyingi oylik fakturaga alohida qator bo'lib qo'shiladi.</p>
+        <p className="mt-3 text-xs text-label2">
+          Oylik xizmat keyingi davr fakturasidan boshlab alohida qator bo'lib qo'shiladi. Joriy davr uchun faktura chiqmaydi — kerak bo'lsa Moliya → Fakturalar
+          → «Qo'shimcha xizmat» orqali chiqariladi.
+        </p>
       )}
     </Modal>
   );

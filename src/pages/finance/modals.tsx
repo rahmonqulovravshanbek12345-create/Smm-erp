@@ -7,6 +7,23 @@ import { useErp, useLookup } from "../../lib/store";
 import type { Bill, Invoice } from "../../lib/types";
 import { useAccountOptions } from "./common";
 
+interface MoneyState {
+  accountId: string;
+  setAccountId: (v: string) => void;
+  amount: string;
+  setAmount: (v: string) => void;
+  rate: string;
+  setRate: (v: string) => void;
+  date: string;
+  setDate: (v: string) => void;
+  isUsd: boolean;
+  /** Kiritilgan summa hisob valyutasida. */
+  value: number;
+  /** So'mdagi qiymati (USD hisobda kurs bo'yicha). */
+  uzs: number;
+  rateNum: number | undefined;
+}
+
 /** Hisob tanlash + USD bo'lsa kurs maydoni. */
 function useMoneyFields(defaultAccount = "acc_bank") {
   const { state, today } = useErp();
@@ -15,9 +32,9 @@ function useMoneyFields(defaultAccount = "acc_bank") {
   const [rate, setRate] = useState(String(state.settings.usdRate));
   const [date, setDate] = useState(today);
   const isUsd = accountOf(state, accountId)?.currency === "USD";
+  const rateVal = Number(rate) || state.settings.usdRate;
   const value = Number(amount) || 0;
-  const uzs = isUsd ? value * (Number(rate) || 0) : value;
-  return {
+  const base: MoneyState = {
     accountId,
     setAccountId,
     amount,
@@ -28,12 +45,24 @@ function useMoneyFields(defaultAccount = "acc_bank") {
     setDate,
     isUsd,
     value,
-    uzs,
-    rateNum: isUsd ? Number(rate) || state.settings.usdRate : undefined,
+    uzs: isUsd ? value * rateVal : value,
+    rateNum: isUsd ? rateVal : undefined,
+  };
+  return {
+    ...base,
+    /**
+     * Summa kiritilmagan bo'lsa — taklif etiladigan summa (so'mda berilgan) hisob valyutasiga o'giriladi:
+     * USD hisobda so'm summasi dollar bo'lib yozilib ketmasligi uchun.
+     */
+    withDefault(suggestedUzs: number): MoneyState {
+      if (amount !== "") return base;
+      const v = isUsd ? Math.round((Math.max(0, suggestedUzs) / rateVal) * 100) / 100 : Math.round(Math.max(0, suggestedUzs));
+      return { ...base, amount: String(v), value: v, uzs: isUsd ? v * rateVal : v };
+    },
   };
 }
 
-function MoneyFields({ m, label = "Summa" }: { m: ReturnType<typeof useMoneyFields>; label?: string }) {
+function MoneyFields({ m, label = "Summa" }: { m: MoneyState; label?: string }) {
   const accounts = useAccountOptions();
   return (
     <>
@@ -190,13 +219,14 @@ export function InvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClos
   const { state, run } = useErp();
   const look = useLookup();
   const left = invoiceOutstanding(state, invoice);
-  const m = useMoneyFields("acc_bank");
+  const m = useMoneyFields("acc_bank").withDefault(left);
   const [note, setNote] = useState("");
-  const amountSet = m.amount !== "";
   const save = () => {
-    const value = amountSet ? m.value : left;
     if (
-      run((c) => act.recordClientPayment(c, invoice.id, { amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note }), "To'lov qabul qilindi")
+      run(
+        (c) => act.recordClientPayment(c, invoice.id, { amount: m.value, date: m.date, accountId: m.accountId, rate: m.rateNum, note }),
+        "To'lov qabul qilindi",
+      )
     )
       onClose();
   };
@@ -212,7 +242,7 @@ export function InvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClos
         etiladi.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <MoneyFields m={{ ...m, amount: amountSet ? m.amount : String(left) }} />
+        <MoneyFields m={m} />
         <Field label="Izoh" className="sm:col-span-2">
           <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bank o'tkazmasi / naqd / karta" />
         </Field>
@@ -266,11 +296,10 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
   const staff = state.users.filter((u) => u.role !== "admin" && u.active);
   const [uid, setUid] = useState(userId ?? staff[0]?.id ?? "");
   const balance = employeeBalance(state, uid);
-  const m = useMoneyFields("acc_bank");
+  const m = useMoneyFields("acc_bank").withDefault(Math.max(0, balance));
   const [kind, setKind] = useState<"pay" | "advance">("pay");
   const [note, setNote] = useState("");
-  const amountSet = m.amount !== "";
-  const value = amountSet ? m.value : Math.max(0, balance);
+  const value = m.value;
   const save = () => {
     const n = note || (kind === "advance" ? "Avans" : "Ish haqi");
     if (
@@ -297,7 +326,7 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
             ]}
           />
         </Field>
-        <MoneyFields m={{ ...m, amount: amountSet ? m.amount : String(Math.max(0, balance)) }} />
+        <MoneyFields m={m} />
         <Field label="Izoh" className="sm:col-span-2">
           <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Masalan: sentyabr uchun ish haqi" />
         </Field>
@@ -427,11 +456,9 @@ export function BillModal({ onClose }: { onClose: () => void }) {
 export function PayBillModal({ bill, onClose }: { bill: Bill; onClose: () => void }) {
   const { state, run } = useErp();
   const left = bill.amount - billPaid(state, bill);
-  const m = useMoneyFields("acc_bank");
-  const amountSet = m.amount !== "";
+  const m = useMoneyFields("acc_bank").withDefault(left);
   const save = () => {
-    if (run((c) => act.payBill(c, bill.id, { amount: amountSet ? m.value : left, date: m.date, accountId: m.accountId, rate: m.rateNum }), "To'landi"))
-      onClose();
+    if (run((c) => act.payBill(c, bill.id, { amount: m.value, date: m.date, accountId: m.accountId, rate: m.rateNum }), "To'landi")) onClose();
   };
   return (
     <Modal
@@ -444,7 +471,7 @@ export function PayBillModal({ bill, onClose }: { bill: Bill; onClose: () => voi
         {bill.note} · qolgan: <b className="text-label">{fmtMoney(left)}</b>
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <MoneyFields m={{ ...m, amount: amountSet ? m.amount : String(left) }} />
+        <MoneyFields m={m} />
       </div>
     </Modal>
   );

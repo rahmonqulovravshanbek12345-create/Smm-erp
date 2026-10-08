@@ -166,3 +166,44 @@ test("Marketolog «Bildirishnomalar»da topshiriq eslatmasini ko'radi", async ({
   await openAs(page, "u_mk", "/bildirishnomalar");
   await expect(page.getByText(/oylik topshiriq berilmagan/).first()).toBeVisible();
 });
+
+test("To'lov oynasi: USD hisob tanlansa, avtomatik summa dollarga o'giriladi (so'm dollar bo'lib yozilmaydi)", async ({ page }) => {
+  const p = await watch(page);
+  await openAs(page, "u_mol", "/moliya/fakturalar");
+  const s0 = await state(page);
+  const inv = s0.invoices.find((i: { projectId: string; kind: string }) => i.projectId === "p_dent" && i.kind === "prepay");
+  await page.locator("tr", { hasText: inv.number }).getByRole("button", { name: "To'lov" }).click();
+  await dialog(page).getByLabel("Hisob (kassa)").selectOption("acc_usd");
+  await dialog(page).getByRole("button", { name: "Qabul qilish" }).click();
+  const s = await state(page);
+  const tx = s.transactions.find((t: { invoiceId?: string }) => t.invoiceId === inv.id);
+  expect(tx.accountId).toBe("acc_usd");
+  // 4 000 000 so'm ≈ 316 USD; 4 000 000 USD bo'lib yozilmasligi kerak
+  expect(tx.amount).toBeLessThan(1000);
+  expect(tx.amount * tx.rate).toBeCloseTo(inv.amount, -3);
+  expect(p.errors).toEqual([]);
+});
+
+test("To'lov summasi qolgan qarzdan ancha oshib ketsa — rad etiladi", async ({ page }) => {
+  await watch(page);
+  await openAs(page, "u_mol", "/moliya/fakturalar");
+  const s0 = await state(page);
+  const inv = s0.invoices.find((i: { projectId: string; kind: string }) => i.projectId === "p_dent" && i.kind === "prepay");
+  await page.locator("tr", { hasText: inv.number }).getByRole("button", { name: "To'lov" }).click();
+  await dialog(page)
+    .getByLabel(/Summa/)
+    .fill(String(inv.amount * 10));
+  await dialog(page).getByRole("button", { name: "Qabul qilish" }).click();
+  await expect(page.getByText(/ancha oshib ketdi/)).toBeVisible();
+  const s = await state(page);
+  expect(s.transactions.some((t: { invoiceId?: string }) => t.invoiceId === inv.id)).toBe(false);
+});
+
+test("Targetolog: «Biznes»/«Premium» paketdagi mijozlar ham Target sahifasida ko'rinadi", async ({ page }) => {
+  const p = await watch(page);
+  await openAs(page, "u_tg", "/target");
+  const options = await page.getByLabel("Loyiha").last().locator("option").allInnerTexts();
+  for (const name of ["Sharq Mebel", "FitLife Gym", "Baraka Market", "Burger House", "Avto Lux"]) expect(options, name).toContain(name);
+  expect(options).not.toContain("Nur Optika");
+  expect(p.errors).toEqual([]);
+});

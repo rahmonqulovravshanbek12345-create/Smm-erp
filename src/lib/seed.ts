@@ -165,7 +165,7 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/027",
       contractDate: addDays(p2Start, -7),
       tariff: "Biznes (Instagram + target)",
-      services: [svc("smm", "Biznes", 12_000_000, { tariffId: "t_biznes" })],
+      services: [svc("smm", "Biznes", 12_000_000, { tariffId: "t_biznes", withTarget: true })],
       tariffId: "t_biznes",
       monthlyFee: 12_000_000,
       prepayType: 50,
@@ -222,7 +222,7 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/022",
       contractDate: addDays(p4Start, -6),
       tariff: "Premium (Instagram + Telegram + target)",
-      services: [svc("smm", "Premium", 18_000_000, { tariffId: "t_premium" })],
+      services: [svc("smm", "Premium", 18_000_000, { tariffId: "t_premium", withTarget: true })],
       tariffId: "t_premium",
       monthlyFee: 18_000_000,
       prepayType: 100,
@@ -288,7 +288,7 @@ export function buildSeed(today: string): ErpState {
       contractDate: addDays(p6Start, -6),
       tariff: "Biznes (Instagram + target)",
       services: [
-        svc("smm", "Biznes", 12_000_000, { tariffId: "t_biznes" }),
+        svc("smm", "Biznes", 12_000_000, { tariffId: "t_biznes", withTarget: true }),
         once("video", "Syomka kuni", 3_000_000, [d(-24), d(-22), d(-18), d(-14), d(-11), d(-9)], {
           tariffId: "t_video_day",
           assigneeId: "u_mt1",

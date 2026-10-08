@@ -354,6 +354,7 @@ export function serviceFromTariff(t: Tariff, price = t.price): ServiceInput {
     tariffId: t.id,
     title: t.name,
     price,
+    withTarget: kind === "smm" && t.target ? true : undefined,
     adPct: kind === "performance" ? t.adPct : undefined,
     prepayPct: isRecurring(kind) ? undefined : t.prepayType,
   };
