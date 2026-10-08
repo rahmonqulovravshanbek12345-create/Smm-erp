@@ -1,8 +1,9 @@
 // Avtomatik qoidalar: kechikish, hisob davri, to'lov holati, qarz, ogohlantirishlar.
-import { addDays, diffDays, fmtDate, fmtMoney, monthKey } from "./dates";
+import { findQuota } from "./content";
+import { addDays, diffDays, fmtDate, fmtMoney, fmtMonth, monthKey, shiftMonthKey } from "./dates";
 import { invoiceStatus, prepayPaid, projectDebt } from "./finance";
 import { currentPeriod, type Period } from "./period";
-import { hasAds, oneTimeServices, serviceLabel, stageIndex } from "./services";
+import { hasAds, hasContent, oneTimeServices, serviceLabel, stageIndex } from "./services";
 import type { ErpState, Post, PostStatus, Project, Task, User } from "./types";
 
 export { periodAt, currentPeriod, periodLabel, type Period } from "./period";
@@ -147,6 +148,25 @@ export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
   for (const p of s.projects) {
     if ((boss || p.targetologId === me.id) && targetReportMissing(s, p, today)) {
       out.push({ id: `tr-${p.id}`, text: `${p.name}: kechagi target hisoboti kiritilmagan`, href: "/target", tone: "red" });
+    }
+  }
+
+  // Marketolog: loyihaga oylik topshiriq berilmagan (oy boshida va oy oxiriga yaqin — keyingi oy uchun)
+  if (boss) {
+    const cur = monthKey(today);
+    const lastDays = diffDays(`${shiftMonthKey(cur, 1)}-01`, today) <= 5;
+    for (const p of s.projects) {
+      if (p.status !== "active" || !hasContent(p) || !p.handedOffAt) continue;
+      const months = lastDays ? [cur, shiftMonthKey(cur, 1)] : [cur];
+      for (const m of months) {
+        if (findQuota(s, p.id, m)) continue;
+        out.push({
+          id: `quota-${p.id}-${m}`,
+          text: `${p.name}: ${fmtMonth(m)} uchun oylik topshiriq berilmagan — SMM menejer tarif bo'yicha ishlayapti`,
+          href: `/loyiha/${p.id}`,
+          tone: "amber",
+        });
+      }
     }
   }
 

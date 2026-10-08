@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as act from "../lib/actions";
 import { SHOOT_KEY, SHOOT_LABEL, contentTypes, quotaFor, quotaProgress, quotaShortage, tariffQuota, typeName } from "../lib/content";
-import { fmtDateTime, fmtMonth } from "../lib/dates";
+import { fmtDateTime, fmtMonth, shiftMonthKey } from "../lib/dates";
 import { FORMAT_LABELS } from "../lib/labels";
 import { useErp, useLookup } from "../lib/store";
 import { tariffOf } from "../lib/tariffs";
@@ -95,7 +95,7 @@ export function QuotaPanel({ project, month, compact }: { project: Project; mont
   );
 }
 
-function QuotaModal({ project, month, onClose }: { project: Project; month: string; onClose: () => void }) {
+export function QuotaModal({ project, month, onClose }: { project: Project; month: string; onClose: () => void }) {
   const { state, run } = useErp();
   const q = quotaFor(state, project, month);
   const fromTariff = tariffQuota(tariffOf(state, project.tariffId));
@@ -204,28 +204,40 @@ function QuotaModal({ project, month, onClose }: { project: Project; month: stri
   );
 }
 
-/** Barcha loyihalar bo'yicha qisqa ko'rinish: har loyiha topshiriqning qancha qismi rejaga tushgan. */
+/** Barcha loyihalar bo'yicha: har loyiha topshiriqning qancha qismi rejaga tushgan; marketologga — «Topshiriq berish» tugmasi. */
 export function QuotaSummary({ projects }: { projects: Project[] }) {
-  const { state, today } = useErp();
+  const { state, me, today } = useErp();
   const month = today.slice(0, 7);
+  const [editing, setEditing] = useState<Project | null>(null);
+  const editable = canSetQuota(me.role);
   const rows = projects
-    .map((p) => ({ p, rows: quotaProgress(state, p, month) }))
-    .filter((x) => x.rows.length)
+    .map((p) => ({ p, rows: quotaProgress(state, p, month), given: Boolean(quotaFor(state, p, month).saved) }))
+    .filter((x) => x.rows.length || editable)
     .map((x) => ({ ...x, target: x.rows.reduce((a, r) => a + r.target, 0), planned: x.rows.reduce((a, r) => a + Math.min(r.planned, r.target), 0) }));
   if (!rows.length) return null;
+  const missing = rows.filter((x) => !x.given).length;
   return (
     <Card className="mb-4">
       <CardHeader
         icon={{ name: "gauge", color: "indigo" }}
         title={`Oylik topshiriqlar · ${fmtMonth(month)}`}
-        sub="Loyihani tanlasangiz — batafsil reja va fakt"
+        sub={
+          editable
+            ? missing
+              ? `${missing} ta loyihaga bu oy topshiriq berilmagan (tarif bo'yicha hisoblanmoqda). Har qatordagi tugma orqali bering`
+              : "Hamma loyihaga topshiriq berilgan. O'zgartirish uchun qatordagi tugmani bosing"
+            : "Loyihani tanlasangiz — batafsil reja va fakt"
+        }
       />
       <ul className="divide-y divide-sep">
-        {rows.map(({ p, rows: r, target, planned }) => {
+        {rows.map(({ p, rows: r, target, planned, given }) => {
           const short = quotaShortage(r);
           return (
-            <li key={p.id} className="grid gap-2 px-4 py-2.5 text-sm sm:grid-cols-[180px_1fr_auto] sm:items-center">
-              <span className="font-medium text-label">{p.name}</span>
+            <li key={p.id} className="grid gap-2 px-4 py-2.5 text-sm sm:grid-cols-[170px_1fr_auto_auto] sm:items-center">
+              <span className="font-medium text-label">
+                {p.name}
+                {!given && <span className="ml-1.5 rounded-full bg-orange/15 px-1.5 py-0.5 text-[10px] font-semibold text-orange">berilmagan</span>}
+              </span>
               <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-label2">
                 {r.map((x) => (
                   <span key={x.key} className={x.target && x.planned >= x.target ? "text-green" : x.target ? "text-orange" : ""}>
@@ -236,10 +248,47 @@ export function QuotaSummary({ projects }: { projects: Project[] }) {
               <span className={`text-xs font-semibold ${short ? "text-orange" : "text-green"}`}>
                 {short ? `yetishmaydi: ${short}` : `✓ ${planned}/${target}`}
               </span>
+              {editable && (
+                <Button size="sm" variant={given ? "secondary" : "primary"} onClick={() => setEditing(p)}>
+                  {given ? "O'zgartirish" : "Topshiriq berish"}
+                </Button>
+              )}
             </li>
           );
         })}
       </ul>
+      {editing && <QuotaModal project={editing} month={month} onClose={() => setEditing(null)} />}
     </Card>
+  );
+}
+
+/** Loyiha kartasidagi alohida «Oylik topshiriq» tabi: shu oy va keyingi oy. */
+export function QuotaTab({ project }: { project: Project }) {
+  const { today } = useErp();
+  const cur = today.slice(0, 7);
+  const next = shiftMonthKey(cur, 1);
+  const [month, setMonth] = useState(cur);
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {[cur, next].map((m) => (
+          <button
+            key={m}
+            type="button"
+            aria-pressed={month === m}
+            onClick={() => setMonth(m)}
+            className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${month === m ? "bg-accent text-white" : "bg-fill text-label2"}`}
+          >
+            {fmtMonth(m)}
+            {m === next ? " (keyingi oy)" : ""}
+          </button>
+        ))}
+      </div>
+      <QuotaPanel project={project} month={month} />
+      <p className="text-xs text-label2">
+        Marketolog shu yerda oyiga nechta video, dizayn, matn, stories va syomka kuni kerakligini beradi. SMM menejer kontent rejani shu sonlarga qarab tuzadi;
+        oy o'rtasida o'zgartirilsa, unga Telegram orqali xabar boradi.
+      </p>
+    </>
   );
 }

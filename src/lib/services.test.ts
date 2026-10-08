@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as act from "./actions";
 import { quotaFor, quotaProgress, quotaShortage } from "./content";
+import { alertsFor } from "./rules";
 import { addDays, monthKey } from "./dates";
 import { invoicePaid, mrr, pnl, prepayPaid, receivables, syncInvoices, unrecognizedRevenue } from "./finance";
 import { invoiceLines, recurringFee, recurringLines, servicePrepayPaid, stageIndex } from "./services";
@@ -290,5 +291,39 @@ describe("Tijorat taklifi: bir nechta xizmat", () => {
     const p = s.proposals.find((x) => x.id === id)!;
     expect(p.acceptedTariffIds).toEqual(["t_biznes", "t_web_corp"]);
     expect(p.acceptedTariffId).toBe("t_biznes");
+  });
+});
+
+describe("Marketologga eslatma: topshiriq berilmagan", () => {
+  const quotaAlerts = (s: ErpState, uid: string, today = TODAY) =>
+    alertsFor(
+      s,
+      s.users.find((u) => u.id === uid)!,
+      today,
+    ).filter((a) => a.id.startsWith("quota-"));
+
+  it("topshiriq berilmagan loyiha uchun marketolog va rahbarga chiqadi, SMM menejerga chiqmaydi", () => {
+    const s = demoState();
+    const names = quotaAlerts(s, "u_mk").map((a) => a.text);
+    expect(names.some((t) => t.startsWith("Baraka Market"))).toBe(true);
+    expect(names.some((t) => t.startsWith("Sharq Mebel"))).toBe(false); // topshiriq berilgan
+    expect(quotaAlerts(s, "u_boss").length).toBe(quotaAlerts(s, "u_mk").length);
+    expect(quotaAlerts(s, "u_smm1")).toHaveLength(0);
+  });
+
+  it("topshiriq berilgach eslatma yo'qoladi", () => {
+    const s = demoState();
+    const before = quotaAlerts(s, "u_mk").length;
+    act.saveQuota(makeCtx(s, "u_mk").c, "p_baraka", "2026-10", { ct_video: 10 });
+    expect(quotaAlerts(s, "u_mk")).toHaveLength(before - 1);
+  });
+
+  it("oy oxirida keyingi oy uchun ham eslatadi; faol bo'lmagan va strategiyasi tugamagan loyihaga emas", () => {
+    const s = demoState();
+    const eve = "2026-10-28";
+    const texts = quotaAlerts(s, "u_mk", eve).map((a) => a.text);
+    expect(texts.some((t) => t.startsWith("Sharq Mebel") && t.includes("Noyabr"))).toBe(true);
+    expect(texts.some((t) => t.startsWith("Moda House"))).toBe(false); // yopilgan
+    expect(texts.some((t) => t.startsWith("Dent Plus"))).toBe(false); // strategiya hali tugamagan
   });
 });

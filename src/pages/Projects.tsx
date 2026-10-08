@@ -11,7 +11,9 @@ import { useErp, useLookup } from "../lib/store";
 import type { DocBlock, Project } from "../lib/types";
 import { ContentPlan } from "./Content";
 import { ProjectJourney } from "../components/ProjectJourney";
+import { QuotaTab } from "../components/Quota";
 import { ServicesPanel } from "../components/Services";
+import { quotaFor } from "../lib/content";
 import { hasAds, hasContent, hasRecurring, isRecurring, serviceMeta, servicesOf, stageIndex } from "../lib/services";
 import { Invoices } from "./finance/Invoices";
 import { ProjectFinance } from "./finance/ProjectFinance";
@@ -77,6 +79,7 @@ export function Projects() {
                   <DebtBadge debt={debt} />
                   {blocked && <Badge tone="amber">{p.pauseWork ? "Ish to'xtatilgan" : "Oldindan to'lov kutilmoqda"}</Badge>}
                   {!p.handedOffAt && hasRecurring(p) && <Badge tone="violet">Strategiya: {docsDone}/5</Badge>}
+                  {hasContent(p) && p.status === "active" && !quotaFor(state, p, today.slice(0, 7)).saved && <Badge tone="amber">Topshiriq berilmagan</Badge>}
                   {per && <Badge>{per.index + 1}-davr</Badge>}
                 </div>
                 {hasContent(p) && (
@@ -120,7 +123,7 @@ export function Projects() {
   );
 }
 
-type Tab = "info" | "marketing" | "content" | "tasks" | "finance" | "report";
+type Tab = "info" | "marketing" | "quota" | "content" | "tasks" | "finance" | "report";
 
 export function ProjectCard({ id }: { id: string }) {
   const { state, me, today } = useErp();
@@ -134,7 +137,12 @@ export function ProjectCard({ id }: { id: string }) {
   const tabs: { id: Tab; label: string }[] = [
     { id: "info", label: "Umumiy" },
     ...(canView(me.role, "marketing") ? [{ id: "marketing" as Tab, label: "Marketolog bo'limi" }] : []),
-    ...(canView(me.role, "content") && hasContent(p) ? [{ id: "content" as Tab, label: "Kontent reja" }] : []),
+    ...(canView(me.role, "content") && hasContent(p)
+      ? [
+          { id: "quota" as Tab, label: "Oylik topshiriq" },
+          { id: "content" as Tab, label: "Kontent reja" },
+        ]
+      : []),
     { id: "tasks", label: "Vazifalar" },
     ...(canView(me.role, "finance") ? [{ id: "finance" as Tab, label: "Moliya" }] : []),
     { id: "report", label: "Oylik hisobot" },
@@ -167,6 +175,7 @@ export function ProjectCard({ id }: { id: string }) {
         </>
       )}
       {tab === "marketing" && <Marketing p={p} />}
+      {tab === "quota" && <QuotaTab project={p} />}
       {tab === "content" && <ContentPlan projectId={p.id} />}
       {tab === "tasks" && <ProjectTasks p={p} />}
       {tab === "finance" && (

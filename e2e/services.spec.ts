@@ -126,3 +126,43 @@ test("Tariflar: xizmatlar bo'yicha tablar; taklif bir nechta xizmatdan", async (
   await expect(page.getByText("+ reklama byudjetidan 10%")).toBeVisible();
   expect(p.errors).toEqual([]);
 });
+
+test("Loyiha kartasida alohida «Oylik topshiriq» tabi: shu oy va keyingi oy", async ({ page }) => {
+  const p = await watch(page);
+  await openAs(page, "u_mk", "/loyiha/p_baraka");
+  await page.getByRole("button", { name: "Oylik topshiriq" }).click();
+  await expect(page.getByText(/Oylik topshiriq · Oktyabr 2026/)).toBeVisible();
+  await page.getByRole("button", { name: /Noyabr 2026/ }).click();
+  await expect(page.getByText(/Oylik topshiriq · Noyabr 2026/)).toBeVisible();
+  await page.getByRole("button", { name: "Topshiriq berish" }).click();
+  await dialog(page).getByLabel("Video (reels) — bu oy").fill("4");
+  await dialog(page).getByRole("button", { name: "Saqlash va SMM'ga yuborish" }).click();
+  const s = await state(page);
+  const q = s.quotas.find((x: { projectId: string; month: string }) => x.projectId === "p_baraka" && x.month === "2026-11");
+  expect(q.counts.ct_video).toBe(4);
+  expect(p.errors).toEqual([]);
+});
+
+test("Kontent reja (barcha loyihalar): har qatorda «Topshiriq berish» tugmasi va eslatma", async ({ page }) => {
+  const p = await watch(page);
+  await openAs(page, "u_mk", "/kontent");
+  const row = page.locator("li", { hasText: "Burger House" }).filter({ has: page.getByRole("button", { name: "Topshiriq berish" }) });
+  await expect(row).toBeVisible();
+  await expect(row.getByText("berilmagan")).toBeVisible();
+  await row.getByRole("button", { name: "Topshiriq berish" }).click();
+  await dialog(page).getByLabel("Video (reels) — bu oy").fill("4");
+  await dialog(page).getByRole("button", { name: "Saqlash va SMM'ga yuborish" }).click();
+  await expect(page.locator("li", { hasText: "Burger House" }).getByRole("button", { name: "O'zgartirish" })).toBeVisible();
+  const s = await state(page);
+  expect(s.quotas.some((x: { projectId: string }) => x.projectId === "p_burger")).toBe(true);
+  // SMM menejerga tugma ko'rinmaydi
+  await openAs(page, "u_smm1", "/kontent");
+  await expect(page.getByRole("button", { name: "Topshiriq berish" })).toHaveCount(0);
+  expect(p.errors).toEqual([]);
+});
+
+test("Marketolog «Bildirishnomalar»da topshiriq eslatmasini ko'radi", async ({ page }) => {
+  await watch(page);
+  await openAs(page, "u_mk", "/bildirishnomalar");
+  await expect(page.getByText(/oylik topshiriq berilmagan/).first()).toBeVisible();
+});
