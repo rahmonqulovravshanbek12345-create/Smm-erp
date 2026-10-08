@@ -260,18 +260,20 @@ function Info({ p }: { p: Project }) {
                 className="!w-48"
               />
             </Field>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={p.pauseWork}
-                onChange={(e) => run((c) => act.updateProject(c, p.id, { pauseWork: e.target.checked }), "Saqlandi")}
-                className="mt-1"
-              />
-              <span>
-                <span className="text-label">Ishni to'xtatish</span>
-                <span className="block text-xs text-label2">Belgilansa, bu loyiha uchun yangi post, syomka va TZ ochilmaydi (qo'lda boshqariladi)</span>
-              </span>
-            </label>
+            {p.status !== "closed" && (
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={p.pauseWork}
+                  onChange={(e) => run((c) => act.updateProject(c, p.id, { pauseWork: e.target.checked }), "Saqlandi")}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="text-label">Ishni to'xtatish</span>
+                  <span className="block text-xs text-label2">Belgilansa, bu loyiha uchun yangi post, syomka va TZ ochilmaydi (qo'lda boshqariladi)</span>
+                </span>
+              </label>
+            )}
             <CloseProject p={p} />
           </div>
         )}

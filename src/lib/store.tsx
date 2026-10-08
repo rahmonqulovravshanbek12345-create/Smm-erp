@@ -128,6 +128,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const uniq = new Set(userIds.filter((x): x is string => Boolean(x) && x !== me.id));
           for (const uid of uniq) {
             const to = s.users.find((u) => u.id === uid);
+            // Arxivdagi xodimga bildirishnoma va Telegram yuborilmaydi
+            if (!to?.active) continue;
             const chatId = to?.telegramChatId?.trim();
             const live = Boolean(tg.enabled && token && chatId);
             const id = newId("ntf");

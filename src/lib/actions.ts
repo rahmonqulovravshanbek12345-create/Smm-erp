@@ -17,9 +17,9 @@ import {
   stagesFor,
   type ServiceInput,
 } from "./services";
-import { postStage, workBlockedReason } from "./rules";
+import { isTaskOpen, postStage, workBlockedReason } from "./rules";
 import { isSettled } from "./money";
-import { currentPeriod } from "./period";
+import { currentPeriod, periodAt } from "./period";
 import { newId, type Ctx } from "./store";
 import { acceptedIds, defaultPicks, nextProposalNumber, proposalPrice, tariffOf, tariffService } from "./tariffs";
 import type {
@@ -147,6 +147,29 @@ export interface ProjectInput {
   services: ServiceInput[];
 }
 
+/** Fakturani bekor qilish (faqat to'lanmagan). */
+function voidInv(inv: Invoice, date: string, reason: string) {
+  inv.voidedAt = date;
+  inv.voidReason = reason;
+}
+
+/** Oylik faktura davri boshlanganmi (boshlanmagan davr fakturasi xizmat to'xtatilsa bekor qilinadi). */
+function servicePeriodStarted(c: Ctx, p: Project, inv: Invoice): boolean {
+  if (!p.periodStart) return false;
+  const per = periodAt(p, inv.periodIndex);
+  return Boolean(per && per.start <= c.today);
+}
+
+/** Moliya: to'lanmagan fakturani sabab bilan bekor qilish. */
+export function voidInvoice(c: Ctx, invoiceId: string, reason: string) {
+  const inv = c.s.invoices.find((x) => x.id === invoiceId);
+  if (!inv || inv.voidedAt) return;
+  if (!reason.trim()) throw new Error("Bekor qilish sababini yozing");
+  if (invoicePaid(c.s, inv) > 0.5) throw new Error("Faktura bo'yicha to'lov bor — bekor qilib bo'lmaydi");
+  voidInv(inv, c.today, reason.trim());
+  c.log(`Faktura ${inv.number} bekor qilindi: ${reason.trim()} (${projectName(c, inv.projectId)})`, "/moliya/fakturalar");
+}
+
 /** Xizmatlar o'zgarganda loyihaning hisoblangan maydonlari: oylik summa, qisqa tavsif, SMM paketi. */
 function refreshProject(c: Ctx, p: Project) {
   p.monthlyFee = recurringFee(p, c.s.settings.usdRate);
@@ -182,8 +205,8 @@ function scaleLines(lines: InvoiceLine[], amount: number): InvoiceLine[] {
 }
 
 /** Oylik xizmatlar uchun 1-davr fakturalari (oldindan va kerak bo'lsa qoldiq). */
-function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue: string, remainderDue: string) {
-  const lines = recurringLines(p, c.s.settings.usdRate);
+function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue: string, remainderDue: string, only?: InvoiceLine[]) {
+  const lines = only ?? recurringLines(p, c.s.settings.usdRate);
   const fee = lines.reduce((a, l) => a + l.amount, 0);
   if (fee <= 0) return;
   const prepay = Math.round((fee * p.prepayType) / 100);
@@ -196,7 +219,7 @@ function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue
     amount: prepay,
     lines: scaleLines(lines, prepay),
     dueDate: prepayDue || issueDate,
-    note: `Oldindan to'lov (${p.prepayType}%)`,
+    note: only ? `1-davr: qo'shilgan xizmat — oldindan to'lov (${p.prepayType}%)` : `Oldindan to'lov (${p.prepayType}%)`,
   });
   if (p.prepayType === 50) {
     c.s.invoices.push({
@@ -305,7 +328,7 @@ export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { 
   validateService(input);
   // Reklama yoki SMM xizmatiga mas'ul xodim bo'lmasa — birinchi faol xodim tayinlanadi (keyin o'zgartirish mumkin)
   const needRole = (role: "targetolog" | "smm", field: "targetologId" | "smmId") => {
-    if (p[field]) return;
+    if (p[field] && c.s.users.find((x) => x.id === p[field])?.active) return;
     const u = c.s.users.find((x) => x.role === role && x.active);
     if (!u) throw new Error(`${ROLE_LABELS[role]} yo'q — avval Admin bo'limida xodim qo'shing`);
     p[field] = u.id;
@@ -315,11 +338,16 @@ export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { 
   if (input.kind === "smm") needRole("smm", "smmId");
   const hadRecurring = recurringLines(p, c.s.settings.usdRate).length > 0;
   const svc = buildService(input, c.today);
+  // Ishlayotgan loyihaga keyin qo'shilgan oylik xizmat — shu kundan boshlangan davrlar fakturasiga kiradi
+  if (isRecurring(svc.kind) && (hadRecurring || p.periodStart)) svc.billFrom = c.today;
   p.services.push(svc);
   refreshProject(c, p);
   if (isRecurring(svc.kind)) {
-    // Ilgari faqat bir martalik xizmat bo'lgan mijozda oylik xizmat boshlansa — 1-davr oldindan to'lovi
-    if (!hadRecurring && !p.periodStart) recurringStartInvoices(c, p, c.today, o.dueDate ?? c.today, "");
+    if (!p.periodStart) {
+      // Davr hali boshlanmagan: 1-davr uchun oldindan to'lov (oldin oylik xizmat bo'lgan bo'lsa — faqat yangi xizmat qatorlari)
+      const only = hadRecurring ? recurringLines({ ...p, services: [svc] }, c.s.settings.usdRate) : undefined;
+      recurringStartInvoices(c, p, c.today, o.dueDate ?? c.today, "", only);
+    }
   } else serviceStartInvoice(c, p, svc, c.today, o.dueDate ?? c.today);
   const midPeriod = isRecurring(svc.kind) && hadRecurring && Boolean(currentPeriod(p, c.today));
   c.notify(
@@ -353,8 +381,35 @@ export function cancelService(c: Ctx, projectId: string, serviceId: string) {
   if (!p || !svc) return;
   if (svc.deliveredAt) throw new Error("Topshirilgan xizmatni bekor qilib bo'lmaydi");
   svc.status = "cancelled";
+  svc.cancelledAt = c.today;
   refreshProject(c, p);
-  c.notify([p.marketologId, ...financeIds(c)], `${p.name}: ${serviceLabel(svc.kind)} to'xtatildi`, `/loyiha/${p.id}`);
+  // To'lanmagan fakturalar bekor qilinadi: bir martalik xizmatniki — hammasi; oylik xizmatniki — boshlanmagan davrlar
+  // (faqat shu xizmat qatorlari bo'lgan fakturalar). Qisman to'langanlari qoladi — moliya qaytarishni hal qiladi.
+  const voided: string[] = [];
+  const kept: string[] = [];
+  for (const inv of c.s.invoices) {
+    if (inv.projectId !== p.id || inv.voidedAt) continue;
+    const mine = isRecurring(svc.kind)
+      ? !inv.serviceId &&
+        inv.kind !== "extra" &&
+        (inv.lines ?? []).length > 0 &&
+        inv.lines!.every((l) => l.kind === svc.kind) &&
+        !servicePeriodStarted(c, p, inv)
+      : inv.serviceId === svc.id;
+    if (!mine) continue;
+    if (invoicePaid(c.s, inv) > 0.5) kept.push(inv.number);
+    else {
+      voidInv(inv, c.today, `${serviceLabel(svc.kind)} to'xtatildi`);
+      voided.push(inv.number);
+    }
+  }
+  const fin = [
+    voided.length ? `bekor qilingan fakturalar: ${voided.join(", ")}` : "",
+    kept.length ? `to'langan fakturalar (qaytarishni hal qiling): ${kept.join(", ")}` : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
+  c.notify([p.marketologId, ...financeIds(c)], `${p.name}: ${serviceLabel(svc.kind)} to'xtatildi${fin ? ` — ${fin}` : ""}`, `/loyiha/${p.id}`);
   c.notify([svc.assigneeId], `${p.name}: ${serviceLabel(svc.kind)} to'xtatildi — ishni davom ettirmang`, "/mening");
   c.log(`${p.name}: ${serviceLabel(svc.kind)} to'xtatildi`, `/loyiha/${p.id}`);
 }
@@ -591,6 +646,12 @@ export function setProposalStatus(
 export function updateProject(c: Ctx, id: string, patch: Partial<Project>) {
   const p = findProject(c, id);
   if (!p) return;
+  if (p.status === "closed" && patch.pauseWork === false) throw new Error("Loyiha yopilgan — ishni qayta ochib bo'lmaydi");
+  if ("periodStart" in patch && patch.periodStart !== p.periodStart) {
+    if (c.s.invoices.some((i) => i.projectId === p.id && i.kind === "monthly"))
+      throw new Error("Oylik fakturalar chiqqan — hisob davri boshini o'zgartirib bo'lmaydi (fakturalar siljib ketadi)");
+    if (patch.periodStart && patch.periodStart > c.today) throw new Error("Hisob davri boshi kelajakda bo'lishi mumkin emas");
+  }
   if (patch.pauseWork !== undefined && patch.pauseWork !== p.pauseWork) {
     c.notify([p.marketologId, p.smmId], `${p.name}: ish ${patch.pauseWork ? "to'xtatildi (qarz)" : "qayta tiklandi"}`, `/loyiha/${id}`);
   }
@@ -628,7 +689,15 @@ export function savePost(c: Ctx, data: Omit<Post, "id" | "createdAt" | "status">
     if (!p) return;
     Object.assign(p, data);
     // Olib tashlangan platformaning joylash belgisi ham o'chadi
-    if (p.publishedOn) for (const k of Object.keys(p.publishedOn) as Platform[]) if (!p.platforms.includes(k)) delete p.publishedOn[k];
+    if (p.publishedOn) {
+      const kept = Object.fromEntries(Object.entries(p.publishedOn).filter(([k]) => p.platforms.includes(k as Platform)));
+      p.publishedOn = kept;
+    }
+    // Joylangan postga yangi platforma qo'shilsa — u yerda hali joylanmagan, post «Tasdiqlandi»ga qaytadi
+    if (p.status === "published" && p.platforms.some((x) => !p.publishedOn?.[x])) {
+      p.status = "approved";
+      p.publishedAt = undefined;
+    }
     if (p.status === "published" && !p.publishedAt) p.publishedAt = c.today;
     c.log(`Post yangilandi: ${p.topic} (${projectName(c, p.projectId)})`, "/kontent");
     return;
@@ -642,6 +711,9 @@ export function savePost(c: Ctx, data: Omit<Post, "id" | "createdAt" | "status">
 export function deletePost(c: Ctx, id: string) {
   const p = c.s.posts.find((x) => x.id === id);
   c.s.posts = c.s.posts.filter((x) => x.id !== id);
+  // Bog'langan syomka va TZ'lardan havolani olib tashlaymiz (o'chgan postga ishora qolmasin)
+  for (const sh of c.s.shoots) sh.postIds = sh.postIds.filter((x) => x !== id);
+  for (const t of c.s.tasks) if (t.postId === id) t.postId = undefined;
   if (p) c.log(`Post o'chirildi: ${p.topic}`, "/kontent");
 }
 
@@ -749,13 +821,32 @@ export function unpublishPlatform(c: Ctx, postId: string, platform: Platform) {
   c.log(`${p.topic}: ${PLATFORM_LABELS[platform]} — joylash belgisi olib tashlandi`, "/kontent");
 }
 
+/**
+ * Status ro'yxatidan o'zgartirish. Ishlab chiqarish bosqichlari (reja → dizayn) erkin;
+ * tasdiq zinasini sakrab o'tib bo'lmaydi: ichki tasdiq → (marketolog) mijozga → mijoz tasdig'i → joylash.
+ */
 export function setPostStatus(c: Ctx, postId: string, status: PostStatus) {
   const p = c.s.posts.find((x) => x.id === postId);
   if (!p || p.status === status) return;
+  const from = p.status;
   if (status === "internal") return sendToInternal(c, postId);
-  if (status === "approved") return clientApproved(c, postId);
-  if (status === "published") return publishPost(c, postId);
+  if (status === "client") {
+    if (from !== "internal") throw new Error("Avval ichki tasdiqqa yuboring — mijozga marketolog tasdig'idan keyin yuboriladi");
+    if (!["marketolog", "rahbar", "admin"].includes(c.me.role)) throw new Error("Ichki tasdiqni marketolog beradi");
+    return approveInternal(c, postId);
+  }
+  if (status === "approved") {
+    if (from !== "client") throw new Error("Mijoz tasdig'i faqat «Mijoz tasdig'ida» bosqichidan keyin belgilanadi");
+    return clientApproved(c, postId);
+  }
+  if (status === "published") {
+    if (from !== "approved") throw new Error("Joylashdan oldin mijoz tasdig'i kerak");
+    return publishPost(c, postId);
+  }
+  // Ortga qaytarildi: joylash belgilari ham bekor bo'ladi
   p.status = status;
+  p.publishedAt = undefined;
+  p.publishedOn = undefined;
   c.log(`${p.topic}: status → ${POST_STATUSES.find((x) => x.id === status)?.label}`, "/kontent");
 }
 
@@ -811,7 +902,19 @@ export function handFootage(c: Ctx, shootId: string, link: string) {
 
 export function createTask(c: Ctx, data: Omit<Task, "id" | "createdAt" | "createdBy" | "status">) {
   assertWorkAllowed(c, data.projectId);
+  if (!data.title.trim()) throw new Error("Vazifa nomini yozing");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data.deadline)) throw new Error("Deadline sanasini tanlang");
+  const who = c.s.users.find((u) => u.id === data.assigneeId);
+  if (!who?.active) throw new Error("Ijrochini tanlang (faol xodim)");
   const t: Task = { ...data, id: newId("task"), status: "new", createdBy: c.me.id, createdAt: nowISO() };
+  // Syomka allaqachon topshirilgan bo'lsa, montajyor kadrlar havolasini darhol oladi
+  if (t.kind === "montaj" && !t.footageLink && t.postId) {
+    const sh = c.s.shoots.find((x) => x.status === "handed" && x.footageLink && x.postIds.includes(t.postId!));
+    if (sh) {
+      t.footageLink = sh.footageLink;
+      t.shootId ??= sh.id;
+    }
+  }
   c.s.tasks.push(t);
   const post = c.s.posts.find((x) => x.id === t.postId);
   if (t.kind === "montaj") advance(post, "editing");
@@ -837,6 +940,7 @@ export function submitTask(c: Ctx, id: string, resultLink: string) {
   if (!resultLink.trim()) throw new Error("Tayyor ish havolasini kiriting (Google Drive)");
   t.status = "review";
   t.resultLink = resultLink.trim();
+  t.submittedAt = c.today;
   c.notify([t.createdBy, findProject(c, t.projectId)?.smmId], `Tekshiruvga topshirildi: ${t.title}`, taskHref(t));
   c.log(`${t.title}: tayyor, tekshiruvga topshirildi`, taskHref(t));
 }
@@ -853,7 +957,9 @@ export function acceptTask(c: Ctx, id: string) {
   const a = wt ? accruePiece(c, t.assigneeId, wt, t.projectId, `${projectName(c, t.projectId)}: ${t.title}`, `task:${t.id}`) : null;
   // Kechikkan ish uchun jarima (sozlamada yoqilgan bo'lsa)
   const pct = c.s.settings.latePenaltyPct;
-  if (a && pct > 0 && t.deadline < c.today && !c.s.accruals.some((x) => x.sourceId === `late:${t.id}`)) {
+  // Kechikish ijrochi topshirgan kun bo'yicha (tekshiruvchining kechikishi ijrochiga jarima bo'lmaydi)
+  const doneOn = t.submittedAt ?? c.today;
+  if (a && pct > 0 && t.deadline && t.deadline < doneOn && !c.s.accruals.some((x) => x.sourceId === `late:${t.id}`)) {
     const amount = -Math.round((a.amount * pct) / 100);
     c.s.accruals.push({
       id: newId("acr"),
@@ -862,7 +968,7 @@ export function acceptTask(c: Ctx, id: string) {
       date: c.today,
       kind: "penalty",
       sourceId: `late:${t.id}`,
-      title: `Jarima ${pct}%: «${t.title}» ${diffDays(c.today, t.deadline)} kun kechikdi`,
+      title: `Jarima ${pct}%: «${t.title}» ${diffDays(doneOn, t.deadline)} kun kechikdi`,
       qty: 1,
       rate: amount,
       amount,
@@ -886,10 +992,14 @@ export function returnTask(c: Ctx, id: string, note: string) {
 export function launchTarget(c: Ctx, id: string, date: string) {
   const t = c.s.tasks.find((x) => x.id === id);
   if (!t) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Reklama yoqilgan sanani tanlang");
+  if (date > c.today) throw new Error("Kelajakdagi sana bo'lishi mumkin emas");
   t.launchedAt = date;
   t.status = "progress";
   const p = findProject(c, t.projectId);
-  if (p && (!p.periodStart || date < p.periodStart)) {
+  // Hisob davri bir marta boshlanadi; faktura chiqqanidan keyin orqaga surilmaydi (aks holda fakturalar siljiydi)
+  const billed = Boolean(p && c.s.invoices.some((i) => i.projectId === p.id && i.kind === "monthly"));
+  if (p && (!p.periodStart || (date < p.periodStart && !billed))) {
     p.periodStart = date;
     c.notify([p.marketologId, ...financeIds(c)], `${p.name}: birinchi reklama ${fmtDate(date)} da yoqildi — hisob davri boshlandi`, `/loyiha/${p.id}`);
   }
@@ -994,6 +1104,7 @@ function assertNotOverpaid(uzs: number, outstanding: number) {
 export function recordClientPayment(c: Ctx, invoiceId: string, o: { amount: number; date: string; accountId: string; rate?: number; note: string }) {
   const inv = c.s.invoices.find((x) => x.id === invoiceId);
   if (!inv) throw new Error("Faktura topilmadi");
+  if (inv.voidedAt) throw new Error("Faktura bekor qilingan — to'lov qabul qilinmaydi");
   if (!(o.amount > 0)) throw new Error("Summani kiriting");
   const fx = assertMoney(c, o);
   assertNotOverpaid(o.amount * fx, Math.max(0, inv.amount - invoicePaid(c.s, inv)));
@@ -1147,12 +1258,18 @@ export function deleteAccrual(c: Ctx, id: string) {
   const a = c.s.accruals.find((x) => x.id === id);
   if (!a) return;
   if (a.createdBy === "system" && a.kind !== "piece" && a.kind !== "bonus") throw new Error("Avtomatik davriy hisoblashni o'chirib bo'lmaydi");
-  c.s.accruals = c.s.accruals.filter((x) => x.id !== id);
+  // Ishbay haq o'chirilsa, shu ish uchun kechikish jarimasi ham olib tashlanadi
+  const late = a.sourceId?.startsWith("task:") ? `late:${a.sourceId.slice(5)}` : null;
+  c.s.accruals = c.s.accruals.filter((x) => x.id !== id && (!late || x.sourceId !== late));
   c.log(`Hisoblash o'chirildi: ${a.title}`, "/moliya/ish-haqi");
 }
 
 export function savePayProfile(c: Ctx, prof: PayProfile) {
   const i = c.s.payProfiles.findIndex((p) => p.userId === prof.userId);
+  const old = i >= 0 ? c.s.payProfiles[i] : undefined;
+  if (prof.fixed < 0 || prof.perProject < 0) throw new Error("Stavka manfiy bo'lishi mumkin emas");
+  // Fiks oylik endi belgilansa — o'tgan oylar uchun orqaga hisoblanmaydi
+  prof = { ...prof, fixedFrom: prof.fixed > 0 && !(old && old.fixed > 0) ? c.today : old?.fixedFrom };
   if (i >= 0) c.s.payProfiles[i] = prof;
   else c.s.payProfiles.push(prof);
   c.log(`Stavkalar yangilandi: ${c.s.users.find((u) => u.id === prof.userId)?.name}`, "/moliya/ish-haqi");
@@ -1165,7 +1282,7 @@ export function setBudget(c: Ctx, month: string, line: BudgetLine["line"], amoun
 }
 
 /** Xodimni arxivlash: tizimga kira olmaydi, yangi ish tayinlanmaydi; eski ma'lumot va hisob-kitoblari saqlanadi. */
-export function archiveUser(c: Ctx, userId: string) {
+export function archiveUser(c: Ctx, userId: string, replacementId?: string) {
   const u = c.s.users.find((x) => x.id === userId);
   if (!u) return;
   if (u.id === c.me.id) throw new Error("O'zingizni arxivlay olmaysiz");
@@ -1173,14 +1290,40 @@ export function archiveUser(c: Ctx, userId: string) {
   if (u.role === "rahbar" && c.s.users.filter((x) => x.role === "rahbar" && x.active).length <= 1) {
     throw new Error("Oxirgi faol rahbarni arxivlab bo'lmaydi");
   }
+  const rep = replacementId ? c.s.users.find((x) => x.id === replacementId) : undefined;
+  if (replacementId && (!rep?.active || rep.id === u.id)) throw new Error("O'rniga faol xodimni tanlang");
   u.active = false;
-  c.log(`Xodim arxivlandi: ${u.name} (${ROLE_LABELS[u.role]})`, "/admin");
+  u.archivedAt = c.today;
+  const moved: string[] = [];
+  if (rep) {
+    // Ochiq ishlar yangi mas'ulga o'tadi (yopilgan loyihalar va bajarilgan ishlar tarixi o'zgarmaydi)
+    const take = <T>(obj: T, key: keyof T, label: string) => {
+      if (obj[key] === u.id) {
+        obj[key] = rep.id as T[keyof T];
+        moved.push(label);
+      }
+    };
+    for (const p of c.s.projects) {
+      if (p.status === "closed") continue;
+      take(p, "marketologId", p.name);
+      take(p, "smmId", p.name);
+      take(p, "targetologId", p.name);
+      for (const svc of p.services ?? []) if (svc.status === "active") take(svc, "assigneeId", p.name);
+    }
+    for (const t of c.s.tasks) if (isTaskOpen(t)) take(t, "assigneeId", t.title);
+    for (const sh of c.s.shoots) if (sh.status === "planned") take(sh, "operatorId", sh.location);
+    for (const p of c.s.posts) if (p.assigneeId === u.id && p.status !== "published") p.assigneeId = rep.id;
+    if (moved.length)
+      c.notify([rep.id], `${u.name} ishlari sizga o'tkazildi: ${[...new Set(moved)].slice(0, 6).join(", ")}${moved.length > 6 ? "…" : ""}`, "/");
+  }
+  c.log(`Xodim arxivlandi: ${u.name} (${ROLE_LABELS[u.role]})${rep ? ` — ishlari ${rep.name}ga o'tkazildi` : ""}`, "/admin");
 }
 
 export function restoreUser(c: Ctx, userId: string) {
   const u = c.s.users.find((x) => x.id === userId);
   if (!u || u.active) return;
   u.active = true;
+  u.activeFrom = c.today;
   c.log(`Xodim arxivdan qaytarildi: ${u.name} (${ROLE_LABELS[u.role]})`, "/admin");
 }
 
@@ -1191,12 +1334,28 @@ export function closeProject(c: Ctx, projectId: string, date: string) {
   if (open.length) {
     throw new Error(`Avval bir martalik ishlarni topshiring yoki to'xtating: ${open.map((x) => serviceLabel(x.kind)).join(", ")}`);
   }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > c.today) throw new Error("Yopilish sanasini tanlang (bugundan keyin emas)");
   p.status = "closed";
   p.closedAt = date;
   p.pauseWork = true;
+  // Yopilgandan keyin boshlanadigan davrlar fakturalari: to'lanmagani bekor, to'langani — qaytariladigan avans
+  const voided: string[] = [];
+  const paidAhead: string[] = [];
+  for (const inv of c.s.invoices) {
+    if (inv.projectId !== p.id || inv.kind !== "monthly" || inv.voidedAt) continue;
+    const per = periodAt(p, inv.periodIndex);
+    if (!per || per.start < date) continue;
+    if (invoicePaid(c.s, inv) > 0.5) paidAhead.push(inv.number);
+    else {
+      voidInv(inv, c.today, "Loyiha yopildi");
+      voided.push(inv.number);
+    }
+  }
   c.notify(
     [p.marketologId, p.smmId, p.targetologId, ...financeIds(c)],
-    `${p.name}: loyiha yopildi (${fmtDate(date)}) — yangi fakturalar chiqarilmaydi`,
+    `${p.name}: loyiha yopildi (${fmtDate(date)}) — yangi fakturalar chiqarilmaydi${voided.length ? `; bekor qilindi: ${voided.join(", ")}` : ""}${
+      paidAhead.length ? `; oldindan to'langan (qaytarishni hal qiling): ${paidAhead.join(", ")}` : ""
+    }`,
     `/loyiha/${p.id}`,
   );
   c.log(`${p.name}: loyiha yopildi`, `/loyiha/${p.id}`);

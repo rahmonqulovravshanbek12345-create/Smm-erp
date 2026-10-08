@@ -99,7 +99,8 @@ export const TASK_STATUSES: { id: TaskStatus; label: string; tone: Tone }[] = [
   { id: "accepted", label: "Qabul qilindi", tone: "green" },
 ];
 
-export const PAYMENT_STATUS: Record<"pending" | "paid" | "partial" | "overdue", { label: string; tone: Tone }> = {
+export const PAYMENT_STATUS: Record<"pending" | "paid" | "partial" | "overdue" | "void", { label: string; tone: Tone }> = {
+  void: { label: "Bekor qilingan", tone: "gray" },
   pending: { label: "Kutilmoqda", tone: "gray" },
   paid: { label: "To'langan", tone: "green" },
   partial: { label: "Qisman", tone: "amber" },

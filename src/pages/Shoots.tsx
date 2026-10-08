@@ -85,7 +85,7 @@ export function Shoots() {
                   Kadrlar: <LinkOut href={s.footageLink} /> <span className="text-xs text-label2">· {s.handedAt && fmtDateTime(s.handedAt)}</span>
                 </div>
               ) : (
-                (s.operatorId === me.id || me.role === "admin") && (
+                (s.operatorId === me.id || me.role === "admin" || me.role === "rahbar") && (
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Input
                       placeholder="Kadrlar havolasi (Google Drive)"

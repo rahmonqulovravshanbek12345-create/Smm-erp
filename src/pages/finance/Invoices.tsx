@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { PayBadge } from "../../components/bits";
-import { A, Button, Card, CardHeader, Empty, Input, PageHeader, Select, Stat } from "../../components/ui";
+import { A, Button, Card, CardHeader, Empty, Field, Input, Modal, PageHeader, Select, Stat } from "../../components/ui";
 import * as act from "../../lib/actions";
 import { diffDays, fmtDate, fmtMoney, monthKey } from "../../lib/dates";
 import { invoicePaid, invoicePeriod, invoiceStatus, type PayStatus } from "../../lib/finance";
@@ -20,13 +20,14 @@ export function Invoices({ projectId }: { projectId?: string }) {
   const [project, setProject] = useState(projectId ?? "");
   const [paying, setPaying] = useState<Invoice | null>(null);
   const [extra, setExtra] = useState(false);
+  const [voiding, setVoiding] = useState<Invoice | null>(null);
 
   const rows = useMemo(
     () =>
       state.invoices
         .filter((i) => !project || i.projectId === project)
         .map((inv) => ({ inv, st: invoiceStatus(state, inv, today), paid: invoicePaid(state, inv) }))
-        .filter((r) => !status || (status === "open" ? r.st !== "paid" : r.st === status))
+        .filter((r) => !status || (status === "open" ? r.st !== "paid" && r.st !== "void" : r.st === status))
         .sort((a, b) => (b.inv.dueDate || "9999").localeCompare(a.inv.dueDate || "9999")),
     [state, project, status, today],
   );
@@ -36,7 +37,7 @@ export function Invoices({ projectId }: { projectId?: string }) {
     .map((inv) => ({ inv, st: invoiceStatus(state, inv, today), paid: invoicePaid(state, inv) }));
   const month = monthKey(today);
   const issued = all.filter((r) => monthKey(r.inv.issueDate) === month).reduce((a, r) => a + r.inv.amount, 0);
-  const open = all.filter((r) => r.st !== "paid").reduce((a, r) => a + r.inv.amount - r.paid, 0);
+  const open = all.filter((r) => r.st !== "paid" && r.st !== "void").reduce((a, r) => a + r.inv.amount - r.paid, 0);
   const overdue = all.filter((r) => r.st === "overdue").reduce((a, r) => a + r.inv.amount - r.paid, 0);
 
   const table = (
@@ -90,7 +91,7 @@ export function Invoices({ projectId }: { projectId?: string }) {
             {rows.map(({ inv, st, paid }) => {
               const per = invoicePeriod(state, inv);
               return (
-                <tr key={inv.id} className={st === "overdue" ? "bg-red/[0.05]" : "hover:bg-fill"}>
+                <tr key={inv.id} className={st === "overdue" ? "bg-red/[0.05]" : st === "void" ? "opacity-60" : "hover:bg-fill"}>
                   <td className={`${td} font-semibold text-label`}>
                     <A href={`/hujjat/faktura/${inv.id}`} className="text-accent hover:underline">
                       {inv.number}
@@ -133,17 +134,25 @@ export function Invoices({ projectId }: { projectId?: string }) {
                     <Money v={paid} muted />
                   </td>
                   <td className={tdr}>
-                    <Money v={inv.amount - paid} strong />
+                    <Money v={st === "void" ? 0 : inv.amount - paid} strong />
                   </td>
                   <td className={td}>
                     <PayBadge status={st} />
+                    {inv.voidReason && <div className="mt-0.5 text-[12px] text-label3">{inv.voidReason}</div>}
                   </td>
                   {editable && (
                     <td className={tdr}>
-                      {st !== "paid" && (
-                        <Button size="sm" onClick={() => setPaying(inv)}>
-                          To'lov
-                        </Button>
+                      {st !== "paid" && st !== "void" && (
+                        <div className="flex justify-end gap-1.5">
+                          <Button size="sm" onClick={() => setPaying(inv)}>
+                            To'lov
+                          </Button>
+                          {paid <= 0.5 && (
+                            <Button size="sm" variant="ghost" onClick={() => setVoiding(inv)} aria-label={`${inv.number}: bekor qilish`}>
+                              Bekor
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </td>
                   )}
@@ -160,6 +169,7 @@ export function Invoices({ projectId }: { projectId?: string }) {
     <>
       {paying && <InvoicePayModal invoice={paying} onClose={() => setPaying(null)} />}
       {extra && <ExtraInvoiceModal onClose={() => setExtra(false)} />}
+      {voiding && <VoidInvoiceModal invoice={voiding} onClose={() => setVoiding(null)} />}
     </>
   );
 
@@ -196,7 +206,7 @@ export function Invoices({ projectId }: { projectId?: string }) {
                       inv.dueDate,
                       inv.amount,
                       paid,
-                      inv.amount - paid,
+                      st === "void" ? 0 : inv.amount - paid,
                       PAYMENT_STATUS[st].label,
                     ];
                   }),
@@ -220,5 +230,36 @@ export function Invoices({ projectId }: { projectId?: string }) {
       {table}
       {modals}
     </>
+  );
+}
+
+/** To'lanmagan fakturani sabab bilan bekor qilish (xizmat ko'rsatilmadi, xato chiqarilgan va h.k.). */
+function VoidInvoiceModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
+  const { run } = useErp();
+  const [reason, setReason] = useState("");
+  const save = () => {
+    if (run((c) => act.voidInvoice(c, invoice.id, reason), `Faktura ${invoice.number} bekor qilindi`)) onClose();
+  };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Fakturani bekor qilish: ${invoice.number}`}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>Yopish</Button>
+          <Button variant="danger" onClick={save} disabled={!reason.trim()}>
+            Bekor qilish
+          </Button>
+        </div>
+      }
+    >
+      <p className="mb-3 text-sm text-label2">
+        Bekor qilingan faktura qarzga, daromadga va to'lov kalendariga kirmaydi. Ro'yxatda «Bekor qilingan» bo'lib qoladi (o'chirilmaydi).
+      </p>
+      <Field label="Sabab">
+        <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Masalan: xizmat ko'rsatilmadi, xato chiqarilgan" />
+      </Field>
+    </Modal>
   );
 }

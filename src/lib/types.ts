@@ -11,6 +11,12 @@ export interface User {
   /** Telegram bot xabar yuboradigan chat ID. */
   telegramChatId?: string;
   active: boolean;
+  /** Ishga qabul qilingan sana (fiks oylik shu oydan, kunlarga bo'lib). */
+  hiredAt?: string;
+  /** Arxivlangan sana. */
+  archivedAt?: string;
+  /** Arxivdan qaytarilgan sana (arxivdagi oylar uchun oylik hisoblanmaydi). */
+  activeFrom?: string;
 }
 
 // ---------- CRM ----------
@@ -92,6 +98,10 @@ export interface ProjectService {
   stages?: ServiceStage[];
   deliveredAt?: string;
   status: "active" | "done" | "cancelled";
+  /** To'xtatilgan sana: shu sanadan boshlangan davrlarga kirmaydi. */
+  cancelledAt?: string;
+  /** Oylik xizmat ishlayotgan loyihaga keyin qo'shilgan bo'lsa — shu sanadan boshlangan davrlarga kiradi. */
+  billFrom?: string;
   createdAt: string;
 }
 
@@ -285,6 +295,8 @@ export interface Task {
   /** Target vazifasi: reklama yoqilgan sana. */
   launchedAt?: string;
   acceptedAt?: string;
+  /** Ijrochi tekshiruvga topshirgan sana (kechikish shu sana bo'yicha hisoblanadi). */
+  submittedAt?: string;
   createdBy: string;
   createdAt: string;
 }
@@ -382,6 +394,9 @@ export interface Invoice {
   /** Bo'sh — sana hali kelishilmagan (qoldiq to'lov uchun). */
   dueDate: string;
   note: string;
+  /** Bekor qilingan (to'lanmagan faktura: xizmat to'xtatildi, loyiha yopildi va h.k.) — qarz va daromadga kirmaydi. */
+  voidedAt?: string;
+  voidReason?: string;
 }
 
 export interface Vendor {
@@ -413,6 +428,8 @@ export interface PayProfile {
   perProject: number;
   /** Ishbay stavkalar (ish qabul qilinganda hisoblanadi). */
   rates: Partial<Record<WorkType, number>>;
+  /** Fiks oylik shu sanadan boshlab (0 dan oshirilganda) — o'tgan oylar uchun orqaga hisoblanmaydi. */
+  fixedFrom?: string;
 }
 
 export type AccrualKind = "piece" | "project" | "fixed" | "bonus" | "penalty" | "manual";

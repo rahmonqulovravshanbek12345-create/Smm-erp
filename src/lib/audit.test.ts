@@ -140,14 +140,31 @@ function check(s: ErpState, today: string): string[] {
   for (const p of s.projects)
     for (const x of p.services) {
       if (isRecurring(x.kind) || x.status === "cancelled") continue;
-      const sum = s.invoices.filter((i) => i.serviceId === x.id).reduce((a, i) => a + i.amount, 0);
+      const sum = s.invoices.filter((i) => i.serviceId === x.id && !i.voidedAt).reduce((a, i) => a + i.amount, 0);
       if (x.deliveredAt && sum !== x.price) fail(`${p.name}/${x.kind}: topshirilgan, fakturalar ${sum} ≠ narx ${x.price}`);
       if (!x.deliveredAt && sum > x.price) fail(`${p.name}/${x.kind}: fakturalar narxdan oshib ketgan`);
     }
 
   // 4. Daromad — mustaqil hisob: har faktura bo'yicha kunma-kun
+  // Bekor qilingan faktura: to'lov yo'q, qarz va daromad emas
+  for (const inv of s.invoices) {
+    if (!inv.voidedAt) continue;
+    if (invoicePaid(s, inv) > 0.5) fail(`${inv.number}: bekor qilingan, lekin to'lov bor`);
+    if (invoiceOutstanding(s, inv) !== 0) fail(`${inv.number}: bekor qilingan, lekin qarz sifatida qolgan`);
+  }
+  // Yopilgan loyiha: yopilgandan keyin boshlanadigan davr fakturasi faqat to'langan bo'lsa qoladi (avans)
+  for (const p of s.projects) {
+    if (p.status !== "closed" || !p.closedAt || !p.periodStart) continue;
+    for (const inv of s.invoices) {
+      if (inv.projectId !== p.id || inv.kind !== "monthly" || inv.voidedAt) continue;
+      if (addMonthsLocal(p.periodStart, inv.periodIndex) >= p.closedAt && invoicePaid(s, inv) <= 0.5)
+        fail(`${p.name}: yopilgandan keyingi davr fakturasi ${inv.number} qarz bo'lib qolgan`);
+    }
+  }
+
   let expectRevenue = 0;
   for (const inv of s.invoices) {
+    if (inv.voidedAt) continue;
     const svc = serviceOf(s, inv.serviceId)?.service;
     let start: string;
     let end: string;
@@ -159,6 +176,8 @@ function check(s: ErpState, today: string): string[] {
       const p = s.projects.find((x) => x.id === inv.projectId)!;
       if (!p.periodStart) continue;
       [start, end] = [addMonthsLocal(p.periodStart, inv.periodIndex), addMonthsLocal(p.periodStart, inv.periodIndex + 1)];
+      // Yopilgandan keyin boshlangan davr xizmati ko'rsatilmagan — daromad emas
+      if (p.status === "closed" && p.closedAt && start >= p.closedAt) continue;
     }
     const total = diffDays(end, start);
     let served = 0;
@@ -171,7 +190,7 @@ function check(s: ErpState, today: string): string[] {
     fail(`P&L daromadi ${Math.round(P.sum.revenue)} ≠ mustaqil hisob ${Math.round(expectRevenue + otherRevenue)}`);
   // «tan olinmagan qism» funksiyasi bilan ham mos
   const unrec = s.invoices.reduce((a, i) => a + unrecognizedRevenue(s, i, today), 0);
-  const invTotal = s.invoices.reduce((a, i) => a + i.amount, 0);
+  const invTotal = s.invoices.filter((i) => !i.voidedAt).reduce((a, i) => a + i.amount, 0);
   if (!near(invTotal - unrec, expectRevenue, 1)) fail(`tan olingan daromad ${Math.round(invTotal - unrec)} ≠ ${Math.round(expectRevenue)}`);
 
   // 5. P&L algebrasi va loyihalar yig'indisi
@@ -242,7 +261,7 @@ function check(s: ErpState, today: string): string[] {
 
   // 9. Debitorlik
   for (const r of REC) {
-    const issued = s.invoices.filter((i) => i.projectId === r.project.id && i.issueDate <= today);
+    const issued = s.invoices.filter((i) => i.projectId === r.project.id && i.issueDate <= today && !i.voidedAt);
     const inv = issued.reduce((a, i) => a + i.amount, 0);
     const paid = issued.reduce((a, i) => a + invoicePaid(s, i), 0);
     const out = issued.reduce((a, i) => a + outstandingOf(i.amount, invoicePaid(s, i)), 0);

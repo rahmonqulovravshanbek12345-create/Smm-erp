@@ -42,6 +42,7 @@ export function isTaskOpen(t: Task): boolean {
 
 /** Yangi vazifa ochish mumkinmi: oldindan to'lov kelgan va ish qo'lda to'xtatilmagan bo'lishi kerak. */
 export function workBlockedReason(s: ErpState, p: Project): string | null {
+  if (p.status === "closed") return "Loyiha yopilgan — yangi ish ochilmaydi.";
   if (p.pauseWork) return "Loyiha sozlamasida ish to'xtatilgan — yangi vazifalar ochilmaydi.";
   if (!prepayPaid(s, p.id)) return "Oldindan to'lov hali kelmagan — ish to'lovdan keyin boshlanadi.";
   return null;
@@ -92,6 +93,7 @@ export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
   for (const t of s.tasks) {
     if (!isTaskOpen(t)) continue;
     const project = s.projects.find((p) => p.id === t.projectId);
+    if (project?.status === "closed") continue;
     const mine = t.assigneeId === me.id;
     const owner = project?.smmId === me.id;
     const href = t.kind === "montaj" ? "/montaj" : t.kind === "dizayn" ? "/dizayn" : "/target";
@@ -105,6 +107,7 @@ export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
   if (boss || me.role === "smm") {
     for (const p of s.posts) {
       const project = s.projects.find((x) => x.id === p.projectId);
+      if (project?.status === "closed") continue;
       if (!boss && project?.smmId !== me.id) continue;
       if (postNeedsWarning(p, today)) {
         out.push({
@@ -123,7 +126,7 @@ export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
       if (debt.amount > 0) {
         out.push({ id: `debt-${p.id}`, text: `${p.name}: qarz ${fmtMoney(debt.amount)}, ${debt.days} kun kechikdi`, href: "/moliya", tone: "red" });
       }
-      const per = currentPeriod(p, today);
+      const per = p.status === "closed" ? null : currentPeriod(p, today);
       if (per) {
         const left = diffDays(per.end, today);
         if (left <= 3)
@@ -146,7 +149,7 @@ export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
   }
 
   for (const p of s.projects) {
-    if ((boss || p.targetologId === me.id) && targetReportMissing(s, p, today)) {
+    if (p.status !== "closed" && (boss || p.targetologId === me.id) && targetReportMissing(s, p, today)) {
       out.push({ id: `tr-${p.id}`, text: `${p.name}: kechagi target hisoboti kiritilmagan`, href: "/target", tone: "red" });
     }
   }

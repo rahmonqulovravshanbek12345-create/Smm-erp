@@ -90,7 +90,8 @@ function TaskCard({ task: t }: { task: Task }) {
   const [note, setNote] = useState("");
   const [expanded, setExpanded] = useState(false);
   const isAssignee = t.assigneeId === me.id || me.role === "admin";
-  const isReviewer = me.role === "admin" || (me.role === "smm" && look.project(t.projectId)?.smmId === me.id);
+  // Tekshiruvchi: loyiha SMM menejeri; u bo'lmasa yoki arxivlansa ham ish to'xtamasin — marketolog va rahbar ham qabul qila oladi
+  const isReviewer = ["admin", "rahbar", "marketolog"].includes(me.role) || (me.role === "smm" && look.project(t.projectId)?.smmId === me.id);
   const late = isTaskLate(t, today);
 
   return (

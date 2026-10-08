@@ -126,11 +126,11 @@ export function Target() {
                       <div className="mt-2 flex gap-2">
                         <Input
                           type="date"
-                          value={launch[t.id] ?? today}
+                          value={launch[t.id] || today}
                           onChange={(e) => setLaunch({ ...launch, [t.id]: e.target.value })}
                           className="!w-40 !py-1.5 !text-xs"
                         />
-                        <Button size="sm" variant="primary" onClick={() => run((c) => act.launchTarget(c, t.id, launch[t.id] ?? today), "Reklama yoqildi")}>
+                        <Button size="sm" variant="primary" onClick={() => run((c) => act.launchTarget(c, t.id, launch[t.id] || today), "Reklama yoqildi")}>
                           Reklamani yoqdim
                         </Button>
                       </div>

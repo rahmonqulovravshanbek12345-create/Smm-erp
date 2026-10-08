@@ -14,6 +14,24 @@ import { Banner, Button, Field, Input, LinkOut, Modal, Select, Textarea, userOpt
 
 // ---------- Post kartasi ----------
 
+const PRODUCTION: PostStatus[] = ["plan", "shoot", "editing", "design"];
+
+/** Ro'yxatda faqat ruxsat etilgan qadamlar: ishlab chiqarish bosqichlari va tasdiq zinasining keyingi pog'onasi. */
+function statusChoices(cur: PostStatus, approver: boolean): PostStatus[] {
+  const next: PostStatus[] = PRODUCTION.includes(cur)
+    ? ["internal"]
+    : cur === "internal"
+      ? approver
+        ? ["client"]
+        : []
+      : cur === "client"
+        ? ["approved"]
+        : cur === "approved"
+          ? ["published"]
+          : [];
+  return [...new Set<PostStatus>([...PRODUCTION, cur, ...next])];
+}
+
 export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor?: { projectId: string; date: string }; onClose: () => void }) {
   const { state, me, run, today } = useErp();
   const look = useLookup();
@@ -40,7 +58,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
   const [sub, setSub] = useState<null | TaskKind | "shoot">(null);
 
   const editable = canEdit(me.role, "content");
-  const isBoss = access(me.role, "content") === "approve" || me.role === "admin";
+  const isBoss = access(me.role, "content") === "approve" || access(me.role, "content") === "full";
   const blocked = project ? workBlockedReason(state, project) : null;
   const tasks = state.tasks.filter((t) => t.postId === postId);
   const shoot = state.shoots.find((s) => postId && s.postIds.includes(postId));
@@ -254,7 +272,10 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
                 <Select
                   value={existing.status}
                   onChange={(e) => run((c) => act.setPostStatus(c, existing.id, e.target.value as PostStatus), "Status yangilandi")}
-                  options={POST_STATUSES.map((s) => ({ value: s.id, label: `Status: ${postStatusMeta(s.id, !existing.platforms.length).label}` }))}
+                  options={POST_STATUSES.filter((s) => statusChoices(existing.status, isBoss).includes(s.id)).map((s) => ({
+                    value: s.id,
+                    label: `Status: ${postStatusMeta(s.id, !existing.platforms.length).label}`,
+                  }))}
                   className="!w-auto !py-1 !text-xs"
                 />
               )}
@@ -389,7 +410,10 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
     return {
       projectId: pid,
       postId: post?.id ?? "",
-      assigneeId: kind === "target" ? (prj?.targetologId ?? look.usersByRole("targetolog")[0]?.id ?? "") : (look.usersByRole(KIND_ROLE[kind])[0]?.id ?? ""),
+      assigneeId:
+        kind === "target"
+          ? (look.usersByRole("targetolog").find((u) => u.id === prj?.targetologId)?.id ?? look.usersByRole("targetolog")[0]?.id ?? "")
+          : (look.usersByRole(KIND_ROLE[kind])[0]?.id ?? ""),
       title: post ? `${post.topic}${kind === "dizayn" ? " — oblojka" : ""}` : "",
       brief: "",
       script: post?.script ?? "",

@@ -48,6 +48,7 @@ export function Documents() {
                     {invoices.map((i) => (
                       <DocLink key={i.id} href={`/hujjat/faktura/${i.id}`} tone={invoiceStatus(state, i, today) === "overdue" ? "red" : undefined}>
                         {i.number}
+                        {i.voidedAt ? " (bekor)" : ""}
                       </DocLink>
                     ))}
                   </DocRow>
@@ -130,6 +131,12 @@ export function DocumentView({ kind, id, index }: { kind: string; id: string; in
           : invoiceLines(state, inv).map((l) => ({ name: `${l.title} — ${when}`, unit: "xizmat", qty: 1, price: l.amount }));
       body = (
         <Paper>
+          {inv.voidedAt && (
+            <div className="mb-4 rounded-lg border-2 border-red px-3 py-2 text-center font-bold text-red">
+              BEKOR QILINGAN — {fmtDate(inv.voidedAt)}
+              {inv.voidReason ? ` (${inv.voidReason})` : ""}
+            </div>
+          )}
           <DocHead title={`HISOB-FAKTURA № ${inv.number}`} sub={`${fmtDate(inv.issueDate)} · shartnoma № ${p.contractNo} (${fmtDate(p.contractDate)})`} />
           <Parties s={state} p={p} left="Xizmat ko'rsatuvchi" right="Buyurtmachi" />
           <ServiceTable rows={rows} />
@@ -156,7 +163,9 @@ export function DocumentView({ kind, id, index }: { kind: string; id: string; in
         const byFmt = Object.entries(posts.reduce<Record<string, number>>((a, x) => ((a[x.format] = (a[x.format] ?? 0) + 1), a), {}))
           .map(([k, v]) => `${FORMAT_LABELS[k as keyof typeof FORMAT_LABELS].toLowerCase()} — ${v} ta`)
           .join(", ");
-        const amount = state.invoices.filter((i) => i.projectId === p.id && i.periodIndex === index && i.kind !== "extra").reduce((a, i) => a + i.amount, 0);
+        const amount = state.invoices
+          .filter((i) => i.projectId === p.id && i.periodIndex === index && i.kind !== "extra" && !i.serviceId && !i.voidedAt)
+          .reduce((a, i) => a + i.amount, 0);
         const ad = state.targetReports.filter((r) => r.projectId === p.id && r.date >= per.start && r.date < per.end);
         const rows = [
           {
