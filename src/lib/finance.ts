@@ -394,6 +394,11 @@ export function employeeBalance(s: ErpState, userId: string, upTo?: string): num
   return b;
 }
 
+/** Ish haqi ro'yxatlari uchun xodimlar: faol xodimlar va balansi nolga teng bo'lmagan arxivdagilar (qarz ko'rinib turishi uchun). */
+export function payrollStaff(s: ErpState): User[] {
+  return s.users.filter((u) => u.role !== "admin" && (u.active || Math.abs(employeeBalance(s, u.id)) > 0.5));
+}
+
 export interface PayrollRow {
   user: User;
   opening: number;

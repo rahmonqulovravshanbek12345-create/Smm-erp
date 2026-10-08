@@ -207,3 +207,20 @@ test("Targetolog: «Biznes»/«Premium» paketdagi mijozlar ham Target sahifasid
   expect(options).not.toContain("Nur Optika");
   expect(p.errors).toEqual([]);
 });
+
+test("Admin: xodimni arxivlash — ogohlantirish, tasdiq, qaytarish", async ({ page }) => {
+  const p = await watch(page);
+  await openAs(page, "u_admin", "/admin");
+  const name: string = (await state(page)).users.find((u: { id: string }) => u.id === "u_dz").name;
+  const row = page.locator("tr", { hasText: name }).first();
+  await row.getByRole("button", { name: "Arxivlash" }).click();
+  await expect(dialog(page).getByText(`Arxivlash: ${name}`)).toBeVisible();
+  await dialog(page).getByRole("button", { name: "Arxivlash" }).click();
+  await expect(page.locator("tr", { hasText: name }).getByText("Arxivda")).toBeVisible();
+  let s = await state(page);
+  expect(s.users.find((u: { name: string }) => u.name === name).active).toBe(false);
+  await page.locator("tr", { hasText: name }).getByRole("button", { name: "Qaytarish" }).click();
+  s = await state(page);
+  expect(s.users.find((u: { name: string }) => u.name === name).active).toBe(true);
+  expect(p.errors).toEqual([]);
+});

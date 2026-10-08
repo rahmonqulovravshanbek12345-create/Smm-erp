@@ -1135,6 +1135,26 @@ export function setBudget(c: Ctx, month: string, line: BudgetLine["line"], amoun
   else c.s.budget.push({ month, line, amount });
 }
 
+/** Xodimni arxivlash: tizimga kira olmaydi, yangi ish tayinlanmaydi; eski ma'lumot va hisob-kitoblari saqlanadi. */
+export function archiveUser(c: Ctx, userId: string) {
+  const u = c.s.users.find((x) => x.id === userId);
+  if (!u) return;
+  if (u.id === c.me.id) throw new Error("O'zingizni arxivlay olmaysiz");
+  if (!u.active) return;
+  if (u.role === "rahbar" && c.s.users.filter((x) => x.role === "rahbar" && x.active).length <= 1) {
+    throw new Error("Oxirgi faol rahbarni arxivlab bo'lmaydi");
+  }
+  u.active = false;
+  c.log(`Xodim arxivlandi: ${u.name} (${ROLE_LABELS[u.role]})`, "/admin");
+}
+
+export function restoreUser(c: Ctx, userId: string) {
+  const u = c.s.users.find((x) => x.id === userId);
+  if (!u || u.active) return;
+  u.active = true;
+  c.log(`Xodim arxivdan qaytarildi: ${u.name} (${ROLE_LABELS[u.role]})`, "/admin");
+}
+
 export function closeProject(c: Ctx, projectId: string, date: string) {
   const p = findProject(c, projectId);
   if (!p) return;
