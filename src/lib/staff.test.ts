@@ -53,3 +53,22 @@ describe("Xodimni arxivlash", () => {
     );
   });
 });
+
+describe("TZ deadline soati", () => {
+  it("soat bilan berilgan TZ: bildirishnomada sana va soat chiqadi, ma'lumotda saqlanadi", () => {
+    const s = demoState();
+    const ctx = makeCtx(s, "u_smm1");
+    act.createTask(ctx.c, {
+      kind: "montaj",
+      projectId: "p_gym",
+      assigneeId: "u_mt1",
+      title: "Reels montaji",
+      brief: "",
+      deadline: "2026-10-10",
+      deadlineTime: "15:30",
+    });
+    const t = s.tasks.find((x) => x.title === "Reels montaji")!;
+    expect(t.deadlineTime).toBe("15:30");
+    expect(ctx.notes.some((n) => n.to.includes("u_mt1") && n.text.includes("10.10.2026, 15:30"))).toBe(true);
+  });
+});

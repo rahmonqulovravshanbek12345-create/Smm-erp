@@ -45,6 +45,9 @@ const MONTHS = ["yan", "fev", "mar", "apr", "may", "iyun", "iyul", "avg", "sen",
 const MONTHS_FULL = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
 export const WEEKDAYS = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"];
 
+/** Vazifa muddati: «10.10.2026, 18:00» (soat berilgan bo'lsa). */
+export const fmtDeadline = (t: { deadline: string; deadlineTime?: string }) => `${fmtDate(t.deadline)}${t.deadlineTime ? `, ${t.deadlineTime}` : ""}`;
+
 export function fmtDate(s?: string): string {
   if (!s) return "—";
   const [y, m, d] = s.split("-");

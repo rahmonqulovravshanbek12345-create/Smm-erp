@@ -41,7 +41,7 @@ export function MyDay() {
       out.push({
         id: t.id,
         title: t.title,
-        sub: `${TASK_KIND_LABELS[t.kind]} · ${look.projectName(t.projectId)}`,
+        sub: `${TASK_KIND_LABELS[t.kind]} · ${look.projectName(t.projectId)}${t.deadlineTime ? ` · soat ${t.deadlineTime}` : ""}`,
         date: t.deadline,
         late: isTaskLate(t, today),
         href: t.kind === "montaj" ? "/montaj" : t.kind === "dizayn" ? "/dizayn" : "/target",

@@ -3,7 +3,7 @@ import { TaskBadge } from "../components/bits";
 import { TaskModal } from "../components/forms";
 import { Badge, Banner, Button, Card, Input, LinkOut, PageHeader, Stat } from "../components/ui";
 import * as act from "../lib/actions";
-import { fmtDate, fmtMoney, fmtMonth, monthKey, relDays } from "../lib/dates";
+import { fmtDeadline, fmtMoney, fmtMonth, monthKey, relDays } from "../lib/dates";
 import { TASK_STATUSES } from "../lib/labels";
 import { access, canEdit } from "../lib/permissions";
 import { employeeBalance } from "../lib/finance";
@@ -104,7 +104,7 @@ function TaskCard({ task: t }: { task: Task }) {
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <TaskBadge task={t} today={today} />
           <span className={`text-xs ${late ? "text-red" : "text-label2"}`}>
-            ⏱ {fmtDate(t.deadline)} ({relDays(t.deadline, today)})
+            ⏱ {fmtDeadline(t)} ({relDays(t.deadline, today)})
           </span>
         </div>
       </button>

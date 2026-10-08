@@ -1,5 +1,5 @@
 // Biznes amallari. Har biri Ctx oladi: holatni o'zgartiradi, bildirishnoma yuboradi va tarixga yozadi.
-import { addDays, diffDays, fmtDate, fmtDateShort, fmtMonth, fmtMoney, fmtNum, nowISO } from "./dates";
+import { addDays, diffDays, fmtDate, fmtDateShort, fmtDeadline, fmtMonth, fmtMoney, fmtNum, nowISO } from "./dates";
 import { contentTypes, findQuota, quotaText, typeName } from "./content";
 import type { MetaResult } from "./integrations";
 import { ART, accountOf, articleOf, billPaid, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
@@ -789,7 +789,7 @@ export function createTask(c: Ctx, data: Omit<Task, "id" | "createdAt" | "create
   if (t.kind === "dizayn") advance(post, "design");
   if (t.kind === "target" && post) post.forTarget = true;
   const href = t.kind === "montaj" ? "/montaj" : t.kind === "dizayn" ? "/dizayn" : "/target";
-  c.notify([t.assigneeId], `Yangi TZ (${TASK_KIND_LABELS[t.kind]}): ${t.title} — deadline ${fmtDate(t.deadline)}`, href);
+  c.notify([t.assigneeId], `Yangi TZ (${TASK_KIND_LABELS[t.kind]}): ${t.title} — deadline ${fmtDeadline(t)}`, href);
   c.log(`${TASK_KIND_LABELS[t.kind]} TZ berildi: ${t.title} (${projectName(c, t.projectId)})`, href);
 }
 

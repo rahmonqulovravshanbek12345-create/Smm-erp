@@ -3,14 +3,14 @@ import { Icon } from "../components/icons";
 import { A, Badge, Button, Card, CardHeader, Empty, PageHeader } from "../components/ui";
 import { fmtDate, fmtMoney } from "../lib/dates";
 import { invoicePeriod, invoiceStatus } from "../lib/finance";
-import { FORMAT_LABELS, PAYMENT_KIND_LABELS, PAYMENT_STATUS, PLATFORM_LABELS } from "../lib/labels";
+import { FORMAT_LABELS, PAYMENT_KIND_LABELS, PAYMENT_STATUS } from "../lib/labels";
 import { canView, visibleProjects } from "../lib/permissions";
 import { reportPeriods } from "../lib/report";
-import { AD_CHANNELS, hasAds, invoiceLines, isRecurring, serviceLabel, servicesOf } from "../lib/services";
+import { invoiceLines } from "../lib/services";
 import { useErp } from "../lib/store";
-import { tariffOf } from "../lib/tariffs";
 import type { ErpState, Project } from "../lib/types";
 import { moneyWords } from "../lib/words";
+import { Contract } from "./Contract";
 
 // ---------- Hujjatlar markazi ----------
 
@@ -110,7 +110,7 @@ export function DocumentView({ kind, id, index }: { kind: string; id: string; in
     const p = state.projects.find((x) => x.id === id);
     if (p) {
       title = `Shartnoma № ${p.contractNo}`;
-      body = <Contract s={state} p={p} />;
+      body = <Contract s={state} p={p} today={today} />;
       back = `/loyiha/${p.id}`;
     }
   } else if (kind === "faktura") {
@@ -314,120 +314,5 @@ function Signs({ left, right }: { left: [string, string]; right: [string, string
         </div>
       ))}
     </div>
-  );
-}
-
-// ---------- Shartnoma ----------
-
-function Contract({ s, p }: { s: ErpState; p: Project }) {
-  const r = s.settings.requisites;
-  const fee = fmtMoney(p.monthlyFee);
-  const words = moneyWords(p.monthlyFee);
-  const services = servicesOf(p);
-  const recurring = p.monthlyFee > 0;
-  const once = services.filter((x) => !isRecurring(x.kind));
-  const hasTarget = hasAds(p);
-  const t = tariffOf(s, p.tariffId);
-  const scope = t
-    ? `har oy ${t.posts} ta post (${t.videos} ta video, ${t.designs} ta dizayn), ${t.stories} ta stories va ${t.shoots} ta syomka kuni bilan kontent reja (${t.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")})`
-    : "marketolog bilan kelishilgan oylik topshiriq bo'yicha kontent reja (video, dizayn, matn, stories)";
-  const Section = ({ n, title, children }: { n: number; title: string; children: ReactNode }) => (
-    <section className="mt-5">
-      <h2 className="mb-1.5 text-[14px] font-bold uppercase">
-        {n}. {title}
-      </h2>
-      <div className="space-y-1.5">{children}</div>
-    </section>
-  );
-  return (
-    <Paper>
-      <DocHead title={`XIZMAT KO'RSATISH SHARTNOMASI № ${p.contractNo}`} sub={`Toshkent sh. · ${fmtDate(p.contractDate)}`} />
-      <p>
-        <b>{s.settings.companyName}</b> (keyingi o'rinlarda «Ijrochi») nomidan direktor <b>{r.director}</b> bir tomondan, va <b>{p.legalName ?? p.name}</b>{" "}
-        (keyingi o'rinlarda «Buyurtmachi») nomidan <b>{p.contactName}</b> ikkinchi tomondan, quyidagilar haqida ushbu shartnomani tuzdilar:
-      </p>
-      <Section n={1} title="Shartnoma predmeti">
-        <p>1.1. Ijrochi Buyurtmachiga quyidagi xizmatlarni ko'rsatadi, Buyurtmachi esa ularni qabul qiladi va haqini to'laydi:</p>
-        {services.map((x, i) => (
-          <p key={x.id}>
-            1.{i + 2}. <b>{serviceLabel(x.kind)}</b>
-            {x.title ? ` («${x.title}»)` : ""}:{" "}
-            {x.kind === "smm"
-              ? `ijtimoiy tarmoqlardagi sahifalarni (${p.links.split("\n").filter(Boolean).join(", ") || "Instagram, Telegram"}) yuritish — marketing strategiyasi va brif; ${scope}; syomka, montaj va dizayn; oylik natijalar hisoboti`
-              : x.kind === "target"
-                ? "Meta Ads (Instagram, Facebook) reklamasini sozlash, kunlik nazorat va hisobot"
-                : x.kind === "performance"
-                  ? `reklama kanallarida (${(x.channels ?? []).map((c) => AD_CHANNELS.find((a) => a.id === c)?.label ?? c).join(", ") || "Meta, Google"}) natija uchun ishlash${x.kpiLeads ? `; oylik maqsad — ${x.kpiLeads} ta lid${x.kpiCpl ? `, lid narxi ${x.kpiCpl} USD dan oshmasligi` : ""}` : ""}`
-                  : `ish bosqichlari: ${(x.stages ?? []).map((st) => st.name).join(" → ")}${x.deadline ? `; topshirish muddati — ${fmtDate(x.deadline)}` : ""}`}
-            .
-          </p>
-        ))}
-      </Section>
-      {recurring && (
-        <Section n={2} title="Xizmat davri">
-          <p>
-            2.1. Oylik xizmatlar davri birinchi reklama (post) joylangan kundan boshlanadi va keyingi oyning shu sanasida yakunlanadi. Keyingi davrlar ketma-ket
-            davom etadi.
-          </p>
-          <p>2.2. Har bir davr yakunida tomonlar bajarilgan ishlar dalolatnomasini imzolaydi.</p>
-          {once.length > 0 && <p>2.3. Bir martalik ishlar bosqichma-bosqich bajariladi va topshirilganda alohida dalolatnoma imzolanadi.</p>}
-        </Section>
-      )}
-      {!recurring && (
-        <Section n={2} title="Ish muddati va topshirish">
-          <p>2.1. Ish bosqichma-bosqich bajariladi; har bosqich natijasi Buyurtmachiga ko'rsatiladi va tasdig'i olinadi.</p>
-          <p>2.2. Ish to'liq topshirilganda tomonlar bajarilgan ishlar dalolatnomasini imzolaydi.</p>
-        </Section>
-      )}
-      <Section n={3} title="Narx va to'lov tartibi">
-        {recurring && (
-          <>
-            <p>
-              3.1. Oylik xizmatlarning bir oylik narxi: <b>{fee}</b> ({words}). QQS hisoblanmaydi.
-            </p>
-            <p>
-              3.2. Buyurtmachi shartnoma imzolangandan keyin 3 (uch) bank kuni ichida oylik narxning {p.prepayType}% miqdorida oldindan to'lov qiladi. Ish
-              oldindan to'lov kelib tushgandan keyin boshlanadi.
-              {p.prepayType === 50 && " Qolgan 50% birinchi xizmat davri boshlanganidan keyin tomonlar kelishgan sanada to'lanadi."}
-            </p>
-            <p>
-              3.3. Keyingi davrlar uchun to'lov har bir davr boshlanish kunigacha amalga oshiriladi. Ijrochi davr boshlanishidan 3 kun oldin hisob-faktura
-              taqdim etadi.
-            </p>
-          </>
-        )}
-        {once.map((x, i) => (
-          <p key={x.id}>
-            3.{(recurring ? 4 : 1) + i}. {serviceLabel(x.kind)} narxi: <b>{fmtMoney(x.price)}</b> ({moneyWords(x.price)}). {x.prepayPct ?? 50}% oldindan
-            to'lanadi
-            {(x.prepayPct ?? 50) < 100 ? ", qolgan qismi ish topshirilganda" : ""}. Ish oldindan to'lov kelib tushgandan keyin boshlanadi.
-          </p>
-        ))}
-        {hasTarget && (
-          <p>
-            3.{(recurring ? 4 : 1) + once.length}. Reklama byudjeti xizmat narxiga kirmaydi va Buyurtmachi tomonidan alohida to'lanadi; sarf hisoboti har oy
-            taqdim etiladi.
-          </p>
-        )}
-      </Section>
-      <Section n={4} title="Tomonlarning majburiyatlari">
-        <p>4.1. Ijrochi: ishlarni kelishilgan muddatlarda bajarish; materiallarni Buyurtmachi tasdig'iga yuborish; natijalar bo'yicha hisobot taqdim etish.</p>
-        <p>
-          4.2. Buyurtmachi: zarur ma'lumot va kirish huquqlarini berish; materiallarni 2 (ikki) ish kuni ichida tasdiqlash yoki izoh berish; to'lovlarni o'z
-          vaqtida amalga oshirish.
-        </p>
-      </Section>
-      <Section n={5} title="Javobgarlik">
-        <p>5.1. To'lov kechiktirilganda Ijrochi yozma ogohlantirish bilan yangi ishlarni to'xtatib turishga haqli.</p>
-        <p>5.2. Buyurtmachi materiallarni kechiktirib tasdiqlagan hollarda joylash muddatlari tegishli kunlarga suriladi.</p>
-      </Section>
-      <Section n={6} title="Amal qilish muddati">
-        <p>6.1. Shartnoma imzolangan kundan kuchga kiradi va 12 oy amal qiladi. Tomonlar 30 kun oldin yozma ogohlantirib shartnomani bekor qilishi mumkin.</p>
-      </Section>
-      <Section n={7} title="Tomonlarning rekvizitlari va imzolari">
-        <Parties s={s} p={p} left="Ijrochi" right="Buyurtmachi" />
-      </Section>
-      <Signs left={["Ijrochi, direktor", r.director]} right={["Buyurtmachi", p.contactName]} />
-    </Paper>
   );
 }

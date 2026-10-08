@@ -273,6 +273,8 @@ export interface Task {
   files?: string;
   designType?: "post" | "cover";
   deadline: string;
+  /** Deadline soati («18:00»); yo'q bo'lsa — kun oxirigacha. */
+  deadlineTime?: string;
   status: TaskStatus;
   returnNote?: string;
   resultLink?: string;

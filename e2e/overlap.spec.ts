@@ -14,7 +14,12 @@ async function overlaps(page: Page): Promise<string[]> {
         if (cs.position === "fixed" || cs.position === "sticky") return { l: 0, t: 0, r: 0, b: 0 };
         if (cs.overflowX !== "visible" || cs.overflowY !== "visible") {
           const b = p.getBoundingClientRect();
-          const c = { l: cs.overflowX !== "visible" ? b.left : -1e9, r: cs.overflowX !== "visible" ? b.right : 1e9, t: cs.overflowY !== "visible" ? b.top : -1e9, b: cs.overflowY !== "visible" ? b.bottom : 1e9 };
+          const c = {
+            l: cs.overflowX !== "visible" ? b.left : -1e9,
+            r: cs.overflowX !== "visible" ? b.right : 1e9,
+            t: cs.overflowY !== "visible" ? b.top : -1e9,
+            b: cs.overflowY !== "visible" ? b.bottom : 1e9,
+          };
           clip = clip ? { l: Math.max(clip.l, c.l), t: Math.max(clip.t, c.t), r: Math.min(clip.r, c.r), b: Math.min(clip.b, c.b) } : c;
         }
       }
@@ -97,7 +102,6 @@ const BOSS_PAGES = [
   "/tarix",
   "/integratsiyalar",
   "/jarayon",
-  
 ];
 
 const ROLE_PAGES: [UserId, string[]][] = [

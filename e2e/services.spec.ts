@@ -224,3 +224,22 @@ test("Admin: xodimni arxivlash — ogohlantirish, tasdiq, qaytarish", async ({ p
   expect(s.users.find((u: { name: string }) => u.name === name).active).toBe(true);
   expect(p.errors).toEqual([]);
 });
+
+test("SMM menejer montajyorga TZ beradi: deadline soati bilan", async ({ page }) => {
+  const p = await watch(page);
+  await openAs(page, "u_smm1", "/kontent");
+  await page.getByRole("button", { name: "+ Montaj TZ" }).click();
+  await expect(dialog(page).getByLabel("Deadline soati")).toHaveValue("18:00");
+  await dialog(page).getByLabel("Deadline soati").fill("14:30");
+  await dialog(page).getByLabel("Vazifa nomi").fill("Soatli TZ sinov");
+  await dialog(page)
+    .getByRole("button", { name: /Yuborish|Saqlash|TZ/ })
+    .last()
+    .click();
+  const s = await state(page);
+  const task = s.tasks.find((x: { title: string }) => x.title === "Soatli TZ sinov");
+  expect(task.deadlineTime).toBe("14:30");
+  await openAs(page, "u_mt1", "/montaj");
+  await expect(page.getByText(/, 14:30/).first()).toBeVisible();
+  expect(p.errors).toEqual([]);
+});

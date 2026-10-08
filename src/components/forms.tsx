@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as act from "../lib/actions";
-import { addDays, fmtDate } from "../lib/dates";
+import { addDays, fmtDate, fmtDeadline } from "../lib/dates";
 import { contentTypes } from "../lib/content";
 import { PLATFORMS, PLATFORM_LABELS, PLATFORM_SHORT, POST_STATUSES, TASK_KIND_LABELS } from "../lib/labels";
 import { hasAds, hasContent } from "../lib/services";
@@ -334,7 +334,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
               {tasks.map((t) => (
                 <div key={t.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                   <span>
-                    <span className="text-label2">{TASK_KIND_LABELS[t.kind]}:</span> {t.title} · {look.userName(t.assigneeId)} · {fmtDate(t.deadline)}
+                    <span className="text-label2">{TASK_KIND_LABELS[t.kind]}:</span> {t.title} · {look.userName(t.assigneeId)} · {fmtDeadline(t)}
                   </span>
                   <span className="flex items-center gap-2">
                     {t.resultLink && <LinkOut href={t.resultLink}>natija</LinkOut>}
@@ -376,6 +376,7 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
       files: "",
       designType: (kind === "dizayn" && post?.format === "video" ? "cover" : "post") as "post" | "cover",
       deadline: addDays(today, kind === "target" ? 1 : 2),
+      deadlineTime: "18:00",
     };
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -399,6 +400,7 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
           files: kind !== "montaj" ? f.files : undefined,
           designType: kind === "dizayn" ? f.designType : undefined,
           deadline: f.deadline,
+          deadlineTime: f.deadlineTime || undefined,
         }),
       `TZ yuborildi: ${look.userName(f.assigneeId)}ga bildirishnoma ketdi`,
     );
@@ -447,8 +449,11 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
             options={userOptions(look.usersByRole(KIND_ROLE[kind]), "Tanlang…")}
           />
         </Field>
-        <Field label="Deadline">
-          <Input type="date" value={f.deadline} onChange={(e) => set("deadline", e.target.value)} />
+        <Field label="Deadline (sana va soat)">
+          <div className="flex gap-2">
+            <Input type="date" value={f.deadline} onChange={(e) => set("deadline", e.target.value)} aria-label="Deadline sanasi" />
+            <Input type="time" value={f.deadlineTime} onChange={(e) => set("deadlineTime", e.target.value)} aria-label="Deadline soati" className="!w-32" />
+          </div>
         </Field>
         <Field label="Vazifa nomi" className="sm:col-span-2">
           <Input value={f.title} onChange={(e) => set("title", e.target.value)} />
