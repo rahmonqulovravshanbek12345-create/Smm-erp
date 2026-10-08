@@ -1,12 +1,14 @@
 import { useState } from "react";
 import * as act from "../lib/actions";
 import { addDays, fmtDate } from "../lib/dates";
-import { FORMAT_LABELS, PLATFORM_LABELS, POST_STATUSES, TASK_KIND_LABELS } from "../lib/labels";
+import { contentTypes } from "../lib/content";
+import { PLATFORMS, PLATFORM_LABELS, PLATFORM_SHORT, POST_STATUSES, TASK_KIND_LABELS } from "../lib/labels";
+import { hasAds, hasContent } from "../lib/services";
 import { access, canEdit } from "../lib/permissions";
 import { isPostLate, workBlockedReason } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
-import type { Platform, Post, PostFormat, PostStatus, TaskKind } from "../lib/types";
-import { PostBadge, TaskBadge } from "./bits";
+import type { Platform, Post, PostStatus, TaskKind } from "../lib/types";
+import { PLATFORM_BG, PostBadge, TaskBadge } from "./bits";
 import { PostJourney } from "./ProjectJourney";
 import { Banner, Button, Field, Input, LinkOut, Modal, Select, Textarea, userOptions } from "./ui";
 
@@ -18,17 +20,21 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
   const existing = state.posts.find((p) => p.id === postId);
   const projectId = existing?.projectId ?? newFor?.projectId ?? "";
   const project = look.project(projectId);
+  const types = contentTypes(state).filter((t) => t.active || t.id === existing?.typeId);
   const [form, setForm] = useState(() => ({
     projectId,
     date: existing?.date ?? newFor?.date ?? today,
-    platform: existing?.platform ?? ("instagram" as Platform),
-    format: existing?.format ?? ("video" as PostFormat),
+    platforms: existing?.platforms ?? (["instagram"] as Platform[]),
+    typeId: existing?.typeId ?? types[0]?.id ?? "ct_video",
+    platformNotes: existing?.platformNotes ?? ({} as Partial<Record<Platform, string>>),
     topic: existing?.topic ?? "",
     script: existing?.script ?? "",
     forTarget: existing?.forTarget ?? false,
     assigneeId: existing?.assigneeId ?? project?.smmId ?? me.id,
   }));
   const [returnNote, setReturnNote] = useState("");
+  const [notesOpen, setNotesOpen] = useState(() => Object.values(existing?.platformNotes ?? {}).some(Boolean));
+  const format = types.find((t) => t.id === form.typeId)?.format ?? existing?.format ?? "video";
   const [sub, setSub] = useState<null | TaskKind | "shoot">(null);
 
   const editable = canEdit(me.role, "content");
@@ -36,12 +42,26 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
   const blocked = project ? workBlockedReason(state, project) : null;
   const tasks = state.tasks.filter((t) => t.postId === postId);
   const shoot = state.shoots.find((s) => postId && s.postIds.includes(postId));
-  const projects = state.projects.filter((p) => me.role !== "smm" || p.smmId === me.id);
+  const projects = state.projects.filter((p) => hasContent(p) && (me.role !== "smm" || p.smmId === me.id));
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
+  const togglePlatform = (pl: Platform) =>
+    set("platforms", form.platforms.includes(pl) ? form.platforms.filter((x) => x !== pl) : PLATFORMS.filter((x) => x === pl || form.platforms.includes(x)));
   const save = () => {
-    if (!form.topic.trim() || !form.projectId) return;
-    const ok = run((c) => act.savePost(c, { ...form, id: existing?.id }), existing ? "Saqlandi" : "Kontent rejaga qo'shildi");
+    if (!form.topic.trim() || !form.projectId || !form.platforms.length) return;
+    const platformNotes = Object.fromEntries(Object.entries(form.platformNotes).filter(([k, v]) => v?.trim() && form.platforms.includes(k as Platform)));
+    const ok = run(
+      (c) =>
+        act.savePost(c, {
+          ...form,
+          format,
+          platformNotes,
+          publishedOn: existing?.publishedOn,
+          publishedAt: existing?.publishedAt,
+          id: existing?.id,
+        }),
+      existing ? "Saqlandi" : "Kontent rejaga qo'shildi",
+    );
     if (ok) onClose();
   };
   const step = (fn: (c: Parameters<typeof act.sendToInternal>[0]) => void, msg: string, close = false) => {
@@ -68,7 +88,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
             <Button variant="ghost" onClick={onClose}>
               Bekor qilish
             </Button>
-            <Button variant="primary" onClick={save} disabled={!form.topic.trim() || (!existing && Boolean(blocked))}>
+            <Button variant="primary" onClick={save} disabled={!form.topic.trim() || !form.platforms.length || (!existing && Boolean(blocked))}>
               Saqlash
             </Button>
           </>
@@ -99,28 +119,80 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
         <Field label="Sana">
           <Input type="date" value={form.date} disabled={!editable} onChange={(e) => set("date", e.target.value)} />
         </Field>
-        <Field label="Platforma">
+        <Field label="Turi" hint="Oylik topshiriqda shu tur bo'yicha sanaladi">
           <Select
-            value={form.platform}
+            value={form.typeId}
             disabled={!editable}
-            onChange={(e) => set("platform", e.target.value as Platform)}
-            options={Object.entries(PLATFORM_LABELS).map(([value, label]) => ({ value, label }))}
+            onChange={(e) => set("typeId", e.target.value)}
+            options={types.map((t) => ({ value: t.id, label: t.name }))}
           />
         </Field>
-        <Field label="Format">
-          <Select
-            value={form.format}
-            disabled={!editable}
-            onChange={(e) => set("format", e.target.value as PostFormat)}
-            options={Object.entries(FORMAT_LABELS).map(([value, label]) => ({ value, label }))}
-          />
-        </Field>
+        <div className="sm:col-span-2">
+          <div className="mb-1.5 text-[13px] font-medium text-label2" id="pl-label">
+            Platformalar — bir nechtasini tanlash mumkin
+          </div>
+          <div className="flex flex-wrap gap-2" role="group" aria-labelledby="pl-label">
+            {PLATFORMS.map((pl) => {
+              const on = form.platforms.includes(pl);
+              return (
+                <button
+                  key={pl}
+                  type="button"
+                  disabled={!editable}
+                  aria-pressed={on}
+                  onClick={() => togglePlatform(pl)}
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${
+                    on ? "bg-accent/12 text-accent ring-[1.5px] ring-accent/60" : "bg-fill text-label2"
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-[6px] text-[9px] font-bold text-white"
+                    style={{ background: PLATFORM_BG[pl] }}
+                  >
+                    {PLATFORM_SHORT[pl]}
+                  </span>
+                  {PLATFORM_LABELS[pl]}
+                  {on && <span aria-hidden>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+          {!form.platforms.length && <p className="mt-1 text-xs text-red">Kamida bitta platformani tanlang</p>}
+          {form.platforms.length > 1 && (
+            <p className="mt-1 text-xs text-label2">Rejada va oylik topshiriqda 1 ta post deb sanaladi — syomka, montaj va tasdiq bir marta.</p>
+          )}
+        </div>
         <Field label="Mavzu" className="sm:col-span-2">
           <Input value={form.topic} disabled={!editable} onChange={(e) => set("topic", e.target.value)} placeholder="Masalan: Yangi kolleksiya obzori" />
         </Field>
-        <Field label="Ssenariy yoki matn" className="sm:col-span-2">
+        <Field label={form.platforms.length > 1 ? "Ssenariy yoki matn (hamma platforma uchun umumiy)" : "Ssenariy yoki matn"} className="sm:col-span-2">
           <Textarea rows={4} value={form.script} disabled={!editable} onChange={(e) => set("script", e.target.value)} />
         </Field>
+        {form.platforms.length > 1 && (
+          <div className="sm:col-span-2">
+            {!notesOpen ? (
+              editable && (
+                <Button size="sm" onClick={() => setNotesOpen(true)}>
+                  + Platforma uchun alohida izoh
+                </Button>
+              )
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {form.platforms.map((pl) => (
+                  <Field key={pl} label={`${PLATFORM_LABELS[pl]} uchun izoh`}>
+                    <Input
+                      value={form.platformNotes[pl] ?? ""}
+                      disabled={!editable}
+                      onChange={(e) => set("platformNotes", { ...form.platformNotes, [pl]: e.target.value })}
+                      placeholder="Masalan: qisqa versiya, boshqa xeshteglar"
+                    />
+                  </Field>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <Field label="Mas'ul">
           <Select
             value={form.assigneeId}
@@ -156,8 +228,8 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
                 </Button>
               )}
               {editable && existing.status === "approved" && (
-                <Button variant="primary" size="sm" onClick={() => step((c) => act.publishPost(c, existing.id), "Joylandi deb belgilandi", true)}>
-                  ⬆ Joylandi
+                <Button variant="primary" size="sm" onClick={() => step((c) => act.publishPost(c, existing.id), "Hamma platformada joylandi", true)}>
+                  ⬆ {existing.platforms.length > 1 ? "Hammasida joylandi" : "Joylandi"}
                 </Button>
               )}
               {editable && (
@@ -169,6 +241,51 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
                 />
               )}
             </div>
+            {(existing.status === "approved" || existing.status === "published" || Object.keys(existing.publishedOn ?? {}).length > 0) && (
+              <div className="mt-3">
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-label2">Joylash holati</div>
+                <ul className="divide-y divide-sep rounded-[12px] bg-elevated/70">
+                  {existing.platforms.map((pl) => {
+                    const at = existing.publishedOn?.[pl];
+                    return (
+                      <li key={pl} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                        <span className="flex items-center gap-2">
+                          <span
+                            aria-hidden
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-[6px] text-[9px] font-bold text-white"
+                            style={{ background: PLATFORM_BG[pl] }}
+                          >
+                            {PLATFORM_SHORT[pl]}
+                          </span>
+                          {PLATFORM_LABELS[pl]}
+                          {existing.platformNotes?.[pl] && <span className="text-xs text-label2">· {existing.platformNotes[pl]}</span>}
+                        </span>
+                        {at ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="rounded-full bg-green/15 px-2.5 py-0.5 text-xs font-semibold text-green">✓ Joylandi · {fmtDate(at)}</span>
+                            {editable && (
+                              <button
+                                type="button"
+                                className="text-xs text-label2 underline"
+                                onClick={() => run((c) => act.unpublishPlatform(c, existing.id, pl), "Belgi olib tashlandi")}
+                              >
+                                bekor
+                              </button>
+                            )}
+                          </span>
+                        ) : editable && existing.status === "approved" && existing.platforms.length > 1 ? (
+                          <Button size="sm" onClick={() => run((c) => act.publishPost(c, existing.id, pl), `${PLATFORM_LABELS[pl]}: joylandi`)}>
+                            Joylandi
+                          </Button>
+                        ) : (
+                          <span className="rounded-full bg-orange/15 px-2.5 py-0.5 text-xs font-semibold text-orange">Kutilmoqda</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
             {isBoss && existing.status === "internal" && (
               <div className="mt-3 flex gap-2">
                 <Input placeholder="Qaytarish izohi (nima tuzatilsin)" value={returnNote} onChange={(e) => setReturnNote(e.target.value)} />
@@ -194,9 +311,11 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
                       + Montaj TZ
                     </Button>
                   )}
-                  <Button size="sm" onClick={() => setSub("dizayn")} disabled={Boolean(blocked)}>
-                    + Dizayn TZ
-                  </Button>
+                  {existing.format !== "text" && (
+                    <Button size="sm" onClick={() => setSub("dizayn")} disabled={Boolean(blocked)}>
+                      + Dizayn TZ
+                    </Button>
+                  )}
                   <Button size="sm" onClick={() => setSub("target")} disabled={Boolean(blocked)}>
                     + Targetga berish
                   </Button>
@@ -240,7 +359,9 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
   const { state, me, run, today } = useErp();
   const look = useLookup();
   const shoot = post ? state.shoots.find((s) => s.postIds.includes(post.id)) : undefined;
-  const projects = state.projects.filter((p) => me.role !== "smm" || p.smmId === me.id);
+  const projects = state.projects.filter(
+    (p) => p.status === "active" && (kind === "target" ? hasAds(p) : hasContent(p)) && (me.role !== "smm" || p.smmId === me.id),
+  );
   const [f, setF] = useState(() => {
     const pid = projectId ?? projects[0]?.id ?? "";
     const prj = look.project(pid);
@@ -372,7 +493,7 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
 export function ShootModal({ projectId, postIds, onClose }: { projectId?: string; postIds?: string[]; onClose: () => void }) {
   const { state, me, run, today } = useErp();
   const look = useLookup();
-  const projects = state.projects.filter((p) => me.role !== "smm" || p.smmId === me.id);
+  const projects = state.projects.filter((p) => p.status === "active" && hasContent(p) && (me.role !== "smm" || p.smmId === me.id));
   const [f, setF] = useState(() => ({
     projectId: projectId ?? projects[0]?.id ?? "",
     date: addDays(today, 2),

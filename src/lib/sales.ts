@@ -59,6 +59,11 @@ export function salesAnalytics(s: ErpState, months: string[], today: string) {
     (l) => l.source,
     (k) => k,
   );
+  /** Lid qaysi xizmatga qiziqib kelgan. */
+  const byService = group(
+    (l) => l.service || "Ko'rsatilmagan",
+    (k) => k,
+  );
   const byOperator = group((l) => l.operatorId, userName).map((r) => ({
     ...r,
     bonus: s.accruals.filter((a) => a.userId === r.key && a.kind === "bonus" && a.date >= from && a.date < to).reduce((x, a) => x + a.amount, 0),
@@ -109,6 +114,7 @@ export function salesAnalytics(s: ErpState, months: string[], today: string) {
     conv: leads.length ? (contracts.length / leads.length) * 100 : 0,
     qualified: leads.filter((l) => l.stage !== "lowquality").length,
     bySource,
+    byService,
     byOperator,
     unfit: reasons("unfit"),
     lowquality: reasons("lowquality"),

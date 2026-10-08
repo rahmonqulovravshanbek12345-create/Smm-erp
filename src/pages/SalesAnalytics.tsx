@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { BarList, ColumnsChart, Legend, VIZ, fmtShort } from "../components/charts";
 import { A, Card, CardHeader, PageHeader, Select, Stat } from "../components/ui";
 import { fmtMoney, monthShort } from "../lib/dates";
-import { lastMonths } from "../lib/finance";
+import { lastMonths, revenueByService } from "../lib/finance";
 import { FUNNEL, salesAnalytics } from "../lib/sales";
 import { leadStageMeta } from "../lib/labels";
 import { useErp } from "../lib/store";
@@ -14,6 +14,7 @@ export function SalesAnalytics() {
   const [span, setSpan] = useState("6");
   const months = useMemo(() => lastMonths(today, Number(span)), [today, span]);
   const a = useMemo(() => salesAnalytics(state, months, today), [state, months, today]);
+  const revenue = useMemo(() => revenueByService(state, months, today), [state, months, today]);
   const top = a.funnel[0]?.count || 1;
   const ratio = a.cacFull ? a.ltv / a.cacFull : 0;
 
@@ -184,6 +185,42 @@ export function SalesAnalytics() {
               ))}
             </tbody>
           </TableWrap>
+        </Card>
+
+        <Card className="xl:col-span-5">
+          <CardHeader
+            icon={{ name: "folder", color: "blue" }}
+            title="Xizmatlar kesimida"
+            sub="Lid qaysi xizmatga qiziqib keldi va qaysi xizmat qancha daromad keltirdi (hisoblash usulida)"
+          />
+          <div className="grid gap-4 p-4 pt-1 lg:grid-cols-[3fr_2fr]">
+            <TableWrap min={560}>
+              <thead>
+                <tr className="border-y border-sep">
+                  <th className={th}>Xizmat</th>
+                  <th className={thr}>Lidlar</th>
+                  <th className={thr}>Uchrashuv</th>
+                  <th className={thr}>Shartnoma</th>
+                  <th className={thr}>Konversiya</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-sep">
+                {a.byService.map((r) => (
+                  <tr key={r.key} className="hover:bg-fill">
+                    <td className={`${td} font-semibold text-label`}>{r.label}</td>
+                    <td className={tdr}>{r.leads}</td>
+                    <td className={tdr}>{r.meetings}</td>
+                    <td className={`${tdr} font-semibold`}>{r.contracts}</td>
+                    <td className={`${tdr} font-semibold ${r.conv >= 10 ? "text-green" : "text-label"}`}>{r.conv.toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableWrap>
+            <div>
+              <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.05em] text-label3">Daromad xizmatlar bo'yicha</div>
+              <BarList color={VIZ.c1} format={(n) => fmtShort(n)} rows={revenue.map((r) => ({ label: r.label, value: Math.round(r.amount) }))} />
+            </div>
+          </div>
         </Card>
 
         <Card className="xl:col-span-3">

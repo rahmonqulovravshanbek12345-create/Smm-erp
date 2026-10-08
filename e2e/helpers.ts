@@ -12,6 +12,7 @@ export const USERS = {
   u_sy: "syomka",
   u_mt1: "montajyor",
   u_dz: "dizayner",
+  u_web: "webdev",
   u_mol: "moliya",
 } as const;
 export type UserId = keyof typeof USERS;

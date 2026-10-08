@@ -1,15 +1,33 @@
 // Biznes amallari. Har biri Ctx oladi: holatni o'zgartiradi, bildirishnoma yuboradi va tarixga yozadi.
-import { addDays, diffDays, fmtDate, fmtDateShort, fmtMoney, fmtNum, nowISO } from "./dates";
+import { addDays, diffDays, fmtDate, fmtDateShort, fmtMonth, fmtMoney, fmtNum, nowISO } from "./dates";
+import { contentTypes, findQuota, quotaText, typeName } from "./content";
 import type { MetaResult } from "./integrations";
 import { ART, accountOf, articleOf, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
-import { DOC_BLOCKS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, TASK_KIND_LABELS } from "./labels";
+import { DOC_BLOCKS, FORMAT_LABELS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, TASK_KIND_LABELS } from "./labels";
+import {
+  hasAds,
+  isRecurring,
+  recurringFee,
+  recurringLines,
+  serviceLabel,
+  servicePrepayPaid,
+  servicesSummary,
+  stageIndex,
+  stagesFor,
+  type ServiceInput,
+} from "./services";
 import { postStage, workBlockedReason } from "./rules";
 import { newId, type Ctx } from "./store";
-import { nextProposalNumber, proposalPrice, tariffOf } from "./tariffs";
+import { acceptedIds, defaultPicks, nextProposalNumber, proposalPrice, tariffOf, tariffService } from "./tariffs";
 import type {
   Bill,
   BudgetLine,
+  ContentType,
   DocBlock,
+  Invoice,
+  InvoiceLine,
+  Platform,
+  ProjectService,
   IntegrationKind,
   Integrations,
   Lead,
@@ -105,6 +123,8 @@ export function moveLead(c: Ctx, leadId: string, stage: LeadStage, extra: { meet
   c.log(`${l.name}: bosqich → ${stageLabel(stage)}`, "/crm");
 }
 
+export type { ServiceInput };
+
 export interface ProjectInput {
   name: string;
   contactName: string;
@@ -113,48 +133,126 @@ export interface ProjectInput {
   links: string;
   contractNo: string;
   contractDate: string;
-  tariff: string;
-  tariffId?: string;
-  monthlyFee: number;
+  /** Oylik xizmatlar uchun oldindan to'lov turi. */
   prepayType: 100 | 50;
   prepayDueDate: string;
   remainderDueDate: string;
   marketologId: string;
   smmId: string;
   targetologId?: string;
+  adBudgetUsd?: number;
+  services: ServiceInput[];
+}
+
+/** Xizmatlar o'zgarganda loyihaning hisoblangan maydonlari: oylik summa, qisqa tavsif, SMM paketi. */
+function refreshProject(c: Ctx, p: Project) {
+  p.monthlyFee = recurringFee(p, c.s.settings.usdRate);
+  p.tariff = servicesSummary(p.services);
+  p.tariffId = p.services.find((x) => x.kind === "smm" && x.status !== "cancelled")?.tariffId;
+}
+
+function buildService(input: ServiceInput, date: string): ProjectService {
+  const once = !isRecurring(input.kind);
+  return {
+    ...input,
+    id: newId("svc"),
+    prepayPct: once ? (input.prepayPct ?? 50) : undefined,
+    startDate: input.startDate || date,
+    stages: once ? stagesFor(input.kind) : undefined,
+    status: "active",
+    createdAt: nowISO(),
+  };
+}
+
+function validateService(x: ServiceInput) {
+  if (!(x.price > 0)) throw new Error(`${serviceLabel(x.kind)}: narxni kiriting`);
+  if (!isRecurring(x.kind) && !x.assigneeId) throw new Error(`${serviceLabel(x.kind)}: ijrochini tanlang`);
+}
+
+/** Qatorlarni ulushga ko'ra kichraytiradi (oldindan / qoldiq to'lov), yig'indi aniq summaga teng bo'ladi. */
+function scaleLines(lines: InvoiceLine[], amount: number): InvoiceLine[] {
+  const total = lines.reduce((a, l) => a + l.amount, 0) || 1;
+  const out = lines.map((l) => ({ ...l, amount: Math.round((l.amount * amount) / total) }));
+  const diff = amount - out.reduce((a, l) => a + l.amount, 0);
+  if (out.length) out[out.length - 1]!.amount += diff;
+  return out;
+}
+
+/** Oylik xizmatlar uchun 1-davr fakturalari (oldindan va kerak bo'lsa qoldiq). */
+function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue: string, remainderDue: string) {
+  const lines = recurringLines(p, c.s.settings.usdRate);
+  const fee = lines.reduce((a, l) => a + l.amount, 0);
+  if (fee <= 0) return;
+  const prepay = Math.round((fee * p.prepayType) / 100);
+  const base = { projectId: p.id, periodIndex: 0, issueDate };
+  c.s.invoices.push({
+    ...base,
+    id: newId("inv"),
+    number: nextInvoiceNumber(c.s),
+    kind: "prepay",
+    amount: prepay,
+    lines: scaleLines(lines, prepay),
+    dueDate: prepayDue || issueDate,
+    note: `Oldindan to'lov (${p.prepayType}%)`,
+  });
+  if (p.prepayType === 50) {
+    c.s.invoices.push({
+      ...base,
+      id: newId("inv"),
+      number: nextInvoiceNumber(c.s),
+      kind: "remainder",
+      amount: fee - prepay,
+      lines: scaleLines(lines, fee - prepay),
+      dueDate: remainderDue,
+      note: "Qoldiq to'lov (50%)",
+    });
+  }
+}
+
+/** Bir martalik xizmat: oldindan to'lov fakturasi. Qolgani topshirilganda chiqariladi. */
+function serviceStartInvoice(c: Ctx, p: Project, svc: ProjectService, issueDate: string, dueDate: string): Invoice {
+  const pct = svc.prepayPct ?? 50;
+  const amount = Math.round((svc.price * pct) / 100);
+  const inv: Invoice = {
+    id: newId("inv"),
+    number: nextInvoiceNumber(c.s),
+    projectId: p.id,
+    serviceId: svc.id,
+    kind: "prepay",
+    periodIndex: 0,
+    amount,
+    lines: [{ kind: svc.kind, title: `${serviceLabel(svc.kind)}${svc.title ? ` — ${svc.title}` : ""}`, amount }],
+    issueDate,
+    dueDate: dueDate || issueDate,
+    note: `${serviceLabel(svc.kind)}: oldindan to'lov (${pct}%)`,
+  };
+  c.s.invoices.push(inv);
+  return inv;
 }
 
 /** "Shartnoma bo'ldi": lid ma'lumotlari avtomatik Loyiha kartasiga ko'chadi. */
 export function createProject(c: Ctx, input: ProjectInput, leadId?: string): string {
+  if (!input.services.length) throw new Error("Kamida bitta xizmatni qo'shing");
+  input.services.forEach(validateService);
   const id = newId("prj");
   const docs = Object.fromEntries(DOC_BLOCKS.map((b) => [b.id, { content: "", status: "progress" }])) as Project["docs"];
-  const { prepayDueDate, remainderDueDate, ...rest } = input;
-  c.s.projects.push({ ...rest, id, leadId, pauseWork: false, status: "active", docs, createdAt: nowISO() });
-  const prepay = Math.round((input.monthlyFee * input.prepayType) / 100);
-  c.s.invoices.push({
-    id: newId("inv"),
-    number: nextInvoiceNumber(c.s),
-    projectId: id,
-    kind: "prepay",
-    periodIndex: 0,
-    amount: prepay,
-    issueDate: input.contractDate,
-    dueDate: prepayDueDate || input.contractDate,
-    note: `Oldindan to'lov (${input.prepayType}%)`,
-  });
-  if (input.prepayType === 50) {
-    c.s.invoices.push({
-      id: newId("inv"),
-      number: nextInvoiceNumber(c.s),
-      projectId: id,
-      kind: "remainder",
-      periodIndex: 0,
-      amount: input.monthlyFee - prepay,
-      issueDate: input.contractDate,
-      dueDate: remainderDueDate,
-      note: "Qoldiq to'lov (50%)",
-    });
-  }
+  const { prepayDueDate, remainderDueDate, services, ...rest } = input;
+  const project: Project = {
+    ...rest,
+    id,
+    leadId,
+    tariff: "",
+    monthlyFee: 0,
+    services: services.map((x) => buildService(x, input.contractDate)),
+    pauseWork: false,
+    status: "active",
+    docs,
+    createdAt: nowISO(),
+  };
+  refreshProject(c, project);
+  c.s.projects.push(project);
+  recurringStartInvoices(c, project, input.contractDate, prepayDueDate, remainderDueDate);
+  for (const svc of project.services) if (!isRecurring(svc.kind)) serviceStartInvoice(c, project, svc, input.contractDate, prepayDueDate);
   if (leadId) {
     const l = c.s.leads.find((x) => x.id === leadId);
     if (l) {
@@ -178,13 +276,213 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
       }
     }
   }
-  c.notify([input.marketologId, input.smmId], `Yangi loyiha: ${input.name} (shartnoma ${input.contractNo})`, `/loyiha/${id}`);
-  c.notify(financeIds(c), `${input.name}: oldindan to'lovni (${input.prepayType}%) qayd eting`, "/moliya/fakturalar");
-  c.log(`${input.name}: loyiha kartasi yaratildi${leadId ? " (lid → loyiha)" : ""}`, `/loyiha/${id}`);
+  c.notify(
+    [input.marketologId, project.monthlyFee > 0 ? input.smmId || undefined : undefined, project.targetologId],
+    `Yangi loyiha: ${input.name} (shartnoma ${input.contractNo}) — ${project.tariff}`,
+    `/loyiha/${id}`,
+  );
+  for (const svc of project.services)
+    if (svc.assigneeId)
+      c.notify(
+        [svc.assigneeId],
+        `${input.name}: sizga yangi ish — ${serviceLabel(svc.kind)}${svc.deadline ? `, muddat ${fmtDate(svc.deadline)}` : ""}`,
+        "/mening",
+      );
+  c.notify(financeIds(c), `${input.name}: oldindan to'lovni qayd eting (${project.tariff})`, "/moliya/fakturalar");
+  c.log(`${input.name}: loyiha kartasi yaratildi${leadId ? " (lid → loyiha)" : ""} — ${project.tariff}`, `/loyiha/${id}`);
   return id;
 }
 
-// ---------- Tariflar va tijorat takliflari ----------
+// ---------- Xizmatlar ----------
+
+/** Mavjud mijozga yangi xizmat qo'shish (masalan, SMM mijozi sayt buyurtma qildi). */
+export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { dueDate?: string } = {}) {
+  const p = findProject(c, projectId);
+  if (!p) return;
+  validateService(input);
+  const hadRecurring = recurringLines(p, c.s.settings.usdRate).length > 0;
+  const svc = buildService(input, c.today);
+  p.services.push(svc);
+  refreshProject(c, p);
+  if (isRecurring(svc.kind)) {
+    // Ilgari faqat bir martalik xizmat bo'lgan mijozda oylik xizmat boshlansa — 1-davr oldindan to'lovi
+    if (!hadRecurring && !p.periodStart) recurringStartInvoices(c, p, c.today, o.dueDate ?? c.today, "");
+  } else serviceStartInvoice(c, p, svc, c.today, o.dueDate ?? c.today);
+  c.notify([p.marketologId, ...financeIds(c)], `${p.name}: yangi xizmat — ${serviceLabel(svc.kind)} (${fmtMoney(svc.price)})`, `/loyiha/${p.id}`);
+  c.notify([svc.assigneeId], `${p.name}: sizga yangi ish — ${serviceLabel(svc.kind)}${svc.deadline ? `, muddat ${fmtDate(svc.deadline)}` : ""}`, "/mening");
+  c.log(`${p.name}: xizmat qo'shildi — ${serviceLabel(svc.kind)}`, `/loyiha/${p.id}`);
+}
+
+export function updateService(c: Ctx, projectId: string, serviceId: string, patch: Partial<ServiceInput>) {
+  const p = findProject(c, projectId);
+  const svc = p?.services.find((x) => x.id === serviceId);
+  if (!p || !svc) return;
+  if (patch.price !== undefined && !(patch.price > 0)) throw new Error("Narxni kiriting");
+  if (patch.assigneeId && patch.assigneeId !== svc.assigneeId) {
+    c.notify([patch.assigneeId], `${p.name}: sizga ish biriktirildi — ${serviceLabel(svc.kind)}`, "/mening");
+  }
+  Object.assign(svc, patch);
+  refreshProject(c, p);
+  c.log(`${p.name}: ${serviceLabel(svc.kind)} — shartlar yangilandi`, `/loyiha/${p.id}`);
+}
+
+/** Xizmatni to'xtatish: oylik xizmat keyingi fakturalarga kirmaydi; bir martalik — bekor qilinadi. */
+export function cancelService(c: Ctx, projectId: string, serviceId: string) {
+  const p = findProject(c, projectId);
+  const svc = p?.services.find((x) => x.id === serviceId);
+  if (!p || !svc) return;
+  if (svc.deliveredAt) throw new Error("Topshirilgan xizmatni bekor qilib bo'lmaydi");
+  svc.status = "cancelled";
+  refreshProject(c, p);
+  c.notify([p.marketologId, ...financeIds(c)], `${p.name}: ${serviceLabel(svc.kind)} to'xtatildi`, `/loyiha/${p.id}`);
+  c.notify([svc.assigneeId], `${p.name}: ${serviceLabel(svc.kind)} to'xtatildi — ishni davom ettirmang`, "/mening");
+  c.log(`${p.name}: ${serviceLabel(svc.kind)} to'xtatildi`, `/loyiha/${p.id}`);
+}
+
+/**
+ * Bir martalik xizmat: joriy bosqichni bajarilgan deb belgilaydi.
+ * Birinchi bosqichdan keyin ishni davom ettirish uchun oldindan to'lov kelgan bo'lishi kerak.
+ * Oxirgi bosqich — topshirish: qoldiq faktura chiqadi, daromad tan olinadi, ijrochiga haq hisoblanadi.
+ */
+export function advanceServiceStage(c: Ctx, projectId: string, serviceId: string) {
+  const p = findProject(c, projectId);
+  const svc = p?.services.find((x) => x.id === serviceId);
+  if (!p || !svc?.stages) return;
+  if (svc.status === "done") return;
+  if (svc.status !== "active") throw new Error("Xizmat to'xtatilgan");
+  const i = stageIndex(svc);
+  if (i >= svc.stages.length) return;
+  if (i >= 1 && !servicePrepayPaid(c.s, svc.id, (inv) => invoicePaid(c.s, inv))) {
+    throw new Error("Oldindan to'lov hali kelmagan — ish to'lovdan keyin davom etadi");
+  }
+  svc.stages[i]!.doneAt = c.today;
+  const label = serviceLabel(svc.kind);
+  const last = i === svc.stages.length - 1;
+  if (!last) {
+    const next = svc.stages[i + 1]!.name;
+    const text = `${p.name} · ${label}: «${svc.stages[i]!.name}» bajarildi → keyingi: ${next}`;
+    c.notify([p.marketologId], text, `/loyiha/${p.id}`);
+    c.notify([svc.assigneeId], text, "/mening");
+    c.log(`${p.name} · ${label}: «${svc.stages[i]!.name}» bajarildi`, `/loyiha/${p.id}`);
+    return;
+  }
+  svc.deliveredAt = c.today;
+  svc.status = "done";
+  const pre = c.s.invoices.filter((x) => x.serviceId === svc.id).reduce((a, x) => a + x.amount, 0);
+  const rest = svc.price - pre;
+  if (rest > 0) {
+    c.s.invoices.push({
+      id: newId("inv"),
+      number: nextInvoiceNumber(c.s),
+      projectId: p.id,
+      serviceId: svc.id,
+      kind: "remainder",
+      periodIndex: 0,
+      amount: rest,
+      lines: [{ kind: svc.kind, title: `${label}${svc.title ? ` — ${svc.title}` : ""}`, amount: rest }],
+      issueDate: c.today,
+      dueDate: addDays(c.today, 3),
+      note: `${label}: topshirildi — qoldiq to'lov`,
+    });
+  }
+  if (svc.assigneeId && svc.assigneeFee && svc.assigneeFee > 0 && !c.s.accruals.some((a) => a.sourceId === `svc:${svc.id}`)) {
+    c.s.accruals.push({
+      id: newId("acr"),
+      userId: svc.assigneeId,
+      projectId: p.id,
+      date: c.today,
+      kind: "piece",
+      workType: "xizmat",
+      sourceId: `svc:${svc.id}`,
+      title: `${p.name}: ${label}${svc.title ? ` (${svc.title})` : ""} topshirildi`,
+      qty: 1,
+      rate: svc.assigneeFee,
+      amount: svc.assigneeFee,
+      approved: false,
+      createdBy: "system",
+    });
+    c.notify([svc.assigneeId], `Hisoblandi: ${p.name} — ${label} (${fmtMoney(svc.assigneeFee)})`, "/hisobim");
+  }
+  const bosses = c.s.users.filter((u) => u.role === "rahbar" && u.active).map((u) => u.id);
+  c.notify(
+    [p.marketologId, ...bosses, ...financeIds(c)],
+    `${p.name}: ${label} topshirildi${rest > 0 ? ` — qoldiq faktura ${fmtMoney(rest)}` : ""}`,
+    `/loyiha/${p.id}`,
+  );
+  c.log(`${p.name}: ${label} mijozga topshirildi`, `/loyiha/${p.id}`);
+}
+
+/** Xato bilan belgilangan bosqichni qaytarish (topshirilgan xizmatda emas). */
+export function revertServiceStage(c: Ctx, projectId: string, serviceId: string) {
+  const p = findProject(c, projectId);
+  const svc = p?.services.find((x) => x.id === serviceId);
+  if (!p || !svc?.stages || svc.deliveredAt) return;
+  const i = stageIndex(svc) - 1;
+  if (i < 0) return;
+  svc.stages[i]!.doneAt = undefined;
+  c.log(`${p.name} · ${serviceLabel(svc.kind)}: «${svc.stages[i]!.name}» qayta ochildi`, `/loyiha/${p.id}`);
+}
+
+// ---------- Oylik topshiriq ----------
+
+/** Marketolog loyiha bo'yicha oylik topshiriq beradi; o'zgarish tarixga yoziladi va SMM'ga xabar boradi. */
+export function saveQuota(c: Ctx, projectId: string, month: string, counts: Record<string, number>, note = "") {
+  const p = findProject(c, projectId);
+  if (!p) return;
+  const clean = Object.fromEntries(
+    Object.entries(counts)
+      .filter(([, n]) => Number.isFinite(n) && n >= 0)
+      .map(([k, n]) => [k, Math.round(n)]),
+  );
+  if (!Object.values(clean).some((n) => n > 0)) throw new Error("Kamida bitta turga son kiriting");
+  c.s.quotas ??= [];
+  const ex = findQuota(c.s, projectId, month);
+  const period = `${p.name} · ${fmtMonth(month)}`;
+  if (!ex) {
+    c.s.quotas.push({
+      id: newId("q"),
+      projectId,
+      month,
+      counts: clean,
+      note: note.trim(),
+      updatedAt: nowISO(),
+      updatedBy: c.me.id,
+      history: [{ at: nowISO(), userId: c.me.id, text: `Topshiriq berildi: ${quotaText(c.s, clean)}` }],
+    });
+    c.notify([p.smmId], `📋 ${period} topshirig'i: ${quotaText(c.s, clean)}${note.trim() ? ` (${note.trim()})` : ""}`, "/kontent");
+    c.log(`${period}: oylik topshiriq berildi`, `/loyiha/${p.id}`);
+    return;
+  }
+  const keys = [...new Set([...Object.keys(ex.counts), ...Object.keys(clean)])];
+  const diff = keys
+    .filter((k) => (ex.counts[k] ?? 0) !== (clean[k] ?? 0))
+    .map((k) => `${typeName(c.s, k).split(" (")[0]} ${ex.counts[k] ?? 0} → ${clean[k] ?? 0}`);
+  if (!diff.length && ex.note === note.trim()) return;
+  ex.counts = clean;
+  ex.note = note.trim();
+  ex.updatedAt = nowISO();
+  ex.updatedBy = c.me.id;
+  const text = diff.length ? diff.join(", ") : "izoh yangilandi";
+  ex.history.unshift({ at: nowISO(), userId: c.me.id, text: `O'zgardi: ${text}${note.trim() ? ` (${note.trim()})` : ""}` });
+  c.notify([p.smmId], `📋 ${period} topshirig'i o'zgardi: ${text}`, "/kontent");
+  c.log(`${period}: topshiriq o'zgardi — ${text}`, `/loyiha/${p.id}`);
+}
+
+/** Kontent turlari ro'yxatini agentlik o'zi to'ldiradi (masalan: «Karusel», «Jonli efir»). */
+export function saveContentType(c: Ctx, t: Omit<ContentType, "id"> & { id?: string }) {
+  if (!t.name.trim()) throw new Error("Tur nomini kiriting");
+  const list = (c.s.settings.contentTypes = [...contentTypes(c.s)]);
+  if (t.id) {
+    const ex = list.find((x) => x.id === t.id);
+    if (ex) Object.assign(ex, { ...t, name: t.name.trim() });
+  } else {
+    if (list.some((x) => x.name.toLowerCase() === t.name.trim().toLowerCase())) throw new Error("Bunday tur bor");
+    list.push({ id: newId("ct"), name: t.name.trim(), format: t.format, active: true });
+  }
+  c.log(`Kontent turi saqlandi: ${t.name.trim()} (${FORMAT_LABELS[t.format]})`, "/kontent");
+}
+
+// ---------- Tariflar va tijorat takliflari ----------// ---------- Tariflar va tijorat takliflari ----------
 
 export function saveTariff(c: Ctx, t: Tariff) {
   if (!t.name.trim()) throw new Error("Tarif nomini kiriting");
@@ -208,7 +506,7 @@ export function createProposal(c: Ctx, o: ProposalInput): string {
   const lead = c.s.leads.find((l) => l.id === o.leadId);
   if (!lead) throw new Error("Lidni tanlang");
   if (o.tariffIds.length === 0) throw new Error("Kamida bitta tarifni tanlang");
-  if (!o.tariffIds.includes(o.recommendedId)) throw new Error("Tavsiya etiladigan tarif ro'yxatda bo'lishi kerak");
+  if (!o.tariffIds.includes(o.recommendedId)) throw new Error("Tavsiya etiladigan paket ro'yxatda bo'lishi kerak");
   if (o.discountPct < 0 || o.discountPct > 50) throw new Error("Chegirma 0–50% oralig'ida bo'lishi kerak");
   const id = newId("tk");
   const number = nextProposalNumber(c.s, c.today);
@@ -230,34 +528,42 @@ export function createProposal(c: Ctx, o: ProposalInput): string {
   return id;
 }
 
-export function setProposalStatus(c: Ctx, id: string, status: "sent" | "accepted" | "rejected", extra: { tariffId?: string; reason?: string } = {}) {
+export function setProposalStatus(
+  c: Ctx,
+  id: string,
+  status: "sent" | "accepted" | "rejected",
+  extra: { tariffId?: string; tariffIds?: string[]; reason?: string } = {},
+) {
   const p = c.s.proposals.find((x) => x.id === id);
   if (!p) return;
   const lead = c.s.leads.find((l) => l.id === p.leadId);
   if (status === "accepted") {
-    const tid = extra.tariffId ?? p.recommendedId;
-    if (!p.tariffIds.includes(tid)) throw new Error("Tarifni tanlang");
-    p.acceptedTariffId = tid;
+    const ids = extra.tariffIds ?? (extra.tariffId ? [extra.tariffId] : defaultPicks(c.s, p));
+    if (!ids.length || ids.some((tid) => !p.tariffIds.includes(tid))) throw new Error("Paketni tanlang");
+    const kinds = ids.map((tid) => tariffOf(c.s, tid)).map((t) => (t ? tariffService(t) : "smm"));
+    if (new Set(kinds).size !== kinds.length) throw new Error("Har xizmatdan bitta paket tanlanadi");
+    p.acceptedTariffIds = ids;
+    p.acceptedTariffId = ids[0];
   }
   if (status === "rejected" && !extra.reason?.trim()) throw new Error("Sabab majburiy");
   p.status = status;
   p.rejectReason = status === "rejected" ? extra.reason!.trim() : undefined;
   p.decidedAt = status === "sent" ? undefined : c.today;
-  const t = tariffOf(c.s, p.acceptedTariffId ?? p.recommendedId);
+  const picked = acceptedIds(p)
+    .map((tid) => tariffOf(c.s, tid))
+    .filter((t): t is Tariff => Boolean(t))
+    .map((t) => `${serviceLabel(tariffService(t))}: ${t.name} — ${fmtMoney(proposalPrice(p, t))}${isRecurring(tariffService(t)) ? "/oy" : ""}`)
+    .join("; ");
   const text =
     status === "sent"
       ? `Tijorat taklifi yuborildi: ${p.number}`
       : status === "accepted"
-        ? `Taklif qabul qilindi: ${t?.name} — ${t ? fmtMoney(proposalPrice(p, t)) : ""}/oy`
+        ? `Taklif qabul qilindi: ${picked}`
         : `Taklif rad etildi: ${p.rejectReason}`;
   lead?.history.unshift({ id: newId("c"), at: nowISO(), userId: c.me.id, text });
   if (status === "accepted" && lead) {
     const bosses = c.s.users.filter((u) => u.role === "rahbar" && u.active).map((u) => u.id);
-    c.notify(
-      [lead.operatorId, lead.meeting?.marketologId, ...bosses],
-      `${lead.name}: taklif qabul qilindi — ${t?.name} (${t ? fmtMoney(proposalPrice(p, t)) : ""}/oy). Shartnomani rasmiylashtiring`,
-      "/crm",
-    );
+    c.notify([lead.operatorId, lead.meeting?.marketologId, ...bosses], `${lead.name}: taklif qabul qilindi — ${picked}. Shartnomani rasmiylashtiring`, "/crm");
   }
   c.log(`${lead?.name}: ${text}`, `/taklif/${p.id}`);
 }
@@ -269,6 +575,7 @@ export function updateProject(c: Ctx, id: string, patch: Partial<Project>) {
     c.notify([p.marketologId, p.smmId], `${p.name}: ish ${patch.pauseWork ? "to'xtatildi (qarz)" : "qayta tiklandi"}`, `/loyiha/${id}`);
   }
   Object.assign(p, patch);
+  if (patch.adBudgetUsd !== undefined) refreshProject(c, p);
   c.log(`${p.name}: loyiha kartasi yangilandi`, `/loyiha/${id}`);
 }
 
@@ -292,10 +599,13 @@ export function handOff(c: Ctx, projectId: string) {
 // ---------- Kontent ----------
 
 export function savePost(c: Ctx, data: Omit<Post, "id" | "createdAt" | "status"> & { id?: string; status?: PostStatus }) {
+  if (!data.platforms?.length) throw new Error("Kamida bitta platformani tanlang");
   if (data.id) {
     const p = c.s.posts.find((x) => x.id === data.id);
     if (!p) return;
     Object.assign(p, data);
+    // Olib tashlangan platformaning joylash belgisi ham o'chadi
+    if (p.publishedOn) for (const k of Object.keys(p.publishedOn) as Platform[]) if (!p.platforms.includes(k)) delete p.publishedOn[k];
     if (p.status === "published" && !p.publishedAt) p.publishedAt = c.today;
     c.log(`Post yangilandi: ${p.topic} (${projectName(c, p.projectId)})`, "/kontent");
     return;
@@ -334,7 +644,7 @@ export function returnPost(c: Ctx, postId: string, note: string) {
   const p = c.s.posts.find((x) => x.id === postId);
   if (!p) return;
   if (!note.trim()) throw new Error("Qaytarish uchun izoh yozing");
-  p.status = p.format === "video" ? "editing" : "design";
+  p.status = p.format === "video" ? "editing" : p.format === "text" ? "plan" : "design";
   p.reviewNote = note.trim();
   c.notify([p.assigneeId], `Qaytarildi: ${p.topic} — ${note.trim()}`, "/kontent");
   c.log(`${p.topic}: izoh bilan qaytarildi`, "/kontent");
@@ -349,14 +659,45 @@ export function clientApproved(c: Ctx, postId: string) {
   c.log(`${p.topic}: mijoz tasdiqladi`, "/kontent");
 }
 
-export function publishPost(c: Ctx, postId: string) {
+const platformList = (ps: Platform[]) => ps.map((x) => PLATFORM_LABELS[x]).join(", ");
+
+/**
+ * Joylandi: platforma berilsa — faqat shu platformada; berilmasa — hamma platformada.
+ * Hamma platformaga joylangach post «Joylandi» bo'ladi.
+ */
+export function publishPost(c: Ctx, postId: string, platform?: Platform) {
   const p = c.s.posts.find((x) => x.id === postId);
   if (!p) return;
+  p.publishedOn ??= {};
+  for (const pl of platform ? [platform] : p.platforms) p.publishedOn[pl] ??= c.today;
+  const pending = p.platforms.filter((x) => !p.publishedOn?.[x]);
+  const pr = findProject(c, p.projectId);
+  if (pending.length) {
+    if (p.status !== "approved" && postStage(p.status) < postStage("approved")) p.status = "approved";
+    c.log(`${p.topic}: ${platform ? PLATFORM_LABELS[platform] : ""} joylandi — qolgan: ${platformList(pending)}`, "/kontent");
+    return;
+  }
   p.status = "published";
   p.publishedAt = c.today;
-  const pr = findProject(c, p.projectId);
-  c.notify([pr?.marketologId, pr?.targetologId, p.assigneeId], `Joylandi: ${p.topic} (${pr?.name ?? "—"}, ${PLATFORM_LABELS[p.platform]})`, "/kontent");
-  c.log(`${p.topic}: joylandi (${PLATFORM_LABELS[p.platform]})`, "/kontent");
+  // Faqat SMM (reklamasiz) mijozda hisob davri birinchi joylangan postdan boshlanadi
+  if (pr && !pr.periodStart && !hasAds(pr)) {
+    pr.periodStart = c.today;
+    c.notify([pr.marketologId, ...financeIds(c)], `${pr.name}: birinchi post joylandi — hisob davri ${fmtDate(c.today)} dan boshlandi`, `/loyiha/${pr.id}`);
+  }
+  c.notify([pr?.marketologId, pr?.targetologId, p.assigneeId], `Joylandi: ${p.topic} (${pr?.name ?? "—"}, ${platformList(p.platforms)})`, "/kontent");
+  c.log(`${p.topic}: joylandi (${platformList(p.platforms)})`, "/kontent");
+}
+
+/** Xato bilan qo'yilgan «joylandi» belgisini olib tashlash. */
+export function unpublishPlatform(c: Ctx, postId: string, platform: Platform) {
+  const p = c.s.posts.find((x) => x.id === postId);
+  if (!p?.publishedOn?.[platform]) return;
+  delete p.publishedOn[platform];
+  if (p.status === "published") {
+    p.status = "approved";
+    p.publishedAt = undefined;
+  }
+  c.log(`${p.topic}: ${PLATFORM_LABELS[platform]} — joylash belgisi olib tashlandi`, "/kontent");
 }
 
 export function setPostStatus(c: Ctx, postId: string, status: PostStatus) {
@@ -507,8 +848,10 @@ export function launchTarget(c: Ctx, id: string, date: string) {
   c.log(`${t.title}: reklama yoqildi (${fmtDate(date)})`, "/target");
 }
 
+const sameChannel = (a?: string, b?: string) => (a ?? "meta") === (b ?? "meta");
+
 export function saveTargetReport(c: Ctx, data: Omit<TargetReport, "id" | "authorId">) {
-  const existing = c.s.targetReports.find((r) => r.projectId === data.projectId && r.date === data.date);
+  const existing = c.s.targetReports.find((r) => r.projectId === data.projectId && r.date === data.date && sameChannel(r.channel, data.channel));
   if (existing) Object.assign(existing, data);
   else c.s.targetReports.push({ ...data, id: newId("tr"), authorId: c.me.id });
   c.log(`Target kunlik hisobot: ${projectName(c, data.projectId)}, ${fmtDate(data.date)}`, "/target");
@@ -533,7 +876,7 @@ export function applyMetaSync(c: Ctx, results: MetaResult[]): number {
       continue;
     }
     for (const row of r.rows) {
-      const ex = c.s.targetReports.find((x) => x.projectId === row.projectId && x.date === row.date);
+      const ex = c.s.targetReports.find((x) => x.projectId === row.projectId && x.date === row.date && sameChannel(x.channel));
       if (ex) Object.assign(ex, row);
       else c.s.targetReports.push({ ...row, id: newId("tr"), authorId: p.targetologId ?? c.me.id });
       n++;

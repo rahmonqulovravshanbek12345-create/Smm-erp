@@ -15,19 +15,25 @@ export function addSalesHistory(s: ErpState, today: string) {
   // Katalog tarifi bilan shartnoma tuzilgan loyihalar — qabul qilingan taklif bilan boshlangan.
   for (const p of s.projects) {
     const lead = s.leads.find((l) => l.projectId === p.id);
-    if (!lead || !p.tariffId) continue;
+    // Shartnoma boshida olingan katalog paketlari (keyin qo'shilgan xizmatlar — alohida buyurtma)
+    const accepted = p.services.filter((x) => x.tariffId && x.createdAt.slice(0, 10) <= p.contractDate.slice(0, 10)).map((x) => x.tariffId!);
+    const main = p.tariffId ?? accepted[0];
+    if (!lead || !main) continue;
+    const kinds = new Set(accepted.map((tid) => s.tariffs.find((t) => t.id === tid)?.service ?? "smm"));
+    const tariffIds = s.tariffs.filter((t) => kinds.has(t.service ?? "smm") && t.active).map((t) => t.id);
     const date = addDays(p.contractDate, -4);
     items.push({
       id: `tk_${p.id}`,
       leadId: lead.id,
       date,
       validUntil: addDays(date, 7),
-      tariffIds: ALL,
-      recommendedId: p.tariffId,
+      tariffIds: p.tariffId ? ALL : tariffIds,
+      recommendedId: main,
       discountPct: 0,
       note: note(lead.id),
       status: "accepted",
-      acceptedTariffId: p.tariffId,
+      acceptedTariffId: main,
+      acceptedTariffIds: p.tariffId ? [p.tariffId] : accepted,
       decidedAt: p.contractDate,
       createdBy: lead.meeting?.marketologId ?? "u_mk",
     });

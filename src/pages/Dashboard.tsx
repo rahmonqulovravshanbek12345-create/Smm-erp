@@ -5,6 +5,7 @@ import { A, Badge, Card, CardHeader, Empty, PageHeader, Ring, Select, Stat } fro
 import { diffDays, fmtDate, fmtMoney, relDays } from "../lib/dates";
 import { PLATFORM_LABELS, ROLE_LABELS, TASK_KIND_LABELS } from "../lib/labels";
 import { isPostLate, isTaskLate, isTaskOpen, periodPosts, postNeedsWarning, projectDebt, targetReportMissing, workBlockedReason } from "../lib/rules";
+import { hasContent, oneTimeServices } from "../lib/services";
 import { useErp, useLookup } from "../lib/store";
 import type { Role } from "../lib/types";
 
@@ -33,15 +34,20 @@ export function Dashboard() {
   // Kimda nechta vazifa turibdi va kim kechiktirmoqda
   const workload = useMemo(() => {
     const rows = state.users
-      .filter((u) => u.active && ["smm", "montajyor", "dizayner", "targetolog", "syomka"].includes(u.role))
+      .filter((u) => u.active && ["smm", "montajyor", "dizayner", "targetolog", "syomka", "webdev"].includes(u.role))
       .filter((u) => !roleFilter || u.role === roleFilter)
       .map((u) => {
         const tasks = state.tasks.filter((t) => t.assigneeId === u.id && isTaskOpen(t));
         const posts = u.role === "smm" ? state.posts.filter((p) => p.assigneeId === u.id && p.status !== "published") : [];
         const shoots = u.role === "syomka" ? state.shoots.filter((s) => s.operatorId === u.id && s.status === "planned") : [];
+        // Bir martalik ishlar (sayt, branding, video) ham ijrochining yuklamasi
+        const once = state.projects.flatMap((p) => oneTimeServices(p)).filter((x) => x.assigneeId === u.id && x.status === "active");
         const late =
-          tasks.filter((t) => isTaskLate(t, today)).length + posts.filter((p) => isPostLate(p, today)).length + shoots.filter((s) => s.date < today).length;
-        return { u, open: tasks.length + posts.length + shoots.length, late };
+          tasks.filter((t) => isTaskLate(t, today)).length +
+          posts.filter((p) => isPostLate(p, today)).length +
+          shoots.filter((s) => s.date < today).length +
+          once.filter((x) => x.deadline && x.deadline < today).length;
+        return { u, open: tasks.length + posts.length + shoots.length + once.length, late };
       });
     return rows.sort((a, b) => b.late - a.late || b.open - a.open);
   }, [state, today, roleFilter]);
@@ -70,7 +76,7 @@ export function Dashboard() {
         <Card className="xl:col-span-2">
           <CardHeader icon={{ name: "gauge", color: "green" }} title="Reja bajarilishi" sub="Joriy hisob davri ichidagi kontent reja" />
           <div className="grid gap-3 p-3 pt-1 sm:grid-cols-2 2xl:grid-cols-3">
-            {state.projects.map((p) => {
+            {state.projects.filter(hasContent).map((p) => {
               const { per, posts } = periodPosts(state, p, today);
               const done = posts.filter((x) => x.status === "published").length;
               const late = posts.filter((x) => isPostLate(x, today)).length;
@@ -118,7 +124,7 @@ export function Dashboard() {
                   <button type="button" onClick={() => setOpenPost(p.id)} className="w-full px-5 py-2.5 text-left hover:bg-fill">
                     <div className="text-sm text-label">{p.topic}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-label2">
-                      {look.projectName(p.projectId)} · {PLATFORM_LABELS[p.platform]} <PostBadge post={p} today={today} />
+                      {look.projectName(p.projectId)} · {p.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")} <PostBadge post={p} today={today} />
                     </div>
                   </button>
                 </li>
@@ -218,7 +224,7 @@ export function Dashboard() {
                 className="!w-44 !py-1 !text-xs"
                 options={[
                   { value: "", label: "Barcha rollar" },
-                  ...(["smm", "montajyor", "dizayner", "targetolog", "syomka"] as Role[]).map((r) => ({ value: r, label: ROLE_LABELS[r] })),
+                  ...(["smm", "montajyor", "dizayner", "targetolog", "syomka", "webdev"] as Role[]).map((r) => ({ value: r, label: ROLE_LABELS[r] })),
                 ]}
               />
             }

@@ -3,6 +3,8 @@ import { invoiceStatus, prepayPaid } from "../lib/finance";
 import { POST_STATUSES } from "../lib/labels";
 import { currentPeriod, isPostLate, isTaskLate, periodPosts, postStage } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
+import { quotaProgress } from "../lib/content";
+import { hasContent, hasRecurring, recurringServices } from "../lib/services";
 import type { Post, Project } from "../lib/types";
 import { Icon } from "./icons";
 import { Card } from "./ui";
@@ -31,6 +33,51 @@ export function ProjectJourney({ project: p }: { project: Project }) {
   const nextInv = state.invoices.filter((i) => i.projectId === p.id && i.kind === "monthly").sort((a, b) => b.periodIndex - a.periodIndex)[0];
   const nextInvSt = nextInv ? invoiceStatus(state, nextInv, today) : null;
   const paidPre = prepayPaid(state, p.id);
+  const content = hasContent(p);
+  const quotaTarget = quotaProgress(state, p, today.slice(0, 7))
+    .filter((r) => r.key !== "shoot")
+    .reduce((a, r) => a + r.target, 0);
+  const perf = recurringServices(p).find((x) => x.kind === "performance");
+  const perLeads = per
+    ? state.targetReports.filter((r) => r.projectId === p.id && r.date >= per.start && r.date < per.end).reduce((a, r) => a + r.leads, 0)
+    : 0;
+
+  const contentSteps: Step[] = [
+    {
+      title: "Kontent reja",
+      who: look.userName(p.smmId),
+      state: !p.handedOffAt ? "todo" : posts.length >= (quotaTarget || 12) ? "done" : "current",
+      detail: per ? `${posts.length} ta post rejada (topshiriq: ${quotaTarget || "—"})` : "Davr boshlanmagan",
+    },
+    {
+      title: "Ishlab chiqarish",
+      who: "Syomka · montaj · dizayn",
+      state: !p.handedOffAt ? "todo" : lateTasks ? "problem" : openTasks.length ? "current" : "done",
+      detail: lateTasks ? `${lateTasks} ta vazifa kechikmoqda` : `${openTasks.length} ta ochiq vazifa`,
+    },
+    {
+      title: "Joylash",
+      who: look.userName(p.smmId),
+      state: !per ? "todo" : latePosts ? "problem" : published >= posts.length && posts.length ? "done" : "current",
+      detail: per
+        ? `${posts.length} tadan ${published} tasi joylandi${latePosts ? ` · ${latePosts} kechikkan` : ""}`
+        : "Birinchi joylash yoki reklamadan keyin",
+    },
+  ];
+  const adSteps: Step[] = [
+    {
+      title: "Reklama ishga tushdi",
+      who: look.userName(p.targetologId),
+      state: !p.handedOffAt ? "todo" : per ? "done" : "current",
+      detail: p.periodStart ? fmtDate(p.periodStart) : "Kreativlar va sozlash",
+    },
+    {
+      title: "KPI",
+      who: look.userName(p.targetologId),
+      state: !per ? "todo" : perf?.kpiLeads && perLeads >= perf.kpiLeads ? "done" : "current",
+      detail: per ? `${perLeads} ta lid${perf?.kpiLeads ? ` / reja ${perf.kpiLeads}` : ""}` : "Davr boshlangach",
+    },
+  ];
 
   const steps: Step[] = [
     {
@@ -51,27 +98,10 @@ export function ProjectJourney({ project: p }: { project: Project }) {
       state: !paidPre ? "todo" : p.handedOffAt ? "done" : "current",
       detail: p.handedOffAt ? "SMM va targetologga uzatilgan" : `${docsDone}/5 blok tayyor`,
     },
-    {
-      title: "Kontent reja",
-      who: look.userName(p.smmId),
-      state: !p.handedOffAt ? "todo" : posts.length >= 12 ? "done" : "current",
-      detail: per ? `${posts.length} ta post rejada (12–15 kerak)` : "Davr boshlanmagan",
-    },
-    {
-      title: "Ishlab chiqarish",
-      who: "Syomka · montaj · dizayn",
-      state: !p.handedOffAt ? "todo" : lateTasks ? "problem" : openTasks.length ? "current" : "done",
-      detail: lateTasks ? `${lateTasks} ta vazifa kechikmoqda` : `${openTasks.length} ta ochiq vazifa`,
-    },
-    {
-      title: "Joylash",
-      who: look.userName(p.smmId),
-      state: !per ? "todo" : latePosts ? "problem" : published >= posts.length && posts.length ? "done" : "current",
-      detail: per ? `${posts.length} tadan ${published} tasi joylandi${latePosts ? ` · ${latePosts} kechikkan` : ""}` : "Birinchi reklamadan keyin",
-    },
+    ...(content ? contentSteps : adSteps),
     {
       title: "Oylik hisobot",
-      who: look.userName(p.smmId),
+      who: look.userName(content ? p.smmId : p.targetologId),
       state: !per || per.index === 0 ? "todo" : report ? "done" : "current",
       detail: !per || per.index === 0 ? "1-davr oxirida" : report ? `${per.index}-davr hisoboti topshirilgan` : `${per.index}-davr hisoboti kutilmoqda`,
     },
@@ -94,7 +124,8 @@ export function ProjectJourney({ project: p }: { project: Project }) {
     problem: "bg-red text-white",
   };
 
-  if (p.status === "closed") return null;
+  // Faqat bir martalik xizmat (sayt, branding) olgan mijozda — xizmat bosqichlari ko'rsatiladi
+  if (p.status === "closed" || !hasRecurring(p)) return null;
   return (
     <Card className="mb-5 p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -133,7 +164,9 @@ export function ProjectJourney({ project: p }: { project: Project }) {
 export function PostJourney({ post, today }: { post: Post; today: string }) {
   const cur = postStage(post.status);
   const late = isPostLate(post, today);
-  const steps = POST_STATUSES.filter((s) => post.format === "video" || (s.id !== "shoot" && s.id !== "editing"));
+  const steps = POST_STATUSES.filter(
+    (s) => (post.format === "video" || (s.id !== "shoot" && s.id !== "editing")) && (post.format !== "text" || s.id !== "design"),
+  );
   return (
     <ol className="no-scrollbar mb-4 flex gap-1 overflow-x-auto">
       {steps.map((s, i) => {

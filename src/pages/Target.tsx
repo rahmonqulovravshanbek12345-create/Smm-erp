@@ -8,17 +8,19 @@ import { access, canEdit, visibleProjects } from "../lib/permissions";
 import { isMetaDemo, metaAccountOf, syncMeta } from "../lib/integrations";
 import { targetReportMissing } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
+import { AD_CHANNELS, hasAds } from "../lib/services";
+import type { AdChannel } from "../lib/types";
 
 export function Target() {
   const { state, me, run, today, showToast } = useErp();
   const look = useLookup();
   const own = access(me.role, "target") === "own";
   const editable = canEdit(me.role, "target");
-  const projects = visibleProjects(state, me).filter((p) => p.targetologId);
+  const projects = visibleProjects(state, me).filter((p) => p.targetologId && hasAds(p));
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [creating, setCreating] = useState(false);
   const [launch, setLaunch] = useState<Record<string, string>>({});
-  const [f, setF] = useState({ date: addDays(today, -1), spend: "", views: "", clicks: "", leads: "", note: "" });
+  const [f, setF] = useState({ date: addDays(today, -1), spend: "", views: "", clicks: "", leads: "", note: "", channel: "meta" as AdChannel });
 
   const tasks = state.tasks
     .filter((t) => t.kind === "target" && (!own || t.assigneeId === me.id))
@@ -35,6 +37,8 @@ export function Target() {
     leads: 0,
   });
 
+  const perf = look.project(projectId)?.services?.find((x) => x.kind === "performance" && x.status === "active");
+  const channels = perf?.channels?.length ? perf.channels : ["meta"];
   const account = metaAccountOf(state, projectId);
   const demo = isMetaDemo(state);
   const [syncing, setSyncing] = useState(false);
@@ -66,6 +70,7 @@ export function Target() {
           clicks: Number(f.clicks) || 0,
           leads: Number(f.leads) || 0,
           note: f.note,
+          channel: channels.length > 1 ? f.channel : undefined,
           source: "manual",
         }),
       "Kunlik hisobot saqlandi",
@@ -157,6 +162,15 @@ export function Target() {
                   <Field label="Sana">
                     <Input type="date" value={f.date} max={today} onChange={(e) => setF({ ...f, date: e.target.value })} />
                   </Field>
+                  {channels.length > 1 && (
+                    <Field label="Kanal">
+                      <Select
+                        value={f.channel}
+                        onChange={(e) => setF({ ...f, channel: e.target.value as AdChannel })}
+                        options={AD_CHANNELS.filter((c) => channels.includes(c.id)).map((c) => ({ value: c.id, label: c.label }))}
+                      />
+                    </Field>
+                  )}
                   <Field label="Sarflangan summa (so'm)">
                     <Input type="number" value={f.spend} onChange={(e) => setF({ ...f, spend: e.target.value })} />
                   </Field>
@@ -216,6 +230,7 @@ export function Target() {
                   <thead className="sticky top-0 bg-elevated text-left text-xs text-label2">
                     <tr>
                       <th className="px-4 py-2 font-medium">Sana</th>
+                      {channels.length > 1 && <th className="px-4 py-2 font-medium">Kanal</th>}
                       <th className="px-4 py-2 text-right font-medium">Sarf</th>
                       <th className="px-4 py-2 text-right font-medium">Ko'rish</th>
                       <th className="px-4 py-2 text-right font-medium">Klik</th>
@@ -227,6 +242,11 @@ export function Target() {
                     {history.map((r) => (
                       <tr key={r.id}>
                         <td className="whitespace-nowrap px-4 py-2 text-label/80">{fmtDate(r.date)}</td>
+                        {channels.length > 1 && (
+                          <td className="whitespace-nowrap px-4 py-2 text-label2">
+                            {AD_CHANNELS.find((c) => c.id === (r.channel ?? "meta"))?.label.split(" ")[0]}
+                          </td>
+                        )}
                         <td className="whitespace-nowrap px-4 py-2 text-right">{fmtNum(r.spend)}</td>
                         <td className="whitespace-nowrap px-4 py-2 text-right">{fmtNum(r.views)}</td>
                         <td className="whitespace-nowrap px-4 py-2 text-right">{fmtNum(r.clicks)}</td>

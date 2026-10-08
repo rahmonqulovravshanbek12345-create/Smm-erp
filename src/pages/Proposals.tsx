@@ -18,12 +18,18 @@ import {
   proposalPrice,
   proposalStats,
   proposalView,
-  tariffLabel,
+  acceptedIds,
+  defaultPicks,
+  proposalGroups,
+  proposalValue,
+  servicesFromProposal,
   tariffOf,
+  tariffService,
   tariffUsage,
   type ProposalView as PView,
 } from "../lib/tariffs";
-import type { Platform, Role, Tariff } from "../lib/types";
+import { SERVICE_META, isRecurring, serviceKindOf, serviceLabel, serviceMeta } from "../lib/services";
+import type { Platform, Role, ServiceKind, Tariff } from "../lib/types";
 import { TableWrap, td, tdr, th, thr } from "./finance/common";
 
 const fmtShortMoney = (n: number) => (n >= 1_000_000 ? `${fmtNum(Math.round(n / 100_000) / 10)} mln` : `${fmtNum(Math.round(n / 1000))} ming`);
@@ -39,6 +45,7 @@ export function Proposals() {
   const [filter, setFilter] = useState<"all" | PView>("all");
   const [creating, setCreating] = useState(false);
   const [editTariff, setEditTariff] = useState<Tariff | "new" | null>(null);
+  const [kind, setKind] = useState<ServiceKind>("smm");
   const stats = useMemo(() => proposalStats(state, today, addDays(today, -182)), [state, today]);
   const usage = useMemo(() => tariffUsage(state), [state]);
 
@@ -47,7 +54,8 @@ export function Proposals() {
       p,
       view: proposalView(p, today),
       lead: state.leads.find((l) => l.id === p.leadId),
-      t: tariffOf(state, p.acceptedTariffId ?? p.recommendedId),
+      names: (p.status === "accepted" ? acceptedIds(p) : defaultPicks(state, p)).map((id) => tariffOf(state, id)?.name ?? "").join(" + "),
+      value: proposalValue(state, p),
     }))
     .filter((r) => filter === "all" || r.view === filter)
     .sort((a, b) => b.p.date.localeCompare(a.p.date) || b.p.number.localeCompare(a.p.number));
@@ -64,14 +72,14 @@ export function Proposals() {
               sheets={() => [
                 {
                   name: "Takliflar",
-                  columns: ["Raqam", "Sana", "Mijoz", "Tarif", "Chegirma %", "Oylik summa", "Holat", "Amal qiladi", "Rad sababi"],
+                  columns: ["Raqam", "Sana", "Mijoz", "Paketlar", "Chegirma %", "Summa", "Holat", "Amal qiladi", "Rad sababi"],
                   rows: rows.map((r) => [
                     r.p.number,
                     r.p.date,
                     r.lead?.name ?? "",
-                    r.t?.name ?? "",
+                    r.names,
                     r.p.discountPct,
-                    r.t ? proposalPrice(r.p, r.t) : 0,
+                    r.value,
                     PROPOSAL_STATUS[r.view].label,
                     r.p.validUntil,
                     r.p.rejectReason ?? "",
@@ -90,7 +98,7 @@ export function Proposals() {
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon="send" color="blue" label="Yuborilgan takliflar (6 oy)" value={fmtNum(stats.sent)} />
         <Stat icon="checkSeal" color="green" label={`Qabul qilindi · ${stats.accepted} ta`} value={`${(stats.winRate * 100).toFixed(0)}%`} tone="green" />
-        <Stat icon="wallet" color="purple" label="O'rtacha shartnoma (oyiga)" value={fmtShortMoney(stats.avgAccepted)} />
+        <Stat icon="wallet" color="purple" label="O'rtacha shartnoma qiymati" value={fmtShortMoney(stats.avgAccepted)} />
         <Stat icon="clock" color="orange" label={`Javob kutilmoqda · ${stats.open} ta`} value={fmtShortMoney(stats.openValue)} />
       </div>
 
@@ -99,7 +107,7 @@ export function Proposals() {
         onChange={setTab}
         tabs={[
           { id: "list", label: `Takliflar (${state.proposals.length})` },
-          { id: "tariffs", label: `Tariflar (${state.tariffs.filter((t) => t.active).length})` },
+          { id: "tariffs", label: `Tariflar va paketlar (${state.tariffs.filter((t) => t.active).length})` },
         ]}
       />
 
@@ -130,14 +138,14 @@ export function Proposals() {
                   <th className={th}>Raqam</th>
                   <th className={th}>Mijoz</th>
                   <th className={th}>Sana</th>
-                  <th className={th}>Tarif</th>
-                  <th className={thr}>Oylik summa</th>
+                  <th className={th}>Paketlar</th>
+                  <th className={thr}>Summa</th>
                   <th className={th}>Holat</th>
                   <th className={th}>Tayyorladi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-sep">
-                {rows.map(({ p, view, lead, t }) => (
+                {rows.map(({ p, view, lead, names, value }) => (
                   <tr key={p.id} className="cursor-pointer hover:bg-fill" onClick={() => navigate(`/taklif/${p.id}`)}>
                     <td className={`${td} font-semibold text-accent`}>{p.number}</td>
                     <td className={`${td} font-medium text-label`}>{lead?.name ?? "—"}</td>
@@ -146,10 +154,10 @@ export function Proposals() {
                       {view === "sent" && <div className="text-[12px] text-label3">{fmtDate(p.validUntil)} gacha</div>}
                     </td>
                     <td className={td}>
-                      {t?.name ?? "—"}
+                      {names || "—"}
                       {p.discountPct > 0 && <span className="ml-1.5 text-[12px] text-green">−{p.discountPct}%</span>}
                     </td>
-                    <td className={`${tdr} font-semibold`}>{t ? fmtMoney(proposalPrice(p, t)) : "—"}</td>
+                    <td className={`${tdr} font-semibold`}>{value ? fmtMoney(value) : "—"}</td>
                     <td className={td}>
                       <Badge tone={PROPOSAL_STATUS[view].tone}>{PROPOSAL_STATUS[view].label}</Badge>
                       {p.rejectReason && <div className="mt-0.5 max-w-[220px] truncate text-[12px] text-label3">{p.rejectReason}</div>}
@@ -163,79 +171,110 @@ export function Proposals() {
         </Card>
       ) : (
         <>
+          <div className="no-scrollbar mb-4 flex gap-1 overflow-x-auto rounded-[14px] bg-fill p-1" role="tablist" aria-label="Xizmatlar">
+            {SERVICE_META.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                role="tab"
+                aria-selected={kind === m.id}
+                onClick={() => setKind(m.id)}
+                className={`shrink-0 rounded-[11px] px-3.5 py-1.5 text-[13px] font-semibold transition ${kind === m.id ? "bg-elevated text-label shadow-sm" : "text-label2"}`}
+              >
+                {m.label} <span className="text-label3">{state.tariffs.filter((t) => tariffService(t) === m.id && t.active).length}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mb-3 px-1 text-[13px] text-label2">
+            {serviceMeta(kind).hint}. {isRecurring(kind) ? "Oylik to'lov, oldindan." : "Bir martalik: bosqichlar bilan, odatda 50% oldindan, 50% topshirishda."}{" "}
+            Narxlar — namuna, «Tahrirlash» orqali o'zgartiriladi.
+          </p>
           <div className="grid gap-4 lg:grid-cols-3">
-            {state.tariffs.map((t) => {
-              const u = usage.get(t.id);
-              return (
-                <Card key={t.id} className={`flex flex-col p-5 ${t.active ? "" : "opacity-60"}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-[20px] font-bold tracking-tight text-label">{t.name}</div>
-                      <div className="mt-0.5 text-[13px] text-label2">{t.tagline}</div>
+            {state.tariffs
+              .filter((t) => tariffService(t) === kind)
+              .map((t) => {
+                const u = usage.get(t.id);
+                return (
+                  <Card key={t.id} className={`flex flex-col p-5 ${t.active ? "" : "opacity-60"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-[20px] font-bold tracking-tight text-label">{t.name}</div>
+                        <div className="mt-0.5 text-[13px] text-label2">{t.tagline}</div>
+                      </div>
+                      {!t.active && <Badge>arxivda</Badge>}
                     </div>
-                    {!t.active && <Badge>arxivda</Badge>}
-                  </div>
-                  <div className="mt-4 flex items-baseline gap-1">
-                    <span className="tabular text-[30px] font-bold tracking-tight text-label">{fmtShortMoney(t.price)}</span>
-                    <span className="text-[14px] text-label2">so'm / oy</span>
-                  </div>
-                  <TariffScope t={t} />
-                  <ul className="mt-3 space-y-1.5 text-[13px]">
-                    {t.features.map((f) => (
-                      <li key={f} className="flex gap-2 text-label">
-                        <Icon name="check" size={15} className="mt-0.5 shrink-0 text-green" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-auto pt-4">
-                    <div className="rounded-[12px] bg-fill px-3 py-2 text-[13px] text-label2">
-                      {u ? (
-                        <>
-                          <b className="text-label">{u.projects.length}</b> ta faol loyiha · {fmtMoney(u.mrr)}/oy
-                        </>
-                      ) : (
-                        "Hali loyiha yo'q"
+                    <div className="mt-4 flex items-baseline gap-1">
+                      <span className="tabular text-[30px] font-bold tracking-tight text-label">{fmtShortMoney(t.price)}</span>
+                      <span className="text-[14px] text-label2">{isRecurring(kind) ? "so'm / oy" : "so'm"}</span>
+                    </div>
+                    <TariffScope t={t} />
+                    <ul className="mt-3 space-y-1.5 text-[13px]">
+                      {t.features.map((f) => (
+                        <li key={f} className="flex gap-2 text-label">
+                          <Icon name="check" size={15} className="mt-0.5 shrink-0 text-green" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-auto pt-4">
+                      <div className="rounded-[12px] bg-fill px-3 py-2 text-[13px] text-label2">
+                        {u ? (
+                          <>
+                            <b className="text-label">{u.projects.length}</b> ta faol loyiha · {fmtMoney(u.mrr)}
+                            {isRecurring(kind) ? "/oy" : ""}
+                          </>
+                        ) : (
+                          "Hali loyiha yo'q"
+                        )}
+                      </div>
+                      {canEditTariffs(me.role) && (
+                        <Button className="mt-3 w-full" onClick={() => setEditTariff(t)}>
+                          Tahrirlash
+                        </Button>
                       )}
                     </div>
-                    {canEditTariffs(me.role) && (
-                      <Button className="mt-3 w-full" onClick={() => setEditTariff(t)}>
-                        Tahrirlash
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
+                  </Card>
+                );
+              })}
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[16px] bg-fill px-4 py-3 text-[13px] text-label2">
             <span>
               Individual shartlardagi loyihalar:{" "}
               <b className="text-label">
                 {usage
-                  .get("custom")
+                  .get(`custom:${kind}`)
                   ?.projects.map((p) => p.name)
                   .join(", ") || "yo'q"}
               </b>
             </span>
-            {canEditTariffs(me.role) && <Button onClick={() => setEditTariff("new")}>+ Yangi tarif</Button>}
+            {canEditTariffs(me.role) && <Button onClick={() => setEditTariff("new")}>+ Yangi paket</Button>}
           </div>
         </>
       )}
       {creating && <ProposalModal onClose={() => setCreating(false)} />}
-      {editTariff && <TariffModal tariff={editTariff === "new" ? undefined : editTariff} onClose={() => setEditTariff(null)} />}
+      {editTariff && <TariffModal tariff={editTariff === "new" ? undefined : editTariff} service={kind} onClose={() => setEditTariff(null)} />}
     </>
   );
 }
 
 function TariffScope({ t }: { t: Tariff }) {
-  const items = [
-    `${t.posts} ta post oyiga (${t.videos} video, ${t.designs} dizayn)`,
-    `${t.stories} ta stories`,
-    `${t.shoots} ta syomka kuni`,
-    t.platforms.map((p) => PLATFORM_LABELS[p]).join(" + "),
-    t.target ? `Target reklama · byudjet tavsiyasi $${fmtNum(t.adBudgetUsd)}/oy` : "Target reklamasiz",
-  ];
+  const kind = tariffService(t);
+  const items =
+    kind === "smm"
+      ? [
+          `${t.posts} ta post oyiga (${t.videos} video, ${t.designs} dizayn${t.texts ? `, ${t.texts} matn` : ""})`,
+          `${t.stories} ta stories`,
+          `${t.shoots} ta syomka kuni`,
+          t.platforms.map((p) => PLATFORM_LABELS[p]).join(" + "),
+          t.target ? `Target reklama · byudjet tavsiyasi $${fmtNum(t.adBudgetUsd)}/oy` : "Target reklamasiz",
+        ]
+      : kind === "target" || kind === "performance"
+        ? [
+            `Reklama byudjeti tavsiyasi $${fmtNum(t.adBudgetUsd)}/oy (alohida, tranzit)`,
+            ...(t.adPct ? [`+ reklama byudjetidan ${t.adPct}%`] : []),
+            `Oldindan to'lov ${t.prepayType}%`,
+          ]
+        : [`${t.prepayType}% oldindan, ${100 - t.prepayType}% topshirishda`, `Bosqichlar: ${serviceMeta(kind).stages.length} ta`];
   return (
     <div className="mt-3 space-y-1 border-y border-sep py-3 text-[13px] text-label">
       {items.map((x) => (
@@ -253,8 +292,15 @@ export function ProposalModal({ leadId, onClose }: { leadId?: string; onClose: (
   const active = state.tariffs.filter((t) => t.active);
   const [lid, setLid] = useState(leadId ?? open[0]?.id ?? "");
   const lead = state.leads.find((l) => l.id === lid);
-  const [ids, setIds] = useState<string[]>(active.map((t) => t.id));
-  const [rec, setRec] = useState(active.find((t) => t.id === "t_biznes")?.id ?? active[0]?.id ?? "");
+  /** Lid qiziqqan xizmat paketlari oldindan belgilanadi. */
+  const preset = (l?: typeof lead) => {
+    const kind = serviceKindOf(l?.service);
+    const list = active.filter((t) => tariffService(t) === kind);
+    const rec = list.find((t) => t.id === "t_biznes") ?? list[Math.floor((list.length - 1) / 2)] ?? active[0];
+    return { ids: list.map((t) => t.id), rec: rec?.id ?? "" };
+  };
+  const [ids, setIds] = useState<string[]>(() => preset(lead).ids);
+  const [rec, setRec] = useState(() => preset(lead).rec);
   const [discount, setDiscount] = useState(0);
   const [days, setDays] = useState("7");
   const [note, setNote] = useState(() => (lead ? defaultProposalNote(lead, state.settings.companyName) : ""));
@@ -303,7 +349,11 @@ export function ProposalModal({ leadId, onClose }: { leadId?: string; onClose: (
             onChange={(e) => {
               setLid(e.target.value);
               const l = state.leads.find((x) => x.id === e.target.value);
-              if (l) setNote(defaultProposalNote(l, state.settings.companyName));
+              if (l) {
+                setNote(defaultProposalNote(l, state.settings.companyName));
+                setIds(preset(l).ids);
+                setRec(preset(l).rec);
+              }
             }}
             options={(leadId && lead ? [lead] : open).map((l) => ({ value: l.id, label: l.name }))}
           />
@@ -312,24 +362,37 @@ export function ProposalModal({ leadId, onClose }: { leadId?: string; onClose: (
           <Select value={days} onChange={(e) => setDays(e.target.value)} options={["3", "7", "14", "30"].map((d) => ({ value: d, label: `${d} kun` }))} />
         </Field>
       </div>
-      <div className="mt-4 mb-1.5 px-1 text-[13px] font-medium text-label2">Taklifdagi paketlar va tavsiya</div>
-      <div className="grid gap-2 sm:grid-cols-3">
-        {active.map((t) => {
-          const on = ids.includes(t.id);
+      <div className="mt-4 mb-1.5 px-1 text-[13px] font-medium text-label2">
+        Taklifdagi paketlar va tavsiya (bir nechta xizmatni birga taklif qilish mumkin)
+      </div>
+      <div className="space-y-3">
+        {SERVICE_META.map((m) => {
+          const list = active.filter((t) => tariffService(t) === m.id);
+          if (!list.length) return null;
           return (
-            <div key={t.id} className={`rounded-[14px] border p-3 transition ${on ? "border-accent bg-accent/5" : "border-sep"}`}>
-              <label className="flex cursor-pointer items-center gap-2 text-[14px] font-semibold text-label">
-                <input type="checkbox" checked={on} onChange={() => toggle(t.id)} />
-                {t.name}
-              </label>
-              <div className="mt-1 text-[13px] text-label2">
-                {discount > 0 && <s className="mr-1 text-label3">{fmtShortMoney(t.price)}</s>}
-                {fmtShortMoney(discounted(t.price, discount))} so'm/oy
+            <div key={m.id}>
+              <div className="mb-1 px-1 text-[12px] font-semibold uppercase tracking-wider text-label3">{m.label}</div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {list.map((t) => {
+                  const on = ids.includes(t.id);
+                  return (
+                    <div key={t.id} className={`rounded-[14px] border p-3 transition ${on ? "border-accent bg-accent/5" : "border-sep"}`}>
+                      <label className="flex cursor-pointer items-center gap-2 text-[14px] font-semibold text-label">
+                        <input type="checkbox" checked={on} onChange={() => toggle(t.id)} />
+                        {t.name}
+                      </label>
+                      <div className="mt-1 text-[13px] text-label2">
+                        {discount > 0 && <s className="mr-1 text-label3">{fmtShortMoney(t.price)}</s>}
+                        {fmtShortMoney(discounted(t.price, discount))} so'm{isRecurring(m.id) ? "/oy" : ""}
+                      </div>
+                      <label className={`mt-2 flex items-center gap-2 text-[12px] ${on ? "text-label" : "text-label3"}`}>
+                        <input type="radio" name="rec" disabled={!on} checked={rec === t.id} onChange={() => setRec(t.id)} />
+                        Tavsiya etamiz
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
-              <label className={`mt-2 flex items-center gap-2 text-[12px] ${on ? "text-label" : "text-label3"}`}>
-                <input type="radio" name="rec" disabled={!on} checked={rec === t.id} onChange={() => setRec(t.id)} />
-                Tavsiya etamiz
-              </label>
             </div>
           );
         })}
@@ -348,33 +411,36 @@ export function ProposalModal({ leadId, onClose }: { leadId?: string; onClose: (
 
 // ---------- Tarif tahriri ----------
 
-function TariffModal({ tariff, onClose }: { tariff?: Tariff; onClose: () => void }) {
+function TariffModal({ tariff, service, onClose }: { tariff?: Tariff; service: ServiceKind; onClose: () => void }) {
   const { run } = useErp();
   const [f, setF] = useState<Tariff>(
     () =>
       tariff ?? {
         id: "",
+        service,
         name: "",
         tagline: "",
         price: 10_000_000,
-        posts: 12,
-        videos: 4,
-        designs: 8,
-        stories: 15,
-        shoots: 1,
-        platforms: ["instagram"],
-        target: false,
+        posts: service === "smm" ? 12 : 0,
+        videos: service === "smm" ? 4 : 0,
+        designs: service === "smm" ? 8 : 0,
+        stories: service === "smm" ? 15 : 0,
+        shoots: service === "smm" ? 1 : 0,
+        platforms: service === "smm" ? ["instagram"] : [],
+        target: service === "target" || service === "performance",
         adBudgetUsd: 0,
-        prepayType: 50,
+        prepayType: isRecurring(service) ? 100 : 50,
         features: [],
         active: true,
       },
   );
+  const kind = tariffService(f);
+  const smm = kind === "smm";
   const [features, setFeatures] = useState(f.features.join("\n"));
   const set = <K extends keyof Tariff>(k: K, v: Tariff[K]) => setF((x) => ({ ...x, [k]: v }));
-  const num = (k: "price" | "posts" | "videos" | "designs" | "stories" | "shoots" | "adBudgetUsd", label: string) => (
+  const num = (k: "price" | "posts" | "videos" | "designs" | "texts" | "stories" | "shoots" | "adBudgetUsd" | "adPct", label: string) => (
     <Field label={label}>
-      <Input type="number" min={0} value={f[k]} onChange={(e) => set(k, Number(e.target.value) || 0)} />
+      <Input type="number" min={0} value={f[k] ?? 0} onChange={(e) => set(k, Number(e.target.value) || 0)} />
     </Field>
   );
   const togglePlatform = (p: Platform) => set("platforms", f.platforms.includes(p) ? f.platforms.filter((x) => x !== p) : [...f.platforms, p]);
@@ -398,13 +464,13 @@ function TariffModal({ tariff, onClose }: { tariff?: Tariff; onClose: () => void
       open
       wide
       onClose={onClose}
-      title={tariff ? `Tarif: ${tariff.name}` : "Yangi tarif"}
+      title={tariff ? `${serviceLabel(kind)}: ${tariff.name}` : `Yangi paket — ${serviceLabel(kind)}`}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button variant="primary" onClick={save} disabled={!f.name.trim() || !f.price || f.platforms.length === 0}>
+          <Button variant="primary" onClick={save} disabled={!f.name.trim() || !f.price || (smm && f.platforms.length === 0)}>
             Saqlash
           </Button>
         </>
@@ -417,12 +483,17 @@ function TariffModal({ tariff, onClose }: { tariff?: Tariff; onClose: () => void
         <Field label="Qisqa tavsif" className="sm:col-span-2">
           <Input value={f.tagline} onChange={(e) => set("tagline", e.target.value)} />
         </Field>
-        {num("price", "Oylik narx (so'm)")}
-        {num("posts", "Postlar oyiga")}
-        {num("videos", "Shundan video")}
-        {num("designs", "Shundan dizayn")}
-        {num("stories", "Stories")}
-        {num("shoots", "Syomka kunlari")}
+        {num("price", isRecurring(kind) ? "Oylik narx (so'm)" : "Narx (so'm)")}
+        {smm && (
+          <>
+            {num("videos", "Video oyiga")}
+            {num("designs", "Dizayn oyiga")}
+            {num("texts", "Matnli post oyiga")}
+            {num("stories", "Stories")}
+            {num("shoots", "Syomka kunlari")}
+          </>
+        )}
+        {kind === "performance" && num("adPct", "Reklama byudjetidan foiz (%)")}
         <Field label="Oldindan to'lov">
           <Select
             value={String(f.prepayType)}
@@ -433,17 +504,19 @@ function TariffModal({ tariff, onClose }: { tariff?: Tariff; onClose: () => void
             ]}
           />
         </Field>
-        {num("adBudgetUsd", "Reklama byudjeti tavsiyasi ($/oy)")}
+        {(smm || f.target) && num("adBudgetUsd", "Reklama byudjeti tavsiyasi ($/oy)")}
         <div className="flex flex-col justify-end gap-1.5 pb-1 text-[14px] text-label">
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={f.target} onChange={(e) => set("target", e.target.checked)} /> Target reklama
-          </label>
+          {smm && (
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={f.target} onChange={(e) => set("target", e.target.checked)} /> Target reklama
+            </label>
+          )}
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={f.active} onChange={(e) => set("active", e.target.checked)} /> Faol (takliflarda chiqadi)
           </label>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap gap-4 px-1 text-[14px] text-label">
+      <div className={`mt-3 flex flex-wrap gap-4 px-1 text-[14px] text-label ${smm ? "" : "hidden"}`}>
         {(Object.keys(PLATFORM_LABELS) as Platform[]).map((p) => (
           <label key={p} className="flex items-center gap-2">
             <input type="checkbox" checked={f.platforms.includes(p)} onChange={() => togglePlatform(p)} /> {PLATFORM_LABELS[p]}
@@ -473,7 +546,7 @@ export function ProposalPage({ id }: { id: string }) {
   const p = state.proposals.find((x) => x.id === id);
   const lead = p ? state.leads.find((l) => l.id === p.leadId) : undefined;
   const editable = canEdit(me.role, "crm");
-  const [acceptId, setAcceptId] = useState(p?.recommendedId ?? "");
+  const [picks, setPicks] = useState<string[]>(() => (p ? defaultPicks(state, p) : []));
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [contract, setContract] = useState(false);
@@ -482,9 +555,12 @@ export function ProposalPage({ id }: { id: string }) {
 
   if (!p || !lead) return <Empty>Taklif topilmadi</Empty>;
   const tariffs = p.tariffIds.map((tid) => tariffOf(state, tid)).filter((t): t is Tariff => Boolean(t));
-  const features = allFeatures(tariffs);
+  const groups = proposalGroups(state, p);
   const view = proposalView(p, today);
   const accepted = tariffOf(state, p.acceptedTariffId);
+  const chosen = new Set(acceptedIds(p));
+  const hasSmm = groups.some((g) => g.kind === "smm");
+  const firstOnce = groups.find((g) => !isRecurring(g.kind));
   const r = state.settings.requisites;
   const author = state.users.find((u) => u.id === p.createdBy);
 
@@ -498,7 +574,7 @@ export function ProposalPage({ id }: { id: string }) {
   };
   const decide = (status: "sent" | "accepted" | "rejected") => {
     const ok = run(
-      (c) => act.setProposalStatus(c, p.id, status, { tariffId: acceptId, reason }),
+      (c) => act.setProposalStatus(c, p.id, status, { tariffIds: picks.filter(Boolean), reason }),
       status === "sent" ? "Yuborildi deb belgilandi" : status === "accepted" ? "Qabul qilindi — operator, marketolog va rahbarga xabar ketdi" : "Rad etildi",
     );
     if (ok) setRejecting(false);
@@ -519,13 +595,19 @@ export function ProposalPage({ id }: { id: string }) {
           )}
           {editable && p.status === "sent" && (
             <>
-              <Select
-                aria-label="Qabul qilingan tarif"
-                value={acceptId}
-                onChange={(e) => setAcceptId(e.target.value)}
-                className="!w-36 !py-1.5 !text-[13px]"
-                options={tariffs.map((t) => ({ value: t.id, label: t.name }))}
-              />
+              {groups.map((g, gi) => (
+                <Select
+                  key={g.kind}
+                  aria-label={`Qabul qilingan paket: ${g.label}`}
+                  value={picks[gi] ?? ""}
+                  onChange={(e) => setPicks(picks.map((x, j) => (j === gi ? e.target.value : x)))}
+                  className="!w-auto !py-1.5 !text-[13px]"
+                  options={[
+                    ...g.tariffs.map((t) => ({ value: t.id, label: `${g.label.split(" ")[0]}: ${t.name}` })),
+                    { value: "", label: `${g.label.split(" ")[0]}: olmadi` },
+                  ]}
+                />
+              ))}
               <Button variant="primary" onClick={() => decide("accepted")}>
                 ✓ Qabul qildi
               </Button>
@@ -560,7 +642,7 @@ export function ProposalPage({ id }: { id: string }) {
                 {state.settings.companyName} · tijorat taklifi № {p.number}
               </div>
               <h1 className="mt-2 text-[32px] font-bold leading-tight tracking-tight sm:text-[40px]">«{lead.name}» uchun</h1>
-              <div className="mt-1 text-[15px] text-white/85">Ijtimoiy tarmoqlar va target reklama</div>
+              <div className="mt-1 text-[15px] text-white/85">{groups.map((g) => g.label).join(" · ")}</div>
             </div>
             <div className="text-[13px] text-white/85 sm:text-right">
               <div>Sana: {fmtDate(p.date)}</div>
@@ -590,80 +672,108 @@ export function ProposalPage({ id }: { id: string }) {
           ))}
         </div>
 
-        <Card className="p-5">
-          <h2 className="text-[19px] font-bold tracking-tight text-label">Paketlar</h2>
-          <p className="mt-0.5 text-[13px] text-label2">Narxlar oyiga, so'mda. Reklama byudjeti alohida, to'g'ridan-to'g'ri Meta'ga sarflanadi.</p>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[640px] border-separate border-spacing-0 text-[14px]">
-              <thead>
-                <tr>
-                  <th className="w-[34%]" />
-                  {tariffs.map((t) => {
-                    const recommended = t.id === p.recommendedId;
-                    const chosen = accepted?.id === t.id;
-                    return (
-                      <th key={t.id} className={`rounded-t-[16px] px-3 pb-3 pt-4 text-left align-top font-normal ${recommended ? "bg-accent/10" : ""}`}>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[18px] font-bold text-label">{t.name}</span>
-                          {recommended && <Badge tone="blue">Tavsiya etamiz</Badge>}
-                          {chosen && <Badge tone="green">Tanlandi</Badge>}
-                        </div>
-                        <div className="mt-1 text-[12px] leading-snug text-label2">{t.tagline}</div>
-                        <div className="mt-2">
-                          {p.discountPct > 0 && <s className="mr-1.5 text-[13px] text-label3">{fmtMoney(t.price)}</s>}
-                          <div className="tabular whitespace-nowrap text-[22px] font-bold tracking-tight text-label">{fmtMoney(proposalPrice(p, t))}</div>
-                          {p.discountPct > 0 && <div className="text-[12px] font-semibold text-green">−{p.discountPct}% chegirma</div>}
-                        </div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ["Postlar oyiga", (t: Tariff) => `${t.posts} ta`],
-                  ["  shundan video (Reels)", (t: Tariff) => `${t.videos} ta`],
-                  ["  shundan dizayn / karusel", (t: Tariff) => `${t.designs} ta`],
-                  ["Stories", (t: Tariff) => `${t.stories} ta`],
-                  ["Syomka kunlari", (t: Tariff) => `${t.shoots} ta`],
-                  ["Platformalar", (t: Tariff) => t.platforms.map((x) => PLATFORM_LABELS[x]).join(" + ")],
-                  ["Target reklama", (t: Tariff) => (t.target ? "✓" : "—")],
-                  ["Reklama byudjeti tavsiyasi", (t: Tariff) => (t.target ? `$${fmtNum(t.adBudgetUsd)}/oy` : "—")],
-                  ["Oldindan to'lov", (t: Tariff) => `${t.prepayType}%`],
-                ].map(([label, fn]) => (
-                  <tr key={label as string}>
-                    <td className={`border-t border-sep py-2 pr-3 text-label2 ${(label as string).startsWith("  ") ? "pl-4 text-[13px]" : ""}`}>
-                      {(label as string).trim()}
-                    </td>
-                    {tariffs.map((t) => (
-                      <td key={t.id} className={`border-t border-sep px-3 py-2 font-medium text-label ${t.id === p.recommendedId ? "bg-accent/10" : ""}`}>
-                        {(fn as (t: Tariff) => string)(t)}
-                      </td>
+        {groups.map((g) => {
+          const features = allFeatures(g.tariffs);
+          const once = !isRecurring(g.kind);
+          const rows: [string, (t: Tariff) => string][] =
+            g.kind === "smm"
+              ? [
+                  ["Postlar oyiga", (t) => `${t.posts} ta`],
+                  ["  shundan video (Reels)", (t) => `${t.videos} ta`],
+                  ["  shundan dizayn / karusel", (t) => `${t.designs} ta`],
+                  ...(g.tariffs.some((t) => t.texts)
+                    ? ([["  shundan matnli post", (t: Tariff) => `${t.texts ?? 0} ta`]] as [string, (t: Tariff) => string][])
+                    : []),
+                  ["Stories", (t) => `${t.stories} ta`],
+                  ["Syomka kunlari", (t) => `${t.shoots} ta`],
+                  ["Platformalar", (t) => t.platforms.map((x) => PLATFORM_LABELS[x]).join(" + ")],
+                  ["Target reklama", (t) => (t.target ? "✓" : "—")],
+                  ["Reklama byudjeti tavsiyasi", (t) => (t.target ? `$${fmtNum(t.adBudgetUsd)}/oy` : "—")],
+                  ["Oldindan to'lov", (t) => `${t.prepayType}%`],
+                ]
+              : g.kind === "target" || g.kind === "performance"
+                ? [
+                    ["Reklama byudjeti tavsiyasi", (t) => `$${fmtNum(t.adBudgetUsd)}/oy`],
+                    ...(g.kind === "performance"
+                      ? ([["Byudjetdan foiz", (t: Tariff) => (t.adPct ? `${t.adPct}%` : "—")]] as [string, (t: Tariff) => string][])
+                      : []),
+                    ["Oldindan to'lov", (t) => `${t.prepayType}%`],
+                  ]
+                : [["To'lov", (t) => `${t.prepayType}% oldindan, ${100 - t.prepayType}% topshirishda`]];
+          return (
+            <Card key={g.kind} className="p-5">
+              <h2 className="text-[19px] font-bold tracking-tight text-label">{groups.length > 1 ? `${g.label}: paketlar` : "Paketlar"}</h2>
+              <p className="mt-0.5 text-[13px] text-label2">
+                {once
+                  ? `Narx bir martalik, so'mda. Ish bosqichlari: ${serviceMeta(g.kind).stages.join(" → ")}.`
+                  : `Narxlar oyiga, so'mda.${g.kind !== "smm" || g.tariffs.some((t) => t.target) ? " Reklama byudjeti alohida, to'g'ridan-to'g'ri reklama tizimiga sarflanadi." : ""}`}
+              </p>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[560px] border-separate border-spacing-0 text-[14px]">
+                  <thead>
+                    <tr>
+                      <th className="w-[34%]" />
+                      {g.tariffs.map((t) => {
+                        const recommended = t.id === p.recommendedId;
+                        return (
+                          <th key={t.id} className={`rounded-t-[16px] px-3 pb-3 pt-4 text-left align-top font-normal ${recommended ? "bg-accent/10" : ""}`}>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[18px] font-bold text-label">{t.name}</span>
+                              {recommended && <Badge tone="blue">Tavsiya etamiz</Badge>}
+                              {chosen.has(t.id) && <Badge tone="green">Tanlandi</Badge>}
+                            </div>
+                            <div className="mt-1 text-[12px] leading-snug text-label2">{t.tagline}</div>
+                            <div className="mt-2">
+                              {p.discountPct > 0 && <s className="mr-1.5 text-[13px] text-label3">{fmtMoney(t.price)}</s>}
+                              <div className="tabular whitespace-nowrap text-[22px] font-bold tracking-tight text-label">
+                                {fmtMoney(proposalPrice(p, t))}
+                                {!once && <span className="text-[13px] font-semibold text-label2"> /oy</span>}
+                              </div>
+                              {p.discountPct > 0 && <div className="text-[12px] font-semibold text-green">−{p.discountPct}% chegirma</div>}
+                            </div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(([label, fn]) => (
+                      <tr key={label}>
+                        <td className={`border-t border-sep py-2 pr-3 text-label2 ${label.startsWith("  ") ? "pl-4 text-[13px]" : ""}`}>{label.trim()}</td>
+                        {g.tariffs.map((t) => (
+                          <td key={t.id} className={`border-t border-sep px-3 py-2 font-medium text-label ${t.id === p.recommendedId ? "bg-accent/10" : ""}`}>
+                            {fn(t)}
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-                {features.map((f, i) => (
-                  <tr key={f}>
-                    <td className="border-t border-sep py-2 pr-3 text-label2">{f}</td>
-                    {tariffs.map((t) => (
-                      <td
-                        key={t.id}
-                        className={`border-t border-sep px-3 py-2 ${t.id === p.recommendedId ? "bg-accent/10" : ""} ${i === features.length - 1 ? "rounded-b-[16px]" : ""}`}
-                      >
-                        {t.features.includes(f) ? <Icon name="check" size={17} className="text-green" /> : <span className="text-label3">—</span>}
-                      </td>
+                    {features.map((f, i) => (
+                      <tr key={f}>
+                        <td className="border-t border-sep py-2 pr-3 text-label2">{f}</td>
+                        {g.tariffs.map((t) => (
+                          <td
+                            key={t.id}
+                            className={`border-t border-sep px-3 py-2 ${t.id === p.recommendedId ? "bg-accent/10" : ""} ${i === features.length - 1 ? "rounded-b-[16px]" : ""}`}
+                          >
+                            {t.features.includes(f) ? <Icon name="check" size={17} className="text-green" /> : <span className="text-label3">—</span>}
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          );
+        })}
 
         <Card className="p-5">
           <h2 className="text-[19px] font-bold tracking-tight text-label">Qanday ishlaymiz</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {STEPS.map(([t, d], i) => (
+            {(hasSmm || !firstOnce
+              ? STEPS
+              : serviceMeta(firstOnce.kind).stages.map((st) => [st, "Har bosqich tugagach sizga ko'rsatamiz va tasdig'ingizni olamiz"])
+            ).map(([t, d], i) => (
               <div key={t} className="flex gap-3 rounded-[16px] bg-fill p-3">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-[14px] font-bold text-white">{i + 1}</span>
                 <div>
@@ -709,9 +819,16 @@ export function ProposalPage({ id }: { id: string }) {
           <h2 className="text-[19px] font-bold tracking-tight text-label">Shartlar</h2>
           <ul className="mt-3 space-y-1.5 text-[14px] text-label">
             <li>• Ish oldindan to'lovdan keyin boshlanadi ({[...new Set(tariffs.map((t) => `${t.name} — ${t.prepayType}%`))].join(", ")}).</li>
-            <li>• Xizmat davri birinchi reklama (post) joylangan kundan hisoblanadi; har oy oxirida bajarilgan ishlar dalolatnomasi va hisobot beriladi.</li>
-            <li>• Reklama byudjeti xizmat narxiga kirmaydi va Meta'ga to'g'ridan-to'g'ri sarflanadi; sarf har kuni hisobotda ko'rinadi.</li>
-            <li>• Har bir post joylanishidan oldin sizning tasdig'ingizga yuboriladi.</li>
+            {groups.some((g) => isRecurring(g.kind)) && (
+              <li>• Xizmat davri birinchi reklama (post) joylangan kundan hisoblanadi; har oy oxirida bajarilgan ishlar dalolatnomasi va hisobot beriladi.</li>
+            )}
+            {groups.some((g) => !isRecurring(g.kind)) && (
+              <li>• Bir martalik ishlar bosqichma-bosqich bajariladi; qoldiq to'lov ish topshirilganda, dalolatnoma bilan amalga oshiriladi.</li>
+            )}
+            {groups.some((g) => g.kind !== "smm" && isRecurring(g.kind)) || tariffs.some((t) => t.target) ? (
+              <li>• Reklama byudjeti xizmat narxiga kirmaydi va reklama tizimiga to'g'ridan-to'g'ri sarflanadi; sarf har kuni hisobotda ko'rinadi.</li>
+            ) : null}
+            {hasSmm && <li>• Har bir post joylanishidan oldin sizning tasdig'ingizga yuboriladi.</li>}
             <li>
               • Taklif <b>{fmtDate(p.validUntil)}</b> gacha amal qiladi.
             </li>
@@ -758,9 +875,7 @@ export function ProposalPage({ id }: { id: string }) {
             name: lead.name,
             phone: lead.phone,
             contactName: lead.name,
-            tariff: tariffLabel(accepted),
-            tariffId: accepted.id,
-            monthlyFee: proposalPrice(p, accepted),
+            services: servicesFromProposal(state, p),
             prepayType: accepted.prepayType,
             ...(lead.meeting ? { marketologId: lead.meeting.marketologId } : {}),
           }}

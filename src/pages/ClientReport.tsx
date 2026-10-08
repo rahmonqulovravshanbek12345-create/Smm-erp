@@ -150,15 +150,11 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
               </div>
             </div>
             <div>
-              <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.05em] text-label3">Format</div>
-              <BarList
-                color={VIZ.c1}
-                format={(n) => `${n} ta`}
-                rows={Object.entries(r.byFormat).map(([k, v]) => ({ label: FORMAT_LABELS[k as keyof typeof FORMAT_LABELS], value: v }))}
-              />
+              <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.05em] text-label3">Kontent turi</div>
+              <BarList color={VIZ.c1} format={(n) => `${n} ta`} rows={Object.entries(r.byFormat).map(([k, v]) => ({ label: k, value: v }))} />
             </div>
             <div>
-              <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.05em] text-label3">Platforma</div>
+              <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.05em] text-label3">Joylashlar (platforma bo'yicha)</div>
               <BarList
                 color={VIZ.c3}
                 format={(n) => `${n} ta`}
@@ -183,7 +179,7 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
                     <td className="whitespace-nowrap py-1.5 pr-2 text-label2">{fmtDateShort(p.date)}</td>
                     <td className="py-1.5 pr-2 text-label">{p.topic}</td>
                     <td className="py-1.5 pr-2 text-label2">{FORMAT_LABELS[p.format]}</td>
-                    <td className="py-1.5 pr-2 text-label2">{PLATFORM_LABELS[p.platform]}</td>
+                    <td className="py-1.5 pr-2 text-label2">{p.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")}</td>
                     <td className="py-1.5">
                       {p.status === "published" ? (
                         <Badge tone="green">Joylandi {p.publishedAt && p.publishedAt > p.date ? "(+1 kun)" : ""}</Badge>

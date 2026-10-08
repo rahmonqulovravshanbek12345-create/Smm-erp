@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { ExportButton } from "../components/ExportButton";
-import { ProjectFormModal } from "../components/ProjectForm";
+import { ProjectFormModal, defaultService } from "../components/ProjectForm";
 import { A, Badge, Banner, Button, Field, Input, Modal, PageHeader, Select, Textarea, navigate, userOptions } from "../components/ui";
 import * as act from "../lib/actions";
 import { diffDays, fmtDate, fmtDateShort, fmtDateTime, fmtMoney, relDays } from "../lib/dates";
 import { LEAD_SOURCES, LEAD_STAGES, SERVICES, leadStageMeta } from "../lib/labels";
-import { PROPOSAL_STATUS, acceptedProposalOf, proposalPrice, proposalView, tariffLabel, tariffOf } from "../lib/tariffs";
+import { serviceKindOf } from "../lib/services";
+import { PROPOSAL_STATUS, acceptedIds, acceptedProposalOf, defaultPicks, proposalValue, proposalView, servicesFromProposal, tariffOf } from "../lib/tariffs";
 import { canEdit } from "../lib/permissions";
 import { useErp, useLookup } from "../lib/store";
 import type { Lead, LeadStage } from "../lib/types";
@@ -308,7 +309,8 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
               <ul className="space-y-1.5">
                 {proposals.map((p) => {
                   const v = proposalView(p, today);
-                  const t = tariffOf(state, p.acceptedTariffId ?? p.recommendedId);
+                  const names = (p.status === "accepted" ? acceptedIds(p) : defaultPicks(state, p)).map((id) => tariffOf(state, id)?.name).join(" + ");
+                  const value = proposalValue(state, p);
                   return (
                     <li key={p.id}>
                       <A
@@ -316,8 +318,8 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
                         className="flex items-center justify-between gap-2 rounded-[14px] bg-fill px-3 py-2 text-sm hover:brightness-105"
                       >
                         <span className="text-label">
-                          <b>{p.number}</b> · {fmtDate(p.date)} · {t?.name}
-                          {t ? ` — ${fmtMoney(proposalPrice(p, t))}` : ""}
+                          <b>{p.number}</b> · {fmtDate(p.date)} · {names}
+                          {value ? ` — ${fmtMoney(value)}` : ""}
                         </span>
                         <Badge tone={PROPOSAL_STATUS[v].tone}>{PROPOSAL_STATUS[v].label}</Badge>
                       </A>
@@ -384,7 +386,7 @@ function StageDialog({ pending, onClose }: { pending: NonNullable<Pending>; onCl
 
   if (pending.stage === "contract") {
     const accepted = acceptedProposalOf(state, lead.id);
-    const acceptedTariff = tariffOf(state, accepted?.acceptedTariffId);
+    const services = accepted ? servicesFromProposal(state, accepted) : [];
     return (
       <ProjectFormModal
         title={`Shartnoma bo'ldi: ${lead.name} → Loyiha kartasi`}
@@ -393,14 +395,9 @@ function StageDialog({ pending, onClose }: { pending: NonNullable<Pending>; onCl
           phone: lead.phone,
           contactName: lead.name,
           ...(lead.meeting ? { marketologId: lead.meeting.marketologId } : {}),
-          ...(acceptedTariff && accepted
-            ? {
-                tariff: tariffLabel(acceptedTariff),
-                tariffId: acceptedTariff.id,
-                monthlyFee: proposalPrice(accepted, acceptedTariff),
-                prepayType: acceptedTariff.prepayType,
-              }
-            : {}),
+          ...(services.length
+            ? { services, prepayType: tariffOf(state, accepted?.acceptedTariffId)?.prepayType ?? 50 }
+            : { services: [defaultService(state, serviceKindOf(lead.service), state.users)] }),
         }}
         onClose={onClose}
         onSubmit={(input) => {

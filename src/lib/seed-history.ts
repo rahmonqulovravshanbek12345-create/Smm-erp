@@ -2,7 +2,7 @@
 // va 6 oylik lidlar oqimi. Deterministik — har safar bir xil natija.
 import { addDays, diffDays } from "./dates";
 import { periodAt } from "./period";
-import type { ErpState, Lead, LeadStage, PostFormat, Project } from "./types";
+import type { AdChannel, ErpState, Lead, LeadStage, Platform, PostFormat, Project } from "./types";
 
 /** Oddiy deterministik tasodifiy sonlar generatori. */
 function rng(seed: number) {
@@ -107,15 +107,20 @@ export function addOperationsHistory(s: ErpState, today: string): void {
       const per = periodAt(p, i)!;
       if (per.end > today || !isActive(p, per.start)) break;
       const days = diffDays(per.end, per.start);
-      topics.forEach(([format, topic], k) => {
+      topics.forEach(([format0, topic0], k) => {
+        const format = format0 === "ai" ? "text" : format0;
+        const topic = topic0.replace(/^AI post: /, "");
         const date = addDays(per.start, Math.round(((k + 0.5) * days) / topics.length));
+        const platforms: Platform[] =
+          format === "text" ? ["telegram"] : k % 3 === 0 ? ["instagram", "telegram"] : k % 5 === 3 ? ["instagram", "facebook"] : ["instagram"];
         // Taxminan har 9-postdan biri 1 kun kechikib joylangan
         const lateBy = rand() < 0.11 ? 1 : 0;
         s.posts.push({
           id: id("post"),
           projectId: p.id,
           date,
-          platform: k % 5 === 3 ? "telegram" : "instagram",
+          platforms,
+          typeId: format === "video" ? "ct_video" : format === "text" ? "ct_text" : "ct_design",
           format,
           topic,
           script: "",
@@ -123,6 +128,7 @@ export function addOperationsHistory(s: ErpState, today: string): void {
           status: "published",
           forTarget: k % 4 === 0,
           publishedAt: addDays(date, lateBy),
+          publishedOn: Object.fromEntries(platforms.map((x) => [x, addDays(date, lateBy)])),
           createdAt: `${addDays(per.start, -5)}T09:00:00.000Z`,
         });
       });
@@ -137,24 +143,40 @@ export function addOperationsHistory(s: ErpState, today: string): void {
         if (!isActive(p, dte)) break;
         // Sharq Mebel uchun kechagi hisobot ataylab kiritilmagan — marketolog belgini ko'radi
         if (p.id === "p_mebel" && dte === yesterday) continue;
-        const k = 0.82 + rand() * 0.36;
-        const spend = Math.round((daily * k) / 1000) * 1000;
-        const views = Math.round(spend / (11 + rand() * 3));
-        const clicks = Math.round(views * ctrBase * (0.8 + rand() * 0.4));
-        s.targetReports.push({
-          id: id("tr"),
-          projectId: p.id,
-          date: dte,
-          spend,
-          views,
-          clicks,
-          // Optimizatsiya samarasi: birinchi 5 oyda konversiya ~40% gacha o'sadi (lid narxi pasayadi)
-          leads: Math.max(0, Math.round(clicks * crBase * (0.7 + rand() * 0.6) * (1 + 0.4 * Math.min(1, diffDays(dte, p.periodStart) / 150)))),
-          note: rand() < 0.04 ? "Kreativ almashtirildi" : "",
-          authorId: p.targetologId,
-          // Meta Ads'ga ulangan loyihalarda hisobot API orqali tushadi, qolganlarida targetolog qo'lda kiritadi
-          source: s.settings.integrations.meta.accounts[p.id] ? "meta" : "manual",
-        });
+        // Performance: byudjet kanallarga bo'linadi (Meta 60%, Google 40%); Google'da klik qimmat, konversiya yuqori
+        const channels: { ch?: AdChannel; share: number; cpm: number; cr: number }[] = p.services?.some((x) => x.kind === "performance")
+          ? [
+              // Avtosalon: qimmat lid (lid narxi ~5–8$)
+              { ch: "meta", share: 0.6, cpm: 1, cr: 0.27 },
+              { ch: "google", share: 0.4, cpm: 0.35, cr: 0.4 },
+            ]
+          : [{ share: 1, cpm: 1, cr: 1 }];
+        for (const c of channels) {
+          const k = 0.82 + rand() * 0.36;
+          const spend = Math.round((daily * c.share * k) / 1000) * 1000;
+          const views = Math.round((spend / (11 + rand() * 3)) * c.cpm);
+          const clicks = Math.round(views * ctrBase * (0.8 + rand() * 0.4) * (c.ch === "google" ? 3 : 1));
+          s.targetReports.push({
+            id: id("tr"),
+            projectId: p.id,
+            date: dte,
+            spend,
+            views,
+            clicks,
+            // Optimizatsiya samarasi: birinchi 5 oyda konversiya ~40% gacha o'sadi (lid narxi pasayadi)
+            leads: Math.max(
+              0,
+              Math.round(
+                (clicks * crBase * c.cr * (0.7 + rand() * 0.6) * (1 + 0.4 * Math.min(1, diffDays(dte, p.periodStart) / 150))) / (c.ch === "google" ? 3 : 1),
+              ),
+            ),
+            note: rand() < 0.04 ? "Kreativ almashtirildi" : "",
+            authorId: p.targetologId,
+            channel: c.ch,
+            // Meta Ads'ga ulangan loyihalarda hisobot API orqali tushadi, qolganlarida targetolog qo'lda kiritadi
+            source: c.ch !== "google" && s.settings.integrations.meta.accounts[p.id] ? "meta" : "manual",
+          });
+        }
       }
     }
 
@@ -238,7 +260,7 @@ export function addOperationsHistory(s: ErpState, today: string): void {
     ["Tavsiya", 0.11, 0.85],
     ["Boshqa", 0.05, 0.45],
   ];
-  const services = ["SMM to'liq paket", "Target reklama", "Kontent ishlab chiqarish", "Brending", "Konsultatsiya"];
+  const services = ["SMM xizmati", "SMM xizmati", "Target xizmati", "Performance marketing", "Video production", "Branding", "Sayt qilish"];
   const unfitReasons = [
     "Byudjet to'g'ri kelmadi",
     "Boshqa agentlikni tanladi",

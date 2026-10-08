@@ -11,6 +11,8 @@ import { useErp, useLookup } from "../lib/store";
 import type { DocBlock, Project } from "../lib/types";
 import { ContentPlan } from "./Content";
 import { ProjectJourney } from "../components/ProjectJourney";
+import { ServicesPanel } from "../components/Services";
+import { hasAds, hasContent, hasRecurring, isRecurring, serviceMeta, servicesOf, stageIndex } from "../lib/services";
 import { Invoices } from "./finance/Invoices";
 import { ProjectFinance } from "./finance/ProjectFinance";
 
@@ -46,26 +48,49 @@ export function Projects() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-semibold text-label">{p.name}</div>
-                    <div className="text-xs text-label2">
-                      {p.industry} · {p.tariff}
-                    </div>
+                    <div className="text-xs text-label2">{p.industry}</div>
                   </div>
-                  <span className="text-sm text-label/80">{fmtMoney(p.monthlyFee)}</span>
+                  <span className="text-right text-sm text-label/80">
+                    {p.monthlyFee > 0 && <span className="block">{fmtMoney(p.monthlyFee)}/oy</span>}
+                    {servicesOf(p).some((x) => !isRecurring(x.kind) && x.status === "active") && (
+                      <span className="block text-xs text-label2">
+                        +{" "}
+                        {fmtMoney(
+                          servicesOf(p)
+                            .filter((x) => !isRecurring(x.kind) && x.status === "active")
+                            .reduce((a, x) => a + x.price, 0),
+                        )}{" "}
+                        bir martalik
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {servicesOf(p).map((x) => (
+                    <Badge key={x.id} tone={isRecurring(x.kind) ? "blue" : x.deliveredAt ? "green" : "violet"}>
+                      {serviceMeta(x.kind).short}
+                      {!isRecurring(x.kind) && x.stages ? (x.deliveredAt ? " ✓" : ` ${stageIndex(x) + 1}/${x.stages.length}`) : ""}
+                    </Badge>
+                  ))}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <DebtBadge debt={debt} />
                   {blocked && <Badge tone="amber">{p.pauseWork ? "Ish to'xtatilgan" : "Oldindan to'lov kutilmoqda"}</Badge>}
-                  {!p.handedOffAt && <Badge tone="violet">Strategiya: {docsDone}/5</Badge>}
+                  {!p.handedOffAt && hasRecurring(p) && <Badge tone="violet">Strategiya: {docsDone}/5</Badge>}
                   {per && <Badge>{per.index + 1}-davr</Badge>}
                 </div>
-                <div className="mt-3 flex items-center gap-3 text-xs text-label2">
-                  <Progress value={done} max={posts.length} />
-                  <span className="whitespace-nowrap">
-                    {done}/{posts.length} joylandi
-                  </span>
-                </div>
+                {hasContent(p) && (
+                  <div className="mt-3 flex items-center gap-3 text-xs text-label2">
+                    <Progress value={done} max={posts.length} />
+                    <span className="whitespace-nowrap">
+                      {done}/{posts.length} joylandi
+                    </span>
+                  </div>
+                )}
                 <div className="mt-2 text-xs text-label2">
-                  Marketolog: {look.userName(p.marketologId)} · SMM: {look.userName(p.smmId)}
+                  Marketolog: {look.userName(p.marketologId)}
+                  {hasContent(p) && ` · SMM: ${look.userName(p.smmId)}`}
+                  {hasAds(p) && !hasContent(p) && ` · Targetolog: ${look.userName(p.targetologId)}`}
                 </div>
               </Card>
             </A>
@@ -109,7 +134,7 @@ export function ProjectCard({ id }: { id: string }) {
   const tabs: { id: Tab; label: string }[] = [
     { id: "info", label: "Umumiy" },
     ...(canView(me.role, "marketing") ? [{ id: "marketing" as Tab, label: "Marketolog bo'limi" }] : []),
-    ...(canView(me.role, "content") ? [{ id: "content" as Tab, label: "Kontent reja" }] : []),
+    ...(canView(me.role, "content") && hasContent(p) ? [{ id: "content" as Tab, label: "Kontent reja" }] : []),
     { id: "tasks", label: "Vazifalar" },
     ...(canView(me.role, "finance") ? [{ id: "finance" as Tab, label: "Moliya" }] : []),
     { id: "report", label: "Oylik hisobot" },
@@ -124,7 +149,7 @@ export function ProjectCard({ id }: { id: string }) {
       </div>
       <PageHeader
         title={p.name}
-        sub={`${p.industry} · shartnoma ${p.contractNo} (${fmtDate(p.contractDate)}) · ${per ? periodLabel(per) : "hisob davri boshlanmagan"}`}
+        sub={`${p.industry} · shartnoma ${p.contractNo} (${fmtDate(p.contractDate)})${hasRecurring(p) ? ` · ${per ? periodLabel(per) : "hisob davri boshlanmagan"}` : ""}`}
         actions={<DebtBadge debt={debt} />}
       />
       {debt.amount > 0 && (
@@ -135,7 +160,12 @@ export function ProjectCard({ id }: { id: string }) {
       {blocked && !debt.amount && <Banner tone="amber">{blocked}</Banner>}
       <ProjectJourney project={p} />
       <Tabs value={tab} onChange={setTab} tabs={tabs} />
-      {tab === "info" && <Info p={p} />}
+      {tab === "info" && (
+        <>
+          <ServicesPanel project={p} />
+          <Info p={p} />
+        </>
+      )}
       {tab === "marketing" && <Marketing p={p} />}
       {tab === "content" && <ContentPlan projectId={p.id} />}
       {tab === "tasks" && <ProjectTasks p={p} />}
@@ -180,8 +210,11 @@ function Info({ p }: { p: Project }) {
         )}
         <h2 className="mb-2 mt-4 text-sm font-semibold text-label">Jamoa</h2>
         {row("Marketolog", look.userName(p.marketologId))}
-        {row("SMM menejer", look.userName(p.smmId))}
-        {row("Targetolog", look.userName(p.targetologId))}
+        {hasContent(p) && row("SMM menejer", look.userName(p.smmId))}
+        {hasAds(p) && row("Targetolog", look.userName(p.targetologId))}
+        {servicesOf(p)
+          .filter((x) => !isRecurring(x.kind) && x.assigneeId)
+          .map((x) => row(serviceMeta(x.kind).short, look.userName(x.assigneeId)))}
       </Card>
       <Card className="p-4">
         <h2 className="mb-2 text-sm font-semibold text-label">Shartnoma</h2>
@@ -195,13 +228,22 @@ function Info({ p }: { p: Project }) {
           </span>,
         )}
         {row("Yuridik nomi", p.legalName ?? "—")}
-        {row("Tarif", p.tariff)}
-        {row("Oylik summa", fmtMoney(p.monthlyFee))}
-        {row("Oldindan to'lov", `${p.prepayType}%`)}
-        {row("Davr boshlanishi", p.periodStart ? `${fmtDate(p.periodStart)} (birinchi reklama)` : "— birinchi reklama kutilmoqda")}
+        {row("Xizmatlar", p.tariff)}
+        {p.monthlyFee > 0 && row("Oylik summa", fmtMoney(p.monthlyFee))}
+        {p.monthlyFee > 0 && row("Oldindan to'lov", `${p.prepayType}%`)}
+        {hasRecurring(p) &&
+          row(
+            "Davr boshlanishi",
+            p.periodStart
+              ? `${fmtDate(p.periodStart)} (${hasAds(p) ? "birinchi reklama" : "birinchi joylangan post"})`
+              : `— ${hasAds(p) ? "birinchi reklama" : "birinchi joylangan post"} kutilmoqda`,
+          )}
         {canSettings && (
           <div className="mt-4 space-y-3 border-t border-sep pt-4">
-            <Field label="Davr boshlanish sanasi" hint="Targetolog reklamani yoqqanda avtomatik qo'yiladi">
+            <Field
+              label="Davr boshlanish sanasi"
+              hint={hasAds(p) ? "Targetolog reklamani yoqqanda avtomatik qo'yiladi" : "Birinchi post joylanganda avtomatik qo'yiladi"}
+            >
               <Input
                 type="date"
                 value={p.periodStart ?? ""}

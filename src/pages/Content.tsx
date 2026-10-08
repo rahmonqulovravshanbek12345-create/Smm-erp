@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
-import { PostBadge } from "../components/bits";
+import { PlatformIcons, PostBadge } from "../components/bits";
 import { PostModal, ShootModal, TaskModal } from "../components/forms";
+import { QuotaPanel, QuotaSummary } from "../components/Quota";
 import { Badge, Button, Card, Empty, PageHeader, Select } from "../components/ui";
 import { WEEKDAYS, addDays, fmtDate, fmtMonth, monthKey, parseDate, shiftMonthKey, toISODate } from "../lib/dates";
-import { FORMAT_LABELS, PLATFORM_LABELS, postStatusMeta } from "../lib/labels";
+import { postTypeId, typeName } from "../lib/content";
+import { postStatusMeta } from "../lib/labels";
+import { hasContent } from "../lib/services";
 import { access, canEdit, visibleProjects } from "../lib/permissions";
 import { isPostLate } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
@@ -11,7 +14,7 @@ import type { Post, TaskKind } from "../lib/types";
 
 export function Content() {
   const { state, me } = useErp();
-  const projects = visibleProjects(state, me);
+  const projects = visibleProjects(state, me).filter((p) => hasContent(p) && p.status === "active");
   const [projectId, setProjectId] = useState(me.role === "smm" ? (projects[0]?.id ?? "") : "");
   const [modal, setModal] = useState<null | "shoot" | TaskKind>(null);
   const editable = canEdit(me.role, "content");
@@ -20,7 +23,7 @@ export function Content() {
     <>
       <PageHeader
         title="Kontent reja"
-        sub="Oy bo'yicha 12–15 ta post: sana, platforma, format, mavzu, mas'ul va status"
+        sub="Marketolog topshirig'i bo'yicha: sana, platformalar, tur, mavzu, mas'ul va status. Bitta post bir nechta platformaga qo'yilsa ham 1 ta post sanaladi"
         actions={
           editable && (
             <>
@@ -41,6 +44,7 @@ export function Content() {
           options={[{ value: "", label: "Barcha loyihalar" }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
         />
       </div>
+      {!projectId && <QuotaSummary projects={projects} />}
       <ContentPlan projectId={projectId || undefined} />
       {modal === "shoot" && <ShootModal projectId={projectId || undefined} onClose={() => setModal(null)} />}
       {modal && modal !== "shoot" && <TaskModal kind={modal} projectId={projectId || undefined} onClose={() => setModal(null)} />}
@@ -78,136 +82,147 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
   }, [month]);
 
   const byDate = (d: string) => visible.filter((p) => p.date === d);
-  const newFor = projectId ?? visibleProjects(state, me).find((p) => p.smmId === me.id)?.id ?? state.projects[0]?.id ?? "";
+  const newFor = projectId ?? visibleProjects(state, me).find((p) => p.smmId === me.id && hasContent(p))?.id ?? state.projects.find(hasContent)?.id ?? "";
+  const project = projectId ? state.projects.find((p) => p.id === projectId) : undefined;
+  const placements = inMonth.reduce((a, p) => a + p.platforms.length, 0);
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sep px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonthKey(month, -1))} aria-label="Oldingi oy">
-            ‹
-          </Button>
-          <span className="min-w-[130px] text-center text-sm font-semibold text-label">{fmtMonth(month)}</span>
-          <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonthKey(month, 1))} aria-label="Keyingi oy">
-            ›
-          </Button>
-          {month !== monthKey(today) && (
-            <Button size="sm" variant="ghost" onClick={() => setMonth(monthKey(today))}>
-              Bugun
+    <>
+      {project && hasContent(project) && <QuotaPanel project={project} month={month} />}
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sep px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonthKey(month, -1))} aria-label="Oldingi oy">
+              ‹
             </Button>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <Badge tone={projectId && (inMonth.length < 12 || inMonth.length > 15) ? "amber" : "gray"}>{inMonth.length} ta post</Badge>
-          <Badge tone="green">{published} joylandi</Badge>
-          {late > 0 && <Badge tone="red">{late} kechikdi</Badge>}
-          <div className="ml-1 flex rounded-[10px] bg-fill p-[3px]">
-            {(["calendar", "list"] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setView(v)}
-                className={`rounded-[8px] px-3 py-1 text-[13px] font-semibold transition ${view === v ? "bg-elevated text-label shadow-sm" : "text-label2"}`}
-              >
-                {v === "calendar" ? "Kalendar" : "Ro'yxat"}
-              </button>
-            ))}
+            <span className="min-w-[130px] text-center text-sm font-semibold text-label">{fmtMonth(month)}</span>
+            <Button size="sm" variant="ghost" onClick={() => setMonth(shiftMonthKey(month, 1))} aria-label="Keyingi oy">
+              ›
+            </Button>
+            {month !== monthKey(today) && (
+              <Button size="sm" variant="ghost" onClick={() => setMonth(monthKey(today))}>
+                Bugun
+              </Button>
+            )}
           </div>
-          {editable && (
-            <Button size="sm" variant="primary" onClick={() => setOpen({ date: today })}>
-              + Post
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {view === "calendar" ? (
-        <div className="overflow-x-auto">
-          <div className="grid min-w-[760px] grid-cols-7">
-            {WEEKDAYS.map((w) => (
-              <div key={w} className="border-b border-sep px-2 py-1.5 text-center text-[11px] font-medium text-label2">
-                {w}
-              </div>
-            ))}
-            {cells.map((d) => {
-              const inCur = monthKey(d) === month;
-              const items = byDate(d);
-              return (
-                <div
-                  key={d}
-                  onDoubleClick={() => editable && setOpen({ date: d })}
-                  className={`min-h-[104px] border-b border-r border-sep p-1.5 ${inCur ? "" : "opacity-35"} `}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge tone="gray">{inMonth.length} ta post</Badge>
+            {placements > inMonth.length && <Badge tone="blue">{placements} ta joylash</Badge>}
+            <Badge tone="green">{published} joylandi</Badge>
+            {late > 0 && <Badge tone="red">{late} kechikdi</Badge>}
+            <div className="ml-1 flex rounded-[10px] bg-fill p-[3px]">
+              {(["calendar", "list"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setView(v)}
+                  className={`rounded-[8px] px-3 py-1 text-[13px] font-semibold transition ${view === v ? "bg-elevated text-label shadow-sm" : "text-label2"}`}
                 >
-                  <div className="mb-1 flex">
-                    <span
-                      className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold ${d === today ? "bg-red text-white" : "text-label2"}`}
-                    >
-                      {parseDate(d).getDate()}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    {items.map((p) => (
-                      <PostChip
-                        key={p.id}
-                        post={p}
-                        today={today}
-                        onClick={() => setOpen({ id: p.id })}
-                        showProject={!projectId}
-                        projectName={look.projectName(p.projectId)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {editable && <p className="px-4 py-2 text-[11px] text-label2">Kunni ikki marta bossangiz — shu sanaga yangi post qo'shiladi.</p>}
-        </div>
-      ) : inMonth.length === 0 ? (
-        <Empty>Bu oyda post yo'q</Empty>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead className="text-left text-xs text-label2">
-              <tr>
-                <th className="px-4 py-2 font-medium">Sana</th>
-                {!projectId && <th className="px-4 py-2 font-medium">Loyiha</th>}
-                <th className="px-4 py-2 font-medium">Platforma</th>
-                <th className="px-4 py-2 font-medium">Format</th>
-                <th className="px-4 py-2 font-medium">Mavzu</th>
-                <th className="px-4 py-2 font-medium">Mas'ul</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-sep">
-              {inMonth.map((p) => (
-                <tr key={p.id} className="cursor-pointer hover:bg-fill" onClick={() => setOpen({ id: p.id })}>
-                  <td className="whitespace-nowrap px-4 py-2 text-label/80">{fmtDate(p.date)}</td>
-                  {!projectId && <td className="px-4 py-2 text-label2">{look.projectName(p.projectId)}</td>}
-                  <td className="px-4 py-2 text-label2">{PLATFORM_LABELS[p.platform]}</td>
-                  <td className="px-4 py-2 text-label2">{FORMAT_LABELS[p.format]}</td>
-                  <td className="px-4 py-2 text-label">
-                    {p.topic} {p.forTarget && <Badge tone="blue">target</Badge>}
-                  </td>
-                  <td className="px-4 py-2 text-label2">{look.userName(p.assigneeId)}</td>
-                  <td className="px-4 py-2">
-                    <PostBadge post={p} today={today} />
-                  </td>
-                </tr>
+                  {v === "calendar" ? "Kalendar" : "Ro'yxat"}
+                </button>
               ))}
-            </tbody>
-          </table>
+            </div>
+            {editable && (
+              <Button size="sm" variant="primary" onClick={() => setOpen({ date: today })}>
+                + Post
+              </Button>
+            )}
+          </div>
         </div>
-      )}
 
-      {open && (
-        <PostModal
-          postId={open.id}
-          newFor={open.id ? undefined : { projectId: newFor, date: open.date ?? toISODate(new Date()) }}
-          onClose={() => setOpen(null)}
-        />
-      )}
-    </Card>
+        {view === "calendar" ? (
+          <div className="overflow-x-auto">
+            <div className="grid min-w-[760px] grid-cols-7">
+              {WEEKDAYS.map((w) => (
+                <div key={w} className="border-b border-sep px-2 py-1.5 text-center text-[11px] font-medium text-label2">
+                  {w}
+                </div>
+              ))}
+              {cells.map((d) => {
+                const inCur = monthKey(d) === month;
+                const items = byDate(d);
+                return (
+                  <div
+                    key={d}
+                    onDoubleClick={() => editable && setOpen({ date: d })}
+                    className={`min-h-[104px] border-b border-r border-sep p-1.5 ${inCur ? "" : "opacity-35"} `}
+                  >
+                    <div className="mb-1 flex">
+                      <span
+                        className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold ${d === today ? "bg-red text-white" : "text-label2"}`}
+                      >
+                        {parseDate(d).getDate()}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {items.map((p) => (
+                        <PostChip
+                          key={p.id}
+                          post={p}
+                          today={today}
+                          onClick={() => setOpen({ id: p.id })}
+                          showProject={!projectId}
+                          projectName={look.projectName(p.projectId)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {editable && <p className="px-4 py-2 text-[11px] text-label2">Kunni ikki marta bossangiz — shu sanaga yangi post qo'shiladi.</p>}
+          </div>
+        ) : inMonth.length === 0 ? (
+          <Empty>Bu oyda post yo'q</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="text-left text-xs text-label2">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Sana</th>
+                  {!projectId && <th className="px-4 py-2 font-medium">Loyiha</th>}
+                  <th className="px-4 py-2 font-medium">Platformalar</th>
+                  <th className="px-4 py-2 font-medium">Turi</th>
+                  <th className="px-4 py-2 font-medium">Mavzu</th>
+                  <th className="px-4 py-2 font-medium">Mas'ul</th>
+                  <th className="px-4 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-sep">
+                {inMonth.map((p) => (
+                  <tr key={p.id} className="cursor-pointer hover:bg-fill" onClick={() => setOpen({ id: p.id })}>
+                    <td className="whitespace-nowrap px-4 py-2 text-label/80">{fmtDate(p.date)}</td>
+                    {!projectId && <td className="px-4 py-2 text-label2">{look.projectName(p.projectId)}</td>}
+                    <td className="px-4 py-2">
+                      <PlatformIcons
+                        platforms={p.platforms}
+                        published={p.status === "approved" || p.status === "published" ? (p.publishedOn ?? {}) : undefined}
+                      />
+                    </td>
+                    <td className="px-4 py-2 text-label2">{typeName(state, postTypeId(p))}</td>
+                    <td className="px-4 py-2 text-label">
+                      {p.topic} {p.forTarget && <Badge tone="blue">target</Badge>}
+                    </td>
+                    <td className="px-4 py-2 text-label2">{look.userName(p.assigneeId)}</td>
+                    <td className="px-4 py-2">
+                      <PostBadge post={p} today={today} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {open && (
+          <PostModal
+            postId={open.id}
+            newFor={open.id ? undefined : { projectId: newFor, date: open.date ?? toISODate(new Date()) }}
+            onClose={() => setOpen(null)}
+          />
+        )}
+      </Card>
+    </>
   );
 }
 
@@ -247,8 +262,14 @@ function PostChip({
       }`}
     >
       <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${dot}`} />
-      <span className="text-label2">{post.platform === "instagram" ? "IG" : "TG"} · </span>
       <span className="text-label">{post.topic}</span>
+      <span className="mt-0.5 block">
+        <PlatformIcons
+          platforms={post.platforms}
+          size={13}
+          published={post.status === "approved" || post.status === "published" ? (post.publishedOn ?? {}) : undefined}
+        />
+      </span>
       {showProject && <span className="block truncate text-[10px] text-label2">{projectName}</span>}
     </button>
   );

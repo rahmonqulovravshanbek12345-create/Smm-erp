@@ -22,7 +22,7 @@ test("Lid → tijorat taklifi → qabul → shartnoma → oldindan to'lov → is
   await dialog(page).getByPlaceholder("SH-2026/060").fill("SH-2026/150");
   await dialog(page).getByRole("button", { name: "Loyiha kartasini yaratish" }).click();
   await expect(page).toHaveURL(/#\/loyiha\//);
-  await expect(page.locator("main")).toContainText("Biznes (Instagram + target)");
+  await expect(page.locator("main")).toContainText("SMM: Biznes");
   await expect(page.locator("main")).toContainText("Oldindan to'lov hali kelmagan");
 
   let s = await state(page);

@@ -2,6 +2,7 @@
 import { addDays, diffDays, fmtDate, fmtMoney, monthKey } from "./dates";
 import { invoiceStatus, prepayPaid, projectDebt } from "./finance";
 import { currentPeriod, type Period } from "./period";
+import { hasAds, oneTimeServices, serviceLabel, stageIndex } from "./services";
 import type { ErpState, Post, PostStatus, Project, Task, User } from "./types";
 
 export { periodAt, currentPeriod, periodLabel, type Period } from "./period";
@@ -61,7 +62,7 @@ export function periodPosts(s: ErpState, p: Project, today: string): { per: Peri
 
 /** Reklama ishlayotgan loyihada kechagi kunlik hisobot kiritilmagan bo'lsa — belgi. */
 export function targetReportMissing(s: ErpState, p: Project, today: string): boolean {
-  if (!p.targetologId || !p.periodStart || p.periodStart >= today || p.status === "closed") return false;
+  if (!p.targetologId || !hasAds(p) || !p.periodStart || p.periodStart >= today || p.status === "closed") return false;
   const y = addDays(today, -1);
   return !s.targetReports.some((r) => r.projectId === p.id && r.date === y);
 }
@@ -146,6 +147,30 @@ export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
   for (const p of s.projects) {
     if ((boss || p.targetologId === me.id) && targetReportMissing(s, p, today)) {
       out.push({ id: `tr-${p.id}`, text: `${p.name}: kechagi target hisoboti kiritilmagan`, href: "/target", tone: "red" });
+    }
+  }
+
+  // Bir martalik xizmatlar: muddati o'tgan yoki yaqinlashgan ishlar (ijrochi, marketolog va rahbarga)
+  for (const p of s.projects) {
+    for (const svc of oneTimeServices(p)) {
+      if (svc.status !== "active" || !svc.deadline) continue;
+      if (!(boss || svc.assigneeId === me.id)) continue;
+      const left = diffDays(svc.deadline, today);
+      const stage = svc.stages?.[stageIndex(svc)]?.name ?? "—";
+      if (left < 0)
+        out.push({
+          id: `svc-l-${svc.id}`,
+          text: `${p.name} · ${serviceLabel(svc.kind)}: muddat o'tdi (${-left} kun), bosqich: ${stage}`,
+          href: boss ? `/loyiha/${p.id}` : "/mening",
+          tone: "red",
+        });
+      else if (left <= 3)
+        out.push({
+          id: `svc-s-${svc.id}`,
+          text: `${p.name} · ${serviceLabel(svc.kind)}: topshirishga ${left} kun qoldi, bosqich: ${stage}`,
+          href: boss ? `/loyiha/${p.id}` : "/mening",
+          tone: "amber",
+        });
     }
   }
 

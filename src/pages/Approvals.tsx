@@ -30,7 +30,8 @@ export function Approvals() {
                   <div>
                     <div className="font-medium text-label">{p.topic}</div>
                     <div className="mt-0.5 text-xs text-label2">
-                      {look.projectName(p.projectId)} · {PLATFORM_LABELS[p.platform]} · {FORMAT_LABELS[p.format]} · SMM: {look.userName(p.assigneeId)}
+                      {look.projectName(p.projectId)} · {p.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")} · {FORMAT_LABELS[p.format]} · SMM:{" "}
+                      {look.userName(p.assigneeId)}
                     </div>
                   </div>
                   <Badge tone={p.date <= today ? "red" : "amber"}>

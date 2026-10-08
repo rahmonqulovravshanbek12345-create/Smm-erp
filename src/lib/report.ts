@@ -1,4 +1,5 @@
 // Mijozga yuboriladigan oylik hisobot ma'lumotlari — ERP'dagi haqiqiy yozuvlardan avtomatik yig'iladi.
+import { postTypeId, typeName } from "./content";
 import { addDays, diffDays } from "./dates";
 import { periodAt, type Period } from "./period";
 import type { ErpState, MonthlyReport, Post, Project, TargetReport } from "./types";
@@ -72,8 +73,9 @@ export function clientReport(s: ErpState, projectId: string, periodIndex: number
   const byFormat: Record<string, number> = {};
   const byPlatform: Record<string, number> = {};
   for (const x of published) {
-    byFormat[x.format] = (byFormat[x.format] ?? 0) + 1;
-    byPlatform[x.platform] = (byPlatform[x.platform] ?? 0) + 1;
+    const t = typeName(s, postTypeId(x));
+    byFormat[t] = (byFormat[t] ?? 0) + 1;
+    for (const pl of x.platforms) byPlatform[pl] = (byPlatform[pl] ?? 0) + 1;
   }
   const daily = s.targetReports.filter((r) => r.projectId === projectId && inPer(r.date, period)).sort((a, b) => a.date.localeCompare(b.date));
   const prev = periodIndex > 0 ? periodAt(project, periodIndex - 1) : null;

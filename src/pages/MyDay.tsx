@@ -8,6 +8,9 @@ import { ROLE_LABELS, TASK_KIND_LABELS } from "../lib/labels";
 import { homeFor } from "../lib/permissions";
 import { alertsFor, isPostLate, isTaskLate, isTaskOpen } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
+import { QuotaSummary } from "../components/Quota";
+import { OneTimeService } from "../components/Services";
+import { hasContent, oneTimeServices, serviceLabel, stageIndex } from "../lib/services";
 
 interface Todo {
   id: string;
@@ -59,6 +62,23 @@ export function MyDay() {
         icon: "camera",
         color: "gray",
       });
+    }
+    // Bir martalik ishlar (sayt, branding, video) — ijrochiga
+    for (const p of state.projects) {
+      for (const svc of oneTimeServices(p)) {
+        if (svc.assigneeId !== me.id || svc.status !== "active") continue;
+        const st = svc.stages?.[stageIndex(svc)]?.name ?? "—";
+        out.push({
+          id: svc.id,
+          title: `${serviceLabel(svc.kind)}: ${p.name}`,
+          sub: `Joriy bosqich: ${st}${svc.title ? ` · ${svc.title}` : ""}`,
+          date: svc.deadline,
+          late: Boolean(svc.deadline && svc.deadline < today),
+          href: "/mening",
+          icon: svc.kind === "web" ? "monitor" : svc.kind === "branding" ? "brush" : "film",
+          color: "teal",
+        });
+      }
     }
     if (me.role === "smm") {
       for (const p of state.posts) {
@@ -148,6 +168,12 @@ export function MyDay() {
         <Stat icon="wallet" color="green" label={`Shu oy ishlab topdim · qoldiq ${fmtMoney(balance)}`} value={fmtMoney(earned)} href="/hisobim" />
       </div>
 
+      {me.role === "smm" && <QuotaSummary projects={state.projects.filter((p) => p.smmId === me.id && hasContent(p) && p.status === "active")} />}
+      {state.projects.flatMap((p) =>
+        oneTimeServices(p)
+          .filter((x) => x.assigneeId === me.id && x.status === "active")
+          .map((x) => <OneTimeService key={x.id} project={p} svc={x} compact />),
+      )}
       <div className="grid gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader

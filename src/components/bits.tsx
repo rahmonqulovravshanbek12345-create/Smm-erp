@@ -1,8 +1,8 @@
 import { fmtMoney } from "../lib/dates";
-import { LATE, PAYMENT_STATUS, postStatusMeta, taskStatusMeta } from "../lib/labels";
+import { LATE, PAYMENT_STATUS, PLATFORM_LABELS, PLATFORM_SHORT, postStatusMeta, taskStatusMeta } from "../lib/labels";
 import type { PayStatus } from "../lib/finance";
 import { isPostLate, isTaskLate, type Debt } from "../lib/rules";
-import type { Post, Task } from "../lib/types";
+import type { Platform, Post, Task } from "../lib/types";
 import { Badge } from "./ui";
 
 export function PostBadge({ post, today }: { post: Post; today: string }) {
@@ -45,5 +45,37 @@ export function DebtBadge({ debt }: { debt: Debt }) {
     <Badge tone="red">
       ● Qarz {fmtMoney(debt.amount)} · {debt.days} kun
     </Badge>
+  );
+}
+
+/** Platforma ranglari (brend ranglariga yaqin). */
+export const PLATFORM_BG: Record<Platform, string> = {
+  instagram: "linear-gradient(135deg,#f58529,#dd2a7b 55%,#8134af)",
+  telegram: "#229ED9",
+  facebook: "#1877F2",
+  tiktok: "#111111",
+  youtube: "#E62117",
+};
+
+/** Kichik platforma belgilari: joylanmaganlari xira ko'rinadi (published berilsa). */
+export function PlatformIcons({ platforms, published, size = 18 }: { platforms: Platform[]; published?: Partial<Record<Platform, string>>; size?: number }) {
+  return (
+    <span className="inline-flex gap-[3px] align-middle">
+      {platforms.map((pl) => {
+        const done = !published || Boolean(published[pl]);
+        return (
+          <span
+            key={pl}
+            role="img"
+            aria-label={`${PLATFORM_LABELS[pl]}${published ? (done ? " — joylandi" : " — kutilmoqda") : ""}`}
+            title={`${PLATFORM_LABELS[pl]}${published ? (done ? " — joylandi" : " — kutilmoqda") : ""}`}
+            className={`inline-flex shrink-0 items-center justify-center rounded-[5px] font-bold text-white ${done ? "" : "opacity-40"}`}
+            style={{ width: size, height: size, fontSize: Math.round(size * 0.45), background: PLATFORM_BG[pl] }}
+          >
+            {PLATFORM_SHORT[pl]}
+          </span>
+        );
+      })}
+    </span>
   );
 }

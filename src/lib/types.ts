@@ -1,7 +1,7 @@
 // SMM agentlik ERP — asosiy ma'lumotlar obyektlari (TZ, 8-bo'lim).
 // Barcha sanalar "YYYY-MM-DD" ko'rinishida, vaqt belgilari esa ISO formatda saqlanadi.
 
-export type Role = "admin" | "rahbar" | "operator" | "marketolog" | "smm" | "targetolog" | "syomka" | "montajyor" | "dizayner" | "moliya";
+export type Role = "admin" | "rahbar" | "operator" | "marketolog" | "smm" | "targetolog" | "syomka" | "montajyor" | "dizayner" | "webdev" | "moliya";
 
 export interface User {
   id: string;
@@ -53,6 +53,46 @@ export interface DocState {
   updatedAt?: string;
 }
 
+// ---------- Xizmatlar ----------
+
+/** Oylik (abonent): smm, target, performance. Bir martalik (bosqichli): video, branding, web. */
+export type ServiceKind = "smm" | "target" | "performance" | "video" | "branding" | "web";
+
+export interface ServiceStage {
+  name: string;
+  doneAt?: string;
+}
+
+export interface ProjectService {
+  id: string;
+  kind: ServiceKind;
+  /** Katalogdagi paket (bo'sh — individual shartlar). */
+  tariffId?: string;
+  /** Paket nomi yoki ish tavsifi. */
+  title: string;
+  /** Oylik xizmat — oylik haq; bir martalik — umumiy narx (so'm). */
+  price: number;
+  /** Performance: reklama byudjetidan foiz (oylik haqqa qo'shiladi). */
+  adPct?: number;
+  /** Performance: oylik KPI — lidlar soni va bitta lid narxi (USD). */
+  kpiLeads?: number;
+  kpiCpl?: number;
+  /** Performance: reklama kanallari. */
+  channels?: string[];
+  /** Bir martalik: oldindan to'lov foizi, qolgani topshirishda. */
+  prepayPct?: 100 | 50;
+  /** Bir martalik: ijrochi (dizayner, veb-dasturchi, montajyor…). */
+  assigneeId?: string;
+  /** Bir martalik: ijrochiga shu ish uchun to'lanadigan summa (topshirilganda hisoblanadi). */
+  assigneeFee?: number;
+  startDate?: string;
+  deadline?: string;
+  stages?: ServiceStage[];
+  deliveredAt?: string;
+  status: "active" | "done" | "cancelled";
+  createdAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -63,11 +103,16 @@ export interface Project {
   links: string;
   contractNo: string;
   contractDate: string;
+  /** Xizmatlar qisqacha (kartada ko'rsatish uchun): «SMM: Biznes + Sayt». */
   tariff: string;
-  /** Katalogdagi tarif (bo'sh — individual shartlar). */
+  /** SMM paketi (katalogdan; bo'sh — individual yoki SMM yo'q). */
   tariffId?: string;
+  /** Oylik xizmatlar yig'indisi (SMM + target + performance). Xizmatlardan avtomatik hisoblanadi. */
   monthlyFee: number;
+  /** Oylik xizmatlar uchun oldindan to'lov turi. */
   prepayType: 100 | 50;
+  /** Mijoz olgan xizmatlar: har birining o'z narxi, mas'uli va holati. */
+  services: ProjectService[];
   marketologId: string;
   smmId: string;
   targetologId?: string;
@@ -93,6 +138,8 @@ export interface Project {
 
 export interface Tariff {
   id: string;
+  /** Qaysi xizmat paketi (eski ma'lumotda yo'q — SMM). */
+  service?: ServiceKind;
   name: string;
   /** Qisqa tavsif: kimlar uchun. */
   tagline: string;
@@ -101,10 +148,14 @@ export interface Tariff {
   posts: number;
   videos: number;
   designs: number;
+  /** Faqat matnli postlar soni. */
+  texts?: number;
   stories: number;
   shoots: number;
   platforms: Platform[];
   target: boolean;
+  /** Performance: reklama byudjetidan foiz. */
+  adPct?: number;
   /** Tavsiya etiladigan oylik reklama byudjeti (USD, alohida to'lanadi). */
   adBudgetUsd: number;
   prepayType: 100 | 50;
@@ -126,7 +177,9 @@ export interface Proposal {
   /** Mijozga shaxsiy murojaat. */
   note: string;
   status: ProposalStatus;
+  /** Qabul qilingan paket (har xizmatdan bittadan). Birinchisi — asosiy. */
   acceptedTariffId?: string;
+  acceptedTariffIds?: string[];
   rejectReason?: string;
   decidedAt?: string;
   createdBy: string;
@@ -134,15 +187,41 @@ export interface Proposal {
 
 // ---------- Kontent ----------
 
-export type Platform = "instagram" | "telegram";
-export type PostFormat = "video" | "image" | "ai";
+export type Platform = "instagram" | "telegram" | "facebook" | "tiktok" | "youtube";
+/** Ishlab chiqarish yo'li: video — syomka va montaj; image — dizayn; text — faqat matn; ai — AI yordamida. */
+export type PostFormat = "video" | "image" | "text" | "ai";
+
+/** Kontent turi — oylik topshiriqda sanaladi. Ro'yxatni agentlik o'zi to'ldiradi. */
+export interface ContentType {
+  id: string;
+  name: string;
+  format: PostFormat;
+  active: boolean;
+}
+
+/** Marketologning SMM menejerga oylik topshirig'i: loyiha × oy × kontent turi bo'yicha son. */
+export interface Quota {
+  id: string;
+  projectId: string;
+  /** "YYYY-MM" */
+  month: string;
+  /** Kontent turi ID → son; "shoot" — syomka kunlari. */
+  counts: Record<string, number>;
+  note: string;
+  updatedAt: string;
+  updatedBy: string;
+  history: { at: string; userId: string; text: string }[];
+}
 export type PostStatus = "plan" | "shoot" | "editing" | "design" | "internal" | "client" | "approved" | "published";
 
 export interface Post {
   id: string;
   projectId: string;
   date: string;
-  platform: Platform;
+  /** Bitta post bir nechta platformaga joylanishi mumkin — rejada 1 ta post sanaladi. */
+  platforms: Platform[];
+  /** Kontent turi (oylik topshiriq uchun). */
+  typeId: string;
   format: PostFormat;
   topic: string;
   script: string;
@@ -150,7 +229,12 @@ export interface Post {
   status: PostStatus;
   forTarget: boolean;
   reviewNote?: string;
+  /** Hamma platformaga joylangan sana. */
   publishedAt?: string;
+  /** Har platforma bo'yicha joylangan sana. */
+  publishedOn?: Partial<Record<Platform, string>>;
+  /** Platformaga alohida izoh (matn farq qilsa). */
+  platformNotes?: Partial<Record<Platform, string>>;
   createdAt: string;
 }
 
@@ -197,6 +281,8 @@ export interface Task {
   createdAt: string;
 }
 
+export type AdChannel = "meta" | "google" | "yandex" | "tiktok";
+
 export interface TargetReport {
   id: string;
   projectId: string;
@@ -207,6 +293,8 @@ export interface TargetReport {
   leads: number;
   note: string;
   authorId: string;
+  /** Reklama kanali (performance uchun); bo'sh — Meta. */
+  channel?: AdChannel;
   /** Qo'lda kiritilgan yoki Meta Ads'dan import qilingan. */
   source: "manual" | "meta";
 }
@@ -264,10 +352,20 @@ export interface Transaction {
   createdBy: string;
 }
 
+export interface InvoiceLine {
+  kind: ServiceKind;
+  title: string;
+  amount: number;
+}
+
 export interface Invoice {
   id: string;
   number: string;
   projectId: string;
+  /** Bir martalik xizmat fakturasi (oldindan yoki topshirishdagi to'lov). */
+  serviceId?: string;
+  /** Faktura qatorlari — xizmatlar bo'yicha. */
+  lines?: InvoiceLine[];
   kind: "prepay" | "remainder" | "monthly" | "extra";
   /** Qaysi xizmat davri uchun (0 — birinchi davr). */
   periodIndex: number;
@@ -296,7 +394,7 @@ export interface Bill {
   note: string;
 }
 
-export type WorkType = "montaj" | "dizayn_post" | "dizayn_cover" | "syomka" | "shartnoma";
+export type WorkType = "montaj" | "dizayn_post" | "dizayn_cover" | "syomka" | "shartnoma" | "xizmat";
 
 /** Xodimning ish haqi sxemasi. Bir nechtasi birga bo'lishi mumkin. */
 export interface PayProfile {
@@ -391,6 +489,8 @@ export interface Settings {
   latePenaltyPct: number;
   /** Fiks oyliklar va loyiha oyliklari qaysi oydan boshlab hisoblanadi. */
   payrollStart: string;
+  /** Kontent turlari (oylik topshiriq): video, dizayn, matn, stories va agentlik qo'shganlari. */
+  contentTypes: ContentType[];
   telegram: {
     enabled: boolean;
     /** Bot tokeni faqat shu brauzerda saqlanadi; bo'sh bo'lsa xabarlar demo rejimda ko'rsatiladi. */
@@ -455,6 +555,7 @@ export interface ErpState {
   budget: BudgetLine[];
   tariffs: Tariff[];
   proposals: Proposal[];
+  quotas: Quota[];
   integrationLog: IntegrationLog[];
   notifications: Notification[];
   activity: Activity[];

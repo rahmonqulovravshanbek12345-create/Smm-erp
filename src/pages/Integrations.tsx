@@ -5,6 +5,7 @@ import * as act from "../lib/actions";
 import { fmtDate, fmtDateTime, fmtNum } from "../lib/dates";
 import { LEAD_METRIC_LABELS, fetchCbuRate, isMetaDemo, metaAccountOf, syncMeta, testMetaToken } from "../lib/integrations";
 import { canEdit, canView } from "../lib/permissions";
+import { hasAds } from "../lib/services";
 import { useErp } from "../lib/store";
 import type { Integrations as Cfg } from "../lib/types";
 
@@ -17,7 +18,7 @@ export function Integrations() {
   const demo = isMetaDemo(state);
   const [busy, setBusy] = useState<"" | "test" | "sync" | "cbu">("");
   const [manualRate, setManualRate] = useState("");
-  const projects = state.projects.filter((p) => p.status === "active" && p.targetologId);
+  const projects = state.projects.filter((p) => p.status === "active" && p.targetologId && hasAds(p));
   const tg = state.settings.telegram;
   const tgUsers = state.users.filter((u) => u.active && u.telegramChatId).length;
 

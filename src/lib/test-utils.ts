@@ -55,6 +55,7 @@ export function emptyState(today = TODAY): ErpState {
     accruals: [],
     budget: [],
     proposals: [],
+    quotas: [],
     integrationLog: [],
     notifications: [],
     activity: [],

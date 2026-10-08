@@ -7,6 +7,7 @@
 //  • Tranzit (mijoz reklama byudjeti) P&L'ga kirmaydi, Cash Flow'da alohida ko'rsatiladi.
 import { addDays, addMonths, diffDays, fmtMonth, monthKey, shiftMonthKey } from "./dates";
 import { currentPeriod, periodAt, type Period } from "./period";
+import { invoiceLines, recurringFee, recurringLines, serviceLabel, serviceOf } from "./services";
 import type { Accrual, Article, ArticleGroup, Bill, ErpState, Invoice, PayProfile, Project, Task, Transaction, User, WorkType } from "./types";
 
 // ---------- Moddalar ----------
@@ -136,8 +137,9 @@ export function projectDebt(s: ErpState, projectId: string, today: string): Debt
   return { amount, days };
 }
 
+/** Oylik xizmatlar bo'yicha oldindan to'lov (bir martalik xizmatlarniki — alohida). */
 export function prepayPaid(s: ErpState, projectId: string): boolean {
-  const pre = s.invoices.find((i) => i.projectId === projectId && i.kind === "prepay");
+  const pre = s.invoices.find((i) => i.projectId === projectId && i.kind === "prepay" && !i.serviceId);
   return !pre || invoicePaid(s, pre) >= pre.amount - 1;
 }
 
@@ -146,9 +148,16 @@ export function nextInvoiceNumber(s: ErpState): string {
   return `SF-${String(max + 1).padStart(4, "0")}`;
 }
 
-/** Faktura qaysi xizmat davri uchun (qo'shimcha xizmat — chiqarilgan kuni). */
+/**
+ * Faktura qaysi xizmat davri uchun (qo'shimcha xizmat — chiqarilgan kuni).
+ * Bir martalik xizmat (sayt, branding, video) — topshirilgan kuni tan olinadi; topshirilguncha olingan pul — avans.
+ */
 export function invoicePeriod(s: ErpState, inv: Invoice): Period | null {
   if (inv.kind === "extra") return { index: inv.periodIndex, start: inv.issueDate, end: addDays(inv.issueDate, 1) };
+  if (inv.serviceId) {
+    const d = serviceOf(s, inv.serviceId)?.service.deliveredAt;
+    return d ? { index: 0, start: d, end: addDays(d, 1) } : null;
+  }
   const p = s.projects.find((x) => x.id === inv.projectId);
   return p ? periodAt(p, inv.periodIndex) : null;
 }
@@ -162,6 +171,9 @@ export function syncInvoices(s: ErpState, today: string, newId: () => string): v
     if (!p.periodStart || p.status === "closed") continue;
     for (let i = 1; addMonths(p.periodStart, i) <= addDays(today, 3); i++) {
       if (s.invoices.some((x) => x.projectId === p.id && x.kind === "monthly" && x.periodIndex === i)) continue;
+      const lines = recurringLines(p, s.settings.usdRate);
+      const amount = lines.reduce((a, l) => a + l.amount, 0);
+      if (amount <= 0) continue;
       const due = addMonths(p.periodStart, i);
       s.invoices.push({
         id: newId(),
@@ -169,7 +181,8 @@ export function syncInvoices(s: ErpState, today: string, newId: () => string): v
         projectId: p.id,
         kind: "monthly",
         periodIndex: i,
-        amount: p.monthlyFee,
+        amount,
+        lines,
         issueDate: addDays(due, -3) > today ? today : addDays(due, -3),
         dueDate: due,
         note: `${i + 1}-davr uchun abonent to'lovi`,
@@ -232,6 +245,7 @@ export const WORK_LABELS: Record<WorkType, string> = {
   dizayn_cover: "Oblojka",
   syomka: "Syomka (chiqish)",
   shartnoma: "Shartnoma bonusi",
+  xizmat: "Bir martalik xizmat (sayt, branding, video)",
 };
 
 export const ACCRUAL_KIND_LABELS: Record<Accrual["kind"], string> = {
@@ -441,8 +455,8 @@ export interface PnlResult {
 }
 
 const ACCRUAL_LINE: Record<Accrual["kind"], { key: string; label: string; section: PnlSection }> = {
-  piece: { key: "pay_piece", label: "Ishbay ish haqi (montaj, dizayn, syomka)", section: "direct" },
-  penalty: { key: "pay_piece", label: "Ishbay ish haqi (montaj, dizayn, syomka)", section: "direct" },
+  piece: { key: "pay_piece", label: "Ishbay ish haqi (montaj, dizayn, syomka, bir martalik ishlar)", section: "direct" },
+  penalty: { key: "pay_piece", label: "Ishbay ish haqi (montaj, dizayn, syomka, bir martalik ishlar)", section: "direct" },
   project: { key: "pay_project", label: "Loyiha oyligi (SMM, target, marketolog)", section: "direct" },
   fixed: { key: "pay_fixed", label: "Fiks oyliklar (ma'muriy xodimlar)", section: "overhead" },
   bonus: { key: "pay_bonus", label: "Bonuslar va qo'shimcha to'lovlar", section: "overhead" },
@@ -468,11 +482,19 @@ export function pnl(s: ErpState, months: string[], today: string, projectId?: st
     l.total += v;
   };
 
+  // Daromad xizmatlar kesimida: faktura qatorlari ulushiga ko'ra
   for (const inv of s.invoices) {
     if (projectId && inv.projectId !== projectId) continue;
-    const key = inv.kind === "extra" ? "rev_extra" : "rev_fee";
-    const label = inv.kind === "extra" ? "Qo'shimcha xizmatlar" : "SMM xizmati (abonent to'lovi)";
-    for (const [m, v] of invoiceRevenueByMonth(s, inv, today)) add(key, label, "revenue", m, v);
+    const byMonth = invoiceRevenueByMonth(s, inv, today);
+    if (inv.kind === "extra") {
+      for (const [m, v] of byMonth) add("rev_extra", "Qo'shimcha xizmatlar", "revenue", m, v);
+      continue;
+    }
+    const lines = invoiceLines(s, inv);
+    const total = lines.reduce((a, l) => a + l.amount, 0) || 1;
+    for (const l of lines) {
+      for (const [m, v] of byMonth) add(`rev_${l.kind}`, serviceLabel(l.kind), "revenue", m, (v * l.amount) / total);
+    }
   }
 
   for (const a of s.accruals) {
@@ -857,7 +879,8 @@ export function paymentCalendar(s: ErpState, today: string, horizon = 45) {
       const due = addMonths(p.periodStart, i);
       if (due <= today) continue;
       if (s.invoices.some((x) => x.projectId === p.id && x.kind === "monthly" && x.periodIndex === i)) continue;
-      push(due, { label: `${p.name} — ${i + 1}-davr (prognoz)`, amount: p.monthlyFee, kind: "forecast", forecast: true });
+      const fee = recurringFee(p, s.settings.usdRate);
+      if (fee > 0) push(due, { label: `${p.name} — ${i + 1}-davr (prognoz)`, amount: fee, kind: "forecast", forecast: true });
     }
   }
   // Chiqim: ta'minotchi hujjatlari
@@ -910,9 +933,17 @@ export function paymentCalendar(s: ErpState, today: string, horizon = 45) {
 
 export const lastMonths = (today: string, n: number) => Array.from({ length: n }, (_, i) => shiftMonthKey(monthKey(today), i - n + 1));
 
-/** MRR — faol loyihalarning oylik abonent to'lovlari yig'indisi. */
+/** MRR — faol loyihalarning oylik abonent to'lovlari yig'indisi (bir martalik xizmatlar kirmaydi). */
 export function mrr(s: ErpState, today: string): number {
-  return s.projects.filter((p) => p.status !== "closed" && currentPeriod(p, today)).reduce((a, p) => a + p.monthlyFee, 0);
+  return s.projects.filter((p) => p.status !== "closed" && currentPeriod(p, today)).reduce((a, p) => a + recurringFee(p, s.settings.usdRate), 0);
+}
+
+/** Xizmatlar kesimida daromad (P&L qatorlaridan): xizmat → summa. */
+export function revenueByService(s: ErpState, months: string[], today: string): { kind: string; label: string; amount: number }[] {
+  return pnl(s, months, today)
+    .lines.filter((l) => l.section === "revenue")
+    .map((l) => ({ kind: l.key.replace(/^rev_/, ""), label: l.label, amount: l.total }))
+    .sort((a, b) => b.amount - a.amount);
 }
 
 export function clientCashIn(s: ErpState, month: string): number {

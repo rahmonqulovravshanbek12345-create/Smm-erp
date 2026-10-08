@@ -4,7 +4,8 @@
 import { addDays, addMonths, diffDays, fmtMonth, monthKey, shiftMonthKey } from "./dates";
 import { ART, DEFAULT_ARTICLES, clientCashIn, employeeBalance, pieceAccrual, syncAccruals, taskWorkType } from "./finance";
 import { periodAt } from "./period";
-import type { Accrual, ErpState, Invoice, Project, Transaction, WorkType } from "./types";
+import { oneTimeServices, recurringLines, serviceLabel } from "./services";
+import type { Accrual, ErpState, Invoice, InvoiceLine, Project, Transaction, WorkType } from "./types";
 
 export function addFinanceHistory(s: ErpState, today: string): void {
   let seq = 0;
@@ -39,6 +40,7 @@ export function addFinanceHistory(s: ErpState, today: string): void {
     { userId: "u_mt1", fixed: 0, perProject: 0, rates: { montaj: 200_000 } },
     { userId: "u_mt2", fixed: 0, perProject: 0, rates: { montaj: 200_000 } },
     { userId: "u_dz", fixed: 0, perProject: 0, rates: { dizayn_post: 70_000, dizayn_cover: 40_000 } },
+    { userId: "u_web", fixed: 0, perProject: 0, rates: {} },
   ];
 
   const tx = (t: Omit<Transaction, "id" | "createdBy" | "note"> & { note?: string }) => {
@@ -62,12 +64,57 @@ export function addFinanceHistory(s: ErpState, today: string): void {
     if (p.id === "p_moda") return { delay: 3 };
     if (p.id === "p_baraka") return { delay: 2 + (inv.periodIndex % 3) };
     if (p.id === "p_burger") return { delay: inv.kind === "remainder" ? 2 : 1 };
+    // Avto Lux — o'z vaqtida; Nur Optika — oldindan to'lov keldi
+    if (p.id === "p_avtolux" || p.id === "p_optika") return { delay: 0 };
     return { delay: inv.periodIndex % 2 };
   };
 
   const invoices: Invoice[] = [];
+  /** Qatorlarni ulushga ko'ra kichraytirish (oldindan / qoldiq to'lov). */
+  const scale = (lines: InvoiceLine[], amount: number) => {
+    const total = lines.reduce((a, l) => a + l.amount, 0) || 1;
+    const out = lines.map((l) => ({ ...l, amount: Math.round((l.amount * amount) / total) }));
+    if (out.length) out[out.length - 1]!.amount += amount - out.reduce((a, l) => a + l.amount, 0);
+    return out;
+  };
   for (const p of s.projects) {
-    const pre = Math.round((p.monthlyFee * p.prepayType) / 100);
+    // Bir martalik xizmatlar: oldindan to'lov boshlanishda, qoldiq — topshirilganda
+    for (const svc of oneTimeServices(p)) {
+      const start = svc.startDate ?? p.contractDate;
+      const pre = Math.round((svc.price * (svc.prepayPct ?? 50)) / 100);
+      const line = (amount: number): InvoiceLine[] => [{ kind: svc.kind, title: `${serviceLabel(svc.kind)}${svc.title ? ` — ${svc.title}` : ""}`, amount }];
+      invoices.push({
+        id: id("inv"),
+        number: "",
+        projectId: p.id,
+        serviceId: svc.id,
+        kind: "prepay",
+        periodIndex: 0,
+        amount: pre,
+        lines: line(pre),
+        issueDate: start,
+        dueDate: addDays(start, 2),
+        note: `${serviceLabel(svc.kind)}: oldindan to'lov (${svc.prepayPct ?? 50}%)`,
+      });
+      if (svc.deliveredAt && svc.price > pre)
+        invoices.push({
+          id: id("inv"),
+          number: "",
+          projectId: p.id,
+          serviceId: svc.id,
+          kind: "remainder",
+          periodIndex: 0,
+          amount: svc.price - pre,
+          lines: line(svc.price - pre),
+          issueDate: svc.deliveredAt,
+          dueDate: addDays(svc.deliveredAt, 3),
+          note: `${serviceLabel(svc.kind)}: topshirildi — qoldiq to'lov`,
+        });
+    }
+    const lines = recurringLines(p, 12_650);
+    const fee = lines.reduce((a, l) => a + l.amount, 0);
+    if (fee <= 0) continue;
+    const pre = Math.round((fee * p.prepayType) / 100);
     invoices.push({
       id: id("inv"),
       number: "",
@@ -75,6 +122,7 @@ export function addFinanceHistory(s: ErpState, today: string): void {
       kind: "prepay",
       periodIndex: 0,
       amount: pre,
+      lines: scale(lines, pre),
       issueDate: p.contractDate,
       dueDate: p.id === "p_dent" ? d(2) : addDays(p.contractDate, 2),
       note: `Oldindan to'lov (${p.prepayType}%)`,
@@ -86,7 +134,8 @@ export function addFinanceHistory(s: ErpState, today: string): void {
         projectId: p.id,
         kind: "remainder",
         periodIndex: 0,
-        amount: p.monthlyFee - pre,
+        amount: fee - pre,
+        lines: scale(lines, fee - pre),
         issueDate: p.contractDate,
         dueDate: p.periodStart ? addDays(p.periodStart, 15) : "",
         note: "Qoldiq to'lov (50%)",
@@ -102,7 +151,8 @@ export function addFinanceHistory(s: ErpState, today: string): void {
         projectId: p.id,
         kind: "monthly",
         periodIndex: i,
-        amount: p.monthlyFee,
+        amount: fee,
+        lines,
         issueDate: addDays(due, -3),
         dueDate: due,
         note: `${i + 1}-davr uchun abonent to'lovi`,
@@ -228,6 +278,28 @@ export function addFinanceHistory(s: ErpState, today: string): void {
     const p = s.projects.find((x) => x.id === sh.projectId);
     piece(sh.operatorId, "syomka", sh.projectId, sh.handedAt.slice(0, 10), `${p?.name}: syomka (${sh.location})`, `shoot:${sh.id}`);
     tx({ date: sh.date, accountId: "acc_cash", dir: "out", amount: 180_000, articleId: ART.transport, projectId: sh.projectId, note: "Syomkaga taksi" });
+  }
+
+  // Topshirilgan bir martalik xizmatlar — ijrochiga kelishilgan haq
+  for (const p of s.projects) {
+    for (const svc of oneTimeServices(p)) {
+      if (!svc.deliveredAt || !svc.assigneeId || !svc.assigneeFee) continue;
+      accruals.push({
+        id: id("acr"),
+        userId: svc.assigneeId,
+        projectId: p.id,
+        date: svc.deliveredAt,
+        kind: "piece",
+        workType: "xizmat",
+        sourceId: `svc:${svc.id}`,
+        title: `${p.name}: ${serviceLabel(svc.kind)} (${svc.title}) topshirildi`,
+        qty: 1,
+        rate: svc.assigneeFee,
+        amount: svc.assigneeFee,
+        approved: false,
+        createdBy: "system",
+      });
+    }
   }
 
   // Operator bonusi — har bir shartnoma uchun

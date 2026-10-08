@@ -12,6 +12,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   syomka: "Syomka operatori",
   montajyor: "Montajyor",
   dizayner: "Dizayner",
+  webdev: "Veb-dasturchi",
   moliya: "Moliya",
 };
 
@@ -22,7 +23,8 @@ export const ROLE_DUTIES: Record<Role, string> = {
   targetolog: "Meta Ads, kunlik hisobot",
   syomka: "Syomka, kadrlarni topshirish",
   montajyor: "Video montaj",
-  dizayner: "Post va oblojka dizayni",
+  dizayner: "Post va oblojka dizayni, branding",
+  webdev: "Sayt qilish: dizayndan ishga tushirishgacha",
   moliya: "To'lovlar, qarzlar",
   admin: "Foydalanuvchi va huquqlar",
   rahbar: "Moliyaviy natija, strategik qarorlar",
@@ -39,7 +41,8 @@ export const LEAD_STAGES: { id: LeadStage; label: string; tone: Tone }[] = [
 ];
 
 export const LEAD_SOURCES = ["Instagram", "Telegram", "Sayt", "Tavsiya", "Meta Ads", "Boshqa"];
-export const SERVICES = ["SMM to'liq paket", "Target reklama", "Kontent ishlab chiqarish", "Brending", "Konsultatsiya"];
+/** Lid qiziqqan xizmat — xizmatlar ro'yxati bilan bir xil. */
+export const SERVICES = ["SMM xizmati", "Target xizmati", "Performance marketing", "Video production", "Branding", "Sayt qilish"];
 
 export const DOC_BLOCKS: { id: DocBlock; label: string; hint: string }[] = [
   { id: "brief", label: "Brif", hint: "Mijoz biznesi, maqsadlar, mahsulot/xizmatlar, cheklovlar" },
@@ -65,11 +68,20 @@ export const LATE = { label: "Kechikdi", tone: "red" as Tone };
 export const PLATFORM_LABELS: Record<Platform, string> = {
   instagram: "Instagram",
   telegram: "Telegram",
+  facebook: "Facebook",
+  tiktok: "TikTok",
+  youtube: "YouTube",
 };
+
+export const PLATFORMS = Object.keys(PLATFORM_LABELS) as Platform[];
+
+/** Kalendar va kartalar uchun qisqa belgi. */
+export const PLATFORM_SHORT: Record<Platform, string> = { instagram: "IG", telegram: "TG", facebook: "FB", tiktok: "TT", youtube: "YT" };
 
 export const FORMAT_LABELS: Record<PostFormat, string> = {
   video: "Video",
-  image: "Rasm",
+  image: "Rasm / dizayn",
+  text: "Faqat matn",
   ai: "AI post",
 };
 

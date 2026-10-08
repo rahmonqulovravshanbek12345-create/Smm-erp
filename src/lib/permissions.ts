@@ -55,13 +55,34 @@ const MATRIX: Record<Module, Partial<Record<Role, Access>>> = {
     syomka: "own",
     montajyor: "own",
     dizayner: "own",
+    webdev: "own",
     moliya: "own",
   },
   activity: { marketolog: "view" },
   admin: {},
-  myday: { operator: "own", marketolog: "own", smm: "own", targetolog: "own", syomka: "own", montajyor: "own", dizayner: "own", moliya: "own" },
-  myaccount: { operator: "own", marketolog: "own", smm: "own", targetolog: "own", syomka: "own", montajyor: "own", dizayner: "own", moliya: "own" },
-  process: { operator: "view", marketolog: "view", smm: "view", targetolog: "view", syomka: "view", montajyor: "view", dizayner: "view", moliya: "view" },
+  myday: { operator: "own", marketolog: "own", smm: "own", targetolog: "own", syomka: "own", montajyor: "own", dizayner: "own", webdev: "own", moliya: "own" },
+  myaccount: {
+    operator: "own",
+    marketolog: "own",
+    smm: "own",
+    targetolog: "own",
+    syomka: "own",
+    montajyor: "own",
+    dizayner: "own",
+    webdev: "own",
+    moliya: "own",
+  },
+  process: {
+    operator: "view",
+    marketolog: "view",
+    smm: "view",
+    targetolog: "view",
+    syomka: "view",
+    montajyor: "view",
+    dizayner: "view",
+    webdev: "view",
+    moliya: "view",
+  },
   payroll: { moliya: "full", marketolog: "view" },
   integrations: { marketolog: "view", targetolog: "view", moliya: "view" },
 };
@@ -118,6 +139,7 @@ export function visibleProjects(s: ErpState, user: User): Project[] {
   for (const p of s.projects) {
     if (p.smmId === user.id || p.targetologId === user.id || p.marketologId === user.id) ids.add(p.id);
   }
+  for (const p of s.projects) if (p.services?.some((x) => x.assigneeId === user.id && x.status !== "cancelled")) ids.add(p.id);
   for (const t of s.tasks) if (t.assigneeId === user.id) ids.add(t.projectId);
   for (const sh of s.shoots) if (sh.operatorId === user.id) ids.add(sh.projectId);
   return s.projects.filter((p) => ids.has(p.id));

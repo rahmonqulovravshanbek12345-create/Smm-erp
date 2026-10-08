@@ -4,10 +4,30 @@ import { addDays, addMonths, diffDays, monthKey } from "./dates";
 import { addFinanceHistory } from "./seed-finance";
 import { addOperationsHistory } from "./seed-history";
 import { addSalesHistory } from "./seed-sales";
-import { DEFAULT_TARIFFS } from "./tariffs";
-import type { DocBlock, DocState, ErpState, Lead, Platform, Post, PostFormat, PostStatus, Project, Shoot, Task, TaskStatus, TargetReport, User } from "./types";
+import { DEFAULT_CONTENT_TYPES } from "./content";
+import { recurringFee, servicesSummary, stagesFor } from "./services";
+import { DEFAULT_TARIFFS, SERVICE_TARIFFS } from "./tariffs";
+import type {
+  DocBlock,
+  DocState,
+  ErpState,
+  Lead,
+  Platform,
+  Post,
+  PostFormat,
+  PostStatus,
+  Project,
+  ProjectService,
+  Quota,
+  ServiceKind,
+  Shoot,
+  Task,
+  TaskStatus,
+  TargetReport,
+  User,
+} from "./types";
 
-export const SEED_VERSION = 7;
+export const SEED_VERSION = 8;
 
 export function buildSeed(today: string): ErpState {
   const d = (n: number) => addDays(today, n);
@@ -28,6 +48,7 @@ export function buildSeed(today: string): ErpState {
     { id: "u_mt1", name: "Rustam Ergashev", role: "montajyor", active: true },
     { id: "u_mt2", name: "Shoxrux Qodirov", role: "montajyor", active: true },
     { id: "u_dz", name: "Nilufar Saidova", role: "dizayner", active: true },
+    { id: "u_web", name: "Jamshid Rahmonov", role: "webdev", active: true },
     { id: "u_mol", name: "Gulnora Mirzayeva", role: "moliya", active: true },
   ];
 
@@ -57,18 +78,38 @@ export function buildSeed(today: string): ErpState {
     audience: "18–35 yosh, Yunusobod va Mirzo Ulug'bek, sog'lom turmush tarziga qiziquvchilar.",
   };
 
+  const svc = (kind: ServiceKind, title: string, price: number, extra: Partial<ProjectService> = {}): ProjectService => ({
+    id: id("svc"),
+    kind,
+    title,
+    price,
+    status: "active",
+    createdAt: at(-60),
+    ...extra,
+  });
+  /** Bir martalik xizmat: birinchi `done` ta bosqich berilgan sanalarda bajarilgan. */
+  const once = (kind: ServiceKind, title: string, price: number, doneDates: string[], extra: Partial<ProjectService>): ProjectService =>
+    svc(kind, title, price, {
+      prepayPct: 50,
+      stages: stagesFor(kind).map((st, i) => (doneDates[i] ? { ...st, doneAt: doneDates[i] } : st)),
+      ...extra,
+    });
+
   const P1 = "p_mebel";
   const P2 = "p_gym";
   const P3 = "p_dent";
   const P4 = "p_baraka";
   const P5 = "p_moda";
   const P6 = "p_burger";
+  const P7 = "p_optika";
+  const P8 = "p_avtolux";
   // Joriy davr boshlanishlari bugunga nisbatan; birinchi reklama sanasi shundan oylar oldin.
   const p1Start = addMonths(d(-20), -5);
   const p2Start = addMonths(d(-5), -3);
   const p4Start = addMonths(d(-12), -4);
   const p5Start = addMonths(d(-3), -5);
   const p6Start = addMonths(d(-15), -1);
+  const p8Start = d(-22);
 
   const projects: Project[] = [
     {
@@ -85,6 +126,18 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/018",
       contractDate: addDays(p1Start, -7),
       tariff: "Standart (Instagram + Telegram + target)",
+      services: [
+        svc("smm", "Standart (individual)", 11_000_000),
+        svc("target", "Target", 4_000_000, { tariffId: "t_target" }),
+        once("web", "Korporativ sayt", 15_000_000, [d(-11), d(-5)], {
+          tariffId: "t_web_corp",
+          assigneeId: "u_web",
+          assigneeFee: 4_000_000,
+          startDate: d(-12),
+          deadline: d(14),
+          createdAt: at(-12),
+        }),
+      ],
       monthlyFee: 15_000_000,
       prepayType: 100,
       marketologId: "u_mk",
@@ -112,6 +165,7 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/027",
       contractDate: addDays(p2Start, -7),
       tariff: "Biznes (Instagram + target)",
+      services: [svc("smm", "Biznes", 12_000_000, { tariffId: "t_biznes" })],
       tariffId: "t_biznes",
       monthlyFee: 12_000_000,
       prepayType: 50,
@@ -140,6 +194,7 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/041",
       contractDate: d(-3),
       tariff: "Start (Instagram)",
+      services: [svc("smm", "Start", 8_000_000, { tariffId: "t_start" })],
       tariffId: "t_start",
       monthlyFee: 8_000_000,
       prepayType: 50,
@@ -167,6 +222,7 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/022",
       contractDate: addDays(p4Start, -6),
       tariff: "Premium (Instagram + Telegram + target)",
+      services: [svc("smm", "Premium", 18_000_000, { tariffId: "t_premium" })],
       tariffId: "t_premium",
       monthlyFee: 18_000_000,
       prepayType: 100,
@@ -201,6 +257,7 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/015",
       contractDate: addDays(p5Start, -5),
       tariff: "Standart (Instagram + target)",
+      services: [svc("smm", "Standart (individual)", 6_000_000), svc("target", "Target", 3_000_000)],
       monthlyFee: 9_000_000,
       prepayType: 100,
       marketologId: "u_mk",
@@ -230,6 +287,19 @@ export function buildSeed(today: string): ErpState {
       contractNo: "SH-2026/036",
       contractDate: addDays(p6Start, -6),
       tariff: "Biznes (Instagram + target)",
+      services: [
+        svc("smm", "Biznes", 12_000_000, { tariffId: "t_biznes" }),
+        once("video", "Syomka kuni", 3_000_000, [d(-24), d(-22), d(-18), d(-14), d(-11), d(-9)], {
+          tariffId: "t_video_day",
+          assigneeId: "u_mt1",
+          assigneeFee: 800_000,
+          startDate: d(-25),
+          deadline: d(-8),
+          deliveredAt: d(-9),
+          status: "done",
+          createdAt: at(-25),
+        }),
+      ],
       tariffId: "t_biznes",
       monthlyFee: 12_000_000,
       prepayType: 50,
@@ -246,16 +316,104 @@ export function buildSeed(today: string): ErpState {
       handedOffAt: `${addDays(p6Start, -3)}T10:00:00.000Z`,
       createdAt: `${addDays(p6Start, -6)}T10:00:00.000Z`,
     },
+    {
+      id: P7,
+      name: "Nur Optika",
+      leadId: "l_optika",
+      legalName: "«Nur Optika» MChJ",
+      inn: "311 406 582",
+      address: "Toshkent sh., Yakkasaroy t., Shota Rustaveli ko'ch., 14",
+      contactName: "Sevara Nurmatova",
+      phone: "+998 00 640 64 64",
+      industry: "Optika do'konlari",
+      links: "instagram.com/demo_nuroptika",
+      contractNo: "SH-2026/043",
+      contractDate: d(-10),
+      tariff: "",
+      monthlyFee: 0,
+      prepayType: 100,
+      services: [
+        once("branding", "Firma uslubi", 10_000_000, [d(-6)], {
+          tariffId: "t_brand_style",
+          assigneeId: "u_dz",
+          assigneeFee: 3_000_000,
+          startDate: d(-9),
+          deadline: d(20),
+          createdAt: at(-10),
+        }),
+      ],
+      marketologId: "u_mk",
+      smmId: "",
+      pauseWork: false,
+      status: "active",
+      docs: docs(["brief"], {
+        brief: "Nur Optika — 3 ta optika do'koni. Faqat branding: yangi logo va firma uslubi (vitrina, vizitka, ijtimoiy tarmoq shablonlari).",
+      }),
+      createdAt: at(-10),
+    },
+    {
+      id: P8,
+      name: "Avto Lux",
+      leadId: "l_avtolux",
+      legalName: "«Avto Lux Motors» MChJ",
+      inn: "306 771 349",
+      address: "Toshkent sh., Sergeli t., Qo'yliq bozori yonida, 2",
+      contactName: "Behruz Karimov",
+      phone: "+998 00 715 15 15",
+      industry: "Avtosalon",
+      links: "instagram.com/demo_avtolux.uz\navtolux-demo.uz",
+      contractNo: "SH-2026/039",
+      contractDate: addDays(p8Start, -5),
+      tariff: "",
+      monthlyFee: 0,
+      prepayType: 100,
+      services: [
+        svc("performance", "Performance", 6_000_000, {
+          tariffId: "t_performance",
+          adPct: 10,
+          kpiLeads: 150,
+          kpiCpl: 8,
+          channels: ["meta", "google"],
+          createdAt: `${addDays(p8Start, -5)}T10:00:00.000Z`,
+        }),
+      ],
+      marketologId: "u_mk",
+      smmId: "",
+      targetologId: "u_tg",
+      periodStart: p8Start,
+      pauseWork: false,
+      status: "active",
+      adBudgetUsd: 1500,
+      docs: docs(["brief", "strategy", "audience"], {
+        brief: "Avto Lux — avtosalon. Faqat performance: test-drayvga yozilish va kredit arizalari. Kanallar: Meta va Google Ads.",
+        strategy: "KPI: oyiga 150 ta lid, lid narxi 8$ dan past. Google — qidiruv (brend va model nomlari), Meta — lid forma va retarget.",
+        audience: "28–50 yosh, Toshkent va viloyat markazlari, avtomobil almashtirmoqchi bo'lganlar.",
+      }),
+      handedOffAt: `${addDays(p8Start, -2)}T10:00:00.000Z`,
+      createdAt: `${addDays(p8Start, -5)}T10:00:00.000Z`,
+    },
   ];
+  // Hisoblanadigan maydonlar: oylik summa (performance foizi bilan), qisqa tavsif, SMM paketi
+  for (const p of projects) {
+    p.monthlyFee = recurringFee(p, 12_650);
+    p.tariff = servicesSummary(p.services);
+    p.tariffId = p.services.find((x) => x.kind === "smm")?.tariffId;
+  }
 
   // ---------- Postlar ----------
   const posts: Post[] = [];
-  const addPost = (projectId: string, date: string, format: PostFormat, topic: string, status: PostStatus, extra: Partial<Post> = {}) => {
+  const TYPE_OF: Record<PostFormat, string> = { video: "ct_video", image: "ct_design", text: "ct_text", ai: "ct_design" };
+  const addPost = (projectId: string, date: string, format0: PostFormat, topic0: string, status: PostStatus, extra: Partial<Post> = {}) => {
+    // Namunadagi «AI post» lar — faqat matnli postlar (asosan Telegram uchun)
+    const format: PostFormat = format0 === "ai" ? "text" : format0;
+    const topic = topic0.replace(/^AI post: /, "");
+    const platforms: Platform[] = extra.platforms ?? (format === "text" ? ["telegram"] : ["instagram"]);
     const p: Post = {
       id: id("post"),
       projectId,
       date,
-      platform: (extra.platform ?? "instagram") as Platform,
+      platforms,
+      typeId: TYPE_OF[format],
       format,
       topic,
       script: extra.script ?? "",
@@ -263,6 +421,7 @@ export function buildSeed(today: string): ErpState {
       status,
       forTarget: extra.forTarget ?? false,
       publishedAt: status === "published" ? date : undefined,
+      publishedOn: status === "published" ? Object.fromEntries(platforms.map((x) => [x, date])) : undefined,
       createdAt: at(-22),
       ...extra,
     };
@@ -270,22 +429,40 @@ export function buildSeed(today: string): ErpState {
     return p;
   };
 
-  const m1 = addPost(P1, d(-18), "video", "Yangi yumshoq mebel kolleksiyasi", "published", { forTarget: true });
+  const m1 = addPost(P1, d(-18), "video", "Yangi yumshoq mebel kolleksiyasi", "published", { forTarget: true, platforms: ["instagram", "telegram", "tiktok"] });
   addPost(P1, d(-16), "image", "Oshxona mebeli tanlashda 3 ta xato", "published");
-  addPost(P1, d(-13), "video", "Ishlab chiqarish jarayoni (backstage)", "published", { forTarget: true });
-  addPost(P1, d(-11), "ai", "AI post: kichik xonaga mebel tanlash", "published", { platform: "telegram" });
-  addPost(P1, d(-8), "image", "Chegirma −15%: kuzgi aksiya", "published", { platform: "telegram", forTarget: true });
-  addPost(P1, d(-5), "video", "Mijoz fikri: Chilonzordagi oila", "published");
+  addPost(P1, d(-13), "video", "Ishlab chiqarish jarayoni (backstage)", "published", { forTarget: true, platforms: ["instagram", "tiktok", "youtube"] });
+  addPost(P1, d(-11), "ai", "AI post: kichik xonaga mebel tanlash", "published");
+  addPost(P1, d(-8), "image", "Chegirma −15%: kuzgi aksiya", "published", { platforms: ["instagram", "telegram", "facebook"], forTarget: true });
+  addPost(P1, d(-5), "video", "Mijoz fikri: Chilonzordagi oila", "published", { platforms: ["instagram", "facebook"] });
   const late1 = addPost(P1, d(-2), "image", "Materiallar sifati: MDF va LDSP", "design");
   const todayA = addPost(P1, d(0), "video", "Yotoqxona to'plami obzori", "approved", {
+    platforms: ["instagram", "telegram", "tiktok"],
+    publishedOn: { instagram: d(0) },
+    platformNotes: { tiktok: "TikTok uchun 15 soniyalik qisqa versiya, trend musiqa bilan" },
     script: "0–3 s: xona umumiy ko'rinishi\n3–15 s: karavot mexanizmi\n15–25 s: shkaf ichki tuzilishi\nCTA: showroomga taklif",
   });
-  addPost(P1, d(0), "image", "Telegram: haftalik aksiyalar", "client", { platform: "telegram" });
-  const p1Int = addPost(P1, d(2), "video", "Showroom bo'ylab tur", "internal", { forTarget: true });
+  addPost(P1, d(0), "image", "Telegram: haftalik aksiyalar", "client", { platforms: ["telegram"] });
+  const p1Int = addPost(P1, d(2), "video", "Showroom bo'ylab tur", "internal", { forTarget: true, platforms: ["instagram", "youtube"] });
   const p1Edit = addPost(P1, d(4), "video", "Yetkazib berish va o'rnatish jarayoni", "editing");
   const p1Shoot1 = addPost(P1, d(6), "video", "Savol-javob: 2 yillik kafolat", "shoot");
   const p1Shoot2 = addPost(P1, d(8), "video", "Bolalar xonasi g'oyalari", "shoot");
   addPost(P1, d(9), "ai", "AI post: 2026 interyer trendlari", "plan");
+  addPost(P1, d(11), "ai", "Mebel parvarishi: 5 ta oddiy qoida", "plan");
+  // Stories — oylik topshiriqda alohida sanaladi
+  for (const [n, topic] of [
+    [-17, "Stories: kolleksiyadan lavhalar"],
+    [-12, "Stories: so'rovnoma — qaysi rang?"],
+    [-9, "Stories: sexdan jonli lavha"],
+    [-6, "Stories: mijoz fikri"],
+    [-3, "Stories: aksiya eslatmasi"],
+    [-1, "Stories: showroom bugun"],
+    [3, "Stories: showroom tur anonsi"],
+    [7, "Stories: savol-javob"],
+  ] as [number, string][]) {
+    if (monthKey(d(n)) !== monthKey(today)) continue;
+    addPost(P1, d(n), "image", topic, n < 0 ? "published" : "plan", { typeId: "ct_stories" });
+  }
 
   addPost(P2, d(-4), "video", "Yangi filial ochilishi", "published", { forTarget: true });
   addPost(P2, d(-3), "image", "Kuzgi abonement aksiyasi", "published", { forTarget: true });
@@ -298,7 +475,7 @@ export function buildSeed(today: string): ErpState {
   addPost(P2, d(12), "video", "Yoga darsi: tanishuv", "plan");
   addPost(P2, d(15), "image", "Korporativ abonement taklifi", "plan");
   addPost(P2, d(19), "video", "Hovuz zonasi", "plan");
-  addPost(P2, d(23), "ai", "AI post: ish stoli yonida 5 daqiqalik mashq", "plan", { platform: "telegram" });
+  addPost(P2, d(23), "ai", "AI post: ish stoli yonida 5 daqiqalik mashq", "plan");
 
   // Baraka Market va Burger House — joriy davr rejasi avtomatik to'ldiriladi
   const genPlan = (pid: string, start: string, items: [PostFormat, string][], lateIdx = -1) =>
@@ -321,7 +498,10 @@ export function buildSeed(today: string): ErpState {
                       ? "editing"
                       : "design"
                     : "plan";
-      addPost(pid, date, format, topic, status, { forTarget: i % 4 === 0, platform: i % 5 === 3 ? "telegram" : "instagram" });
+      addPost(pid, date, format, topic, status, {
+        forTarget: i % 4 === 0,
+        platforms: format === "ai" ? ["telegram"] : i % 3 === 0 ? ["instagram", "telegram"] : i % 5 === 3 ? ["instagram", "facebook"] : ["instagram"],
+      });
     });
   genPlan(P4, d(-12), [
     ["video", "Haftalik aksiya: -30% sut mahsulotlari"],
@@ -523,6 +703,19 @@ export function buildSeed(today: string): ErpState {
     createdBy: "u_smm2",
   });
 
+  addTask({
+    projectId: P8,
+    kind: "target",
+    assigneeId: "u_tg",
+    title: "Test-drayv: Meta lid forma + Google qidiruv",
+    brief: "Meta: lid forma, Toshkent + viloyat markazlari, 28–50 yosh. Google: brend va model nomlari bo'yicha qidiruv.",
+    files: "https://drive.google.com/drive/folders/demo-avtolux-kreativlar",
+    deadline: addDays(p8Start, -1),
+    status: "progress",
+    launchedAt: p8Start,
+    createdBy: "u_mk",
+  });
+
   // Target kunlik hisobotlari, o'tgan davrlar postlari va oylik hisobotlar — seed-history.ts da.
   const targetReports: TargetReport[] = [];
 
@@ -530,7 +723,7 @@ export function buildSeed(today: string): ErpState {
   const lead = (l: Partial<Lead> & Pick<Lead, "id" | "name" | "phone" | "stage">): Lead => ({
     maxStep: { new: 0, waiting: 1, meeting: 2, visited: 3, contract: 4, unfit: 2, lowquality: 0 }[l.stage],
     source: "Instagram",
-    service: "SMM to'liq paket",
+    service: "SMM xizmati",
     note: "",
     operatorId: "u_op1",
     history: [],
@@ -546,7 +739,7 @@ export function buildSeed(today: string): ErpState {
       stage: "new",
       operatorId: "u_op2",
       source: "Sayt",
-      service: "Target reklama",
+      service: "Target xizmati",
       createdAt: at(0, 9),
     }),
     lead({
@@ -555,6 +748,8 @@ export function buildSeed(today: string): ErpState {
       phone: "+998 00 888 00 11",
       stage: "meeting",
       meeting: { date: d(1), time: "15:00", marketologId: "u_mk" },
+      service: "Sayt qilish",
+      note: "Turlar katalogi va onlayn bron qilish bilan sayt kerak",
       history: [{ id: id("c"), at: at(-1), userId: "u_op1", text: "Qo'ng'iroq qilindi, ertaga ofisga kelishga kelishildi." }],
     }),
     lead({
@@ -573,6 +768,7 @@ export function buildSeed(today: string): ErpState {
       phone: "+998 00 909 09 09",
       stage: "waiting",
       nextContactDate: d(0),
+      service: "Video production",
       history: [{ id: id("c"), at: at(-6), userId: "u_op1", text: "Rahbar safarda, keyingi hafta qayta qo'ng'iroq." }],
     }),
     lead({ id: "l_mebel", name: "Sharq Mebel", phone: "+998 00 555 12 12", stage: "contract", projectId: P1, createdAt: at(-35) }),
@@ -606,6 +802,29 @@ export function buildSeed(today: string): ErpState {
       operatorId: "u_op2",
       source: "Meta Ads",
       createdAt: `${addDays(p6Start, -15)}T09:00:00.000Z`,
+    }),
+    lead({
+      id: "l_optika",
+      name: "Nur Optika",
+      phone: "+998 00 640 64 64",
+      stage: "contract",
+      projectId: P7,
+      source: "Tavsiya",
+      service: "Branding",
+      meeting: { date: d(-13), time: "11:00", marketologId: "u_mk" },
+      createdAt: at(-18),
+    }),
+    lead({
+      id: "l_avtolux",
+      name: "Avto Lux",
+      phone: "+998 00 715 15 15",
+      stage: "contract",
+      projectId: P8,
+      operatorId: "u_op2",
+      source: "Sayt",
+      service: "Performance marketing",
+      meeting: { date: addDays(p8Start, -8), time: "16:00", marketologId: "u_mk" },
+      createdAt: `${addDays(p8Start, -14)}T09:00:00.000Z`,
     }),
     lead({ id: "l_6", name: "Shirin Tort", phone: "+998 00 100 20 30", stage: "unfit", rejectReason: "Byudjet to'g'ri kelmadi", createdAt: at(-12) }),
     lead({
@@ -684,8 +903,9 @@ export function buildSeed(today: string): ErpState {
     payProfiles: [],
     accruals: [],
     budget: [],
-    tariffs: DEFAULT_TARIFFS.map((t) => ({ ...t, features: [...t.features], platforms: [...t.platforms] })),
+    tariffs: [...DEFAULT_TARIFFS, ...SERVICE_TARIFFS].map((t) => ({ ...t, features: [...t.features], platforms: [...t.platforms] })),
     proposals: [],
+    quotas: [],
     integrationLog: [],
     settings: {
       companyName: "SMM Studio MChJ",
@@ -702,6 +922,7 @@ export function buildSeed(today: string): ErpState {
       payday: 10,
       latePenaltyPct: 0,
       payrollStart: monthKey(addMonths(today, -5)),
+      contentTypes: DEFAULT_CONTENT_TYPES.map((t) => ({ ...t })),
       telegram: { enabled: true, botToken: "" },
       integrations: {
         meta: {
@@ -717,6 +938,44 @@ export function buildSeed(today: string): ErpState {
       },
     },
   };
+
+  // ---------- Oylik topshiriqlar (marketolog → SMM) ----------
+  const month = monthKey(today);
+  const quotas: Quota[] = [
+    {
+      id: "q_mebel",
+      projectId: P1,
+      month,
+      counts: { ct_video: 8, ct_design: 6, ct_text: 4, ct_stories: 10, shoot: 2 },
+      note: "Kuzgi aksiya oyi — video ko'proq",
+      updatedAt: at(-4),
+      updatedBy: "u_mk",
+      history: [
+        { at: at(-4), userId: "u_mk", text: "O'zgardi: Video 6 → 8 (Kuzgi aksiya oyi — video ko'proq)" },
+        { at: at(-20), userId: "u_mk", text: "Topshiriq berildi: 6 video, 6 dizayn, 4 matn, 10 stories, 2 syomka kuni" },
+      ],
+    },
+    {
+      id: "q_gym",
+      projectId: P2,
+      month,
+      counts: { ct_video: 6, ct_design: 4, ct_text: 2, ct_stories: 20, shoot: 2 },
+      note: "",
+      updatedAt: at(-20),
+      updatedBy: "u_mk",
+      history: [{ at: at(-20), userId: "u_mk", text: "Topshiriq berildi: 6 video, 4 dizayn, 2 matn, 20 stories, 2 syomka kuni" }],
+    },
+  ];
+  state.quotas = quotas;
+  state.notifications.push({
+    id: "n_7",
+    userId: "u_smm1",
+    text: "📋 Sharq Mebel · topshiriq o'zgardi: Video 6 → 8",
+    href: "/kontent",
+    at: at(-4),
+    read: false,
+    telegram: "demo",
+  });
 
   addOperationsHistory(state, today);
   addFinanceHistory(state, today);

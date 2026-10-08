@@ -1,5 +1,7 @@
 import { Icon, IconChip, type ChipColor, type IconName } from "../components/icons";
 import { A, Card, CardHeader, PageHeader } from "../components/ui";
+import { ROLE_LABELS } from "../lib/labels";
+import { SERVICE_META } from "../lib/services";
 
 interface Stage {
   n: number;
@@ -59,8 +61,12 @@ const STAGES: Stage[] = [
     who: "SMM menejer",
     icon: "calendar",
     color: "red",
-    does: "Oyiga 12–15 ta post: sana, platforma, format, mavzu, ssenariy.",
-    auto: ["Post sanasi o'tsa — avtomatik «Kechikdi»", "2 kun qolib mijozga yetmagan bo'lsa — ogohlantirish"],
+    does: "Marketolog bergan oylik topshiriq bo'yicha (nechta video, dizayn, matn, stories): sana, platformalar, tur, mavzu, ssenariy. Bitta post bir nechta platformaga qo'yilsa ham 1 ta sanaladi.",
+    auto: [
+      "Topshiriq va reja solishtiriladi — yetishmasa ogohlantirish",
+      "Post sanasi o'tsa — avtomatik «Kechikdi»",
+      "2 kun qolib mijozga yetmagan bo'lsa — ogohlantirish",
+    ],
     href: "/kontent",
   },
   {
@@ -160,6 +166,28 @@ export function Process() {
               </ul>
             </Card>
           </A>
+        ))}
+      </div>
+
+      <h2 className="mb-1 mt-8 text-[22px] font-bold tracking-tight text-label">Boshqa xizmatlar</h2>
+      <p className="mb-3 text-[14px] text-label2">
+        Mijoz bitta yoki bir nechta xizmatni olishi mumkin. Oylik xizmatlar (SMM, target, performance) bitta oylik fakturaga qatorlar bo'lib tushadi; bir
+        martalik ishlar bosqichma-bosqich yuritiladi — ijrochi «Mening kunim»da bosqichni belgilaydi, oxirgi bosqichda qoldiq faktura chiqadi va ijrochiga haq
+        hisoblanadi.
+      </p>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {SERVICE_META.map((m) => (
+          <Card key={m.id} className="p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-label">{m.label}</span>
+              <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold text-label2">
+                {m.billing === "monthly" ? "Oylik" : "Bir martalik"}
+              </span>
+            </div>
+            <p className="mt-1 text-[13px] text-label2">{m.hint}</p>
+            {m.stages.length > 0 && <p className="mt-2 text-[12px] text-label">{m.stages.join(" → ")}</p>}
+            <p className="mt-2 text-[12px] text-label3">Ijrochi: {m.assigneeRoles.map((r) => ROLE_LABELS[r]).join(" yoki ")}</p>
+          </Card>
         ))}
       </div>
 
