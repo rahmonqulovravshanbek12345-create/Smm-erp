@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Banner, Button, Field, Input, Modal, Select, userOptions } from "../../components/ui";
 import * as act from "../../lib/actions";
 import { fmtMoney } from "../../lib/dates";
-import { WORK_LABELS, accountOf, billPaid, employeeBalance, invoiceOutstanding } from "../../lib/finance";
+import { WORK_LABELS, accountOf, billPaid, employeeBalance, invoiceOutstanding, payrollStaff } from "../../lib/finance";
 import { useErp, useLookup } from "../../lib/store";
 import type { Bill, Invoice } from "../../lib/types";
 import { useAccountOptions } from "./common";
@@ -293,7 +293,7 @@ export function ExtraInvoiceModal({ onClose }: { onClose: () => void }) {
 
 export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose: () => void }) {
   const { state, run } = useErp();
-  const staff = state.users.filter((u) => u.role !== "admin" && u.active);
+  const staff = payrollStaff(state);
   const [uid, setUid] = useState(userId ?? staff[0]?.id ?? "");
   const balance = employeeBalance(state, uid);
   const m = useMoneyFields("acc_bank").withDefault(Math.max(0, balance));
@@ -314,7 +314,11 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
     <Modal open onClose={onClose} title="Xodimga to'lov" footer={<Footer onClose={onClose} onSave={save} label="To'lash" disabled={!value} />}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Xodim">
-          <Select value={uid} onChange={(e) => setUid(e.target.value)} options={userOptions(staff)} />
+          <Select
+            value={uid}
+            onChange={(e) => setUid(e.target.value)}
+            options={userOptions(staff).map((o, i) => (staff[i]?.active === false ? { ...o, label: `${o.label} (arxivda)` } : o))}
+          />
         </Field>
         <Field label="Turi">
           <Select

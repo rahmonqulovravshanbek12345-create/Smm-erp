@@ -3,7 +3,7 @@ import { Icon } from "../../components/icons";
 import { A, Avatar, Badge, Button, Card, CardHeader, Empty, Input, PageHeader, Select, Stat, Tabs } from "../../components/ui";
 import * as act from "../../lib/actions";
 import { fmtDate, fmtMoney, fmtMonth, monthKey, shiftMonthKey } from "../../lib/dates";
-import { ACCRUAL_KIND_LABELS, WORK_LABELS, employeeBalance, employeeLedger, payrollSheet, profileOf, txUZS } from "../../lib/finance";
+import { ACCRUAL_KIND_LABELS, WORK_LABELS, employeeBalance, employeeLedger, payrollSheet, payrollStaff, profileOf, txUZS } from "../../lib/finance";
 import { ROLE_LABELS } from "../../lib/labels";
 import { canEditFinance } from "../../lib/permissions";
 import { useErp, useLookup } from "../../lib/store";
@@ -21,7 +21,7 @@ export function Payroll() {
   const [pay, setPay] = useState<string | null | "new">(null);
   const [manual, setManual] = useState(false);
   const month = monthKey(today);
-  const staff = state.users.filter((u) => u.role !== "admin" && u.active);
+  const staff = payrollStaff(state);
   const owed = staff.reduce((a, u) => a + Math.max(0, employeeBalance(state, u.id)), 0);
   const accruedMonth = state.accruals.filter((a) => monthKey(a.date) === month).reduce((a, x) => a + x.amount, 0);
   const paidMonth = state.transactions.filter((t) => t.userId && monthKey(t.date) === month).reduce((a, t) => a + txUZS(state, t), 0);
@@ -83,8 +83,7 @@ function schemeText(p: PayProfile): string {
 function Balances({ onPay, editable }: { onPay: (id: string) => void; editable: boolean }) {
   const { state, today } = useErp();
   const month = monthKey(today);
-  const rows = state.users
-    .filter((u) => u.role !== "admin" && u.active)
+  const rows = payrollStaff(state)
     .map((u) => {
       const led = employeeLedger(state, u.id);
       return {
@@ -117,7 +116,9 @@ function Balances({ onPay, editable }: { onPay: (id: string) => void; editable: 
                 <div className="flex items-center gap-2.5">
                   <Avatar name={u.name} size={32} />
                   <div className="whitespace-nowrap">
-                    <div className="font-semibold text-label">{u.name}</div>
+                    <div className="font-semibold text-label">
+                      {u.name} {!u.active && <Badge tone="gray">Arxivda</Badge>}
+                    </div>
                     <div className="text-[12px] text-label3">{ROLE_LABELS[u.role]}</div>
                   </div>
                 </div>

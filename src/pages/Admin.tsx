@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { Badge, Banner, Button, Card, CardHeader, Field, Input, PageHeader, Select } from "../components/ui";
+import { Badge, Banner, Button, Card, CardHeader, Field, Input, Modal, PageHeader, Select } from "../components/ui";
+import * as act from "../lib/actions";
+import { fmtMoney } from "../lib/dates";
 import { ROLE_DUTIES, ROLE_LABELS } from "../lib/labels";
 import { ACCESS_LABELS, MATRIX_VIEW, access } from "../lib/permissions";
 import { alertsFor } from "../lib/rules";
+import { userLoad } from "../lib/staff";
 import { newId, useErp } from "../lib/store";
 import { sendTelegram, telegramText } from "../lib/telegram";
 import type { Role } from "../lib/types";
@@ -15,6 +18,7 @@ export function Admin() {
   const [testing, setTesting] = useState(false);
   const [sharedChat, setSharedChat] = useState(() => me.telegramChatId ?? "");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [archiveId, setArchiveId] = useState<string | null>(null);
   const tg = state.settings.telegram;
 
   const testTelegram = async () => {
@@ -70,6 +74,7 @@ export function Admin() {
                   <th className="px-4 py-2 font-medium">Rol</th>
                   <th className="px-4 py-2 font-medium">Telegram chat ID</th>
                   <th className="px-4 py-2 font-medium">Holat</th>
+                  <th className="px-4 py-2 font-medium">Amal</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-sep">
@@ -109,18 +114,22 @@ export function Admin() {
                       />
                     </td>
                     <td className="px-4 py-2">
-                      <button
-                        type="button"
-                        disabled={u.id === me.id}
-                        onClick={() =>
-                          run((c) => {
-                            const x = c.s.users.find((y) => y.id === u.id);
-                            if (x) x.active = !x.active;
-                          })
-                        }
-                      >
-                        <Badge tone={u.active ? "green" : "gray"}>{u.active ? "Faol" : "O'chirilgan"}</Badge>
-                      </button>
+                      <Badge tone={u.active ? "green" : "gray"}>{u.active ? "Faol" : "Arxivda"}</Badge>
+                    </td>
+                    <td className="px-4 py-2">
+                      {u.active ? (
+                        <Button size="sm" disabled={u.id === me.id} onClick={() => setArchiveId(u.id)} aria-label={`${u.name}: arxivlash`}>
+                          Arxivlash
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => run((c) => act.restoreUser(c, u.id), `${u.name} arxivdan qaytarildi`)}
+                          aria-label={`${u.name}: qaytarish`}
+                        >
+                          Qaytarish
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -355,6 +364,52 @@ export function Admin() {
           </div>
         </Card>
       </div>
+      <ArchiveModal userId={archiveId} onClose={() => setArchiveId(null)} />
     </>
+  );
+}
+
+/** Arxivlashdan oldin: xodimga nima bog'langanini ko'rsatadi va tasdiq so'raydi. */
+function ArchiveModal({ userId, onClose }: { userId: string | null; onClose: () => void }) {
+  const { state, today, run } = useErp();
+  const u = state.users.find((x) => x.id === userId);
+  if (!u) return null;
+  const load = userLoad(state, u.id, today);
+  const warn = load.balance > 0.5 || load.projects.length > 0 || load.openTasks.length > 0;
+  const save = () => {
+    if (run((c) => act.archiveUser(c, u.id), `${u.name} arxivlandi`)) onClose();
+  };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Arxivlash: ${u.name}`}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>Bekor qilish</Button>
+          <Button variant="danger" onClick={save}>
+            Arxivlash
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-3 text-sm text-label2">
+        <p>
+          Arxivlangan xodim akkaunt menyusida chiqmaydi, unga yangi ish tayinlanmaydi va Telegram eslatma ketmaydi. Eski ishlari, hisob-kitoblari va tarixi
+          saqlanadi. Xohlagan payt «Qaytarish» mumkin.
+        </p>
+        {load.balance > 0.5 && (
+          <Banner tone="red">
+            Xodimga {fmtMoney(load.balance)} to'lanmagan ish haqi bor. Qarz «Ish haqi» bo'limida ko'rinib turadi, avval to'lab qo'ygan ma'qul.
+          </Banner>
+        )}
+        {load.balance < -0.5 && <Banner tone="amber">Xodimga {fmtMoney(-load.balance)} avans berilgan, hisobga olinmagan.</Banner>}
+        {load.projects.length > 0 && (
+          <Banner tone="amber">Hali mas'ul bo'lgan loyihalar: {load.projects.map((p) => p.name).join(", ")}. Ularga boshqa xodim tayinlang.</Banner>
+        )}
+        {load.openTasks.length > 0 && <Banner tone="amber">Qabul qilinmagan vazifalar: {load.openTasks.length} ta.</Banner>}
+        {!warn && <Banner tone="green">Bog'langan ish, qarz yoki loyiha yo'q.</Banner>}
+      </div>
+    </Modal>
   );
 }
