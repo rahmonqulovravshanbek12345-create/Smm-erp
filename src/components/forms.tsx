@@ -127,7 +127,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
       )}
       {existing?.reviewNote && <Banner tone="amber">Marketolog izohi: {existing.reviewNote}</Banner>}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Loyiha">
           <Select
             value={form.projectId}
@@ -207,7 +207,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
                 </Button>
               )
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {form.platforms.map((pl) => (
                   <Field key={pl} label={`${PLATFORM_LABELS[pl]} uchun izoh`}>
                     <Input
@@ -463,14 +463,14 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
           <Button variant="ghost" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button variant="primary" onClick={save} disabled={!f.title.trim() || !f.assigneeId || !f.projectId || Boolean(blocked)}>
+          <Button variant="primary" onClick={save} disabled={!f.title.trim() || !f.assigneeId || !f.projectId || !f.deadline || Boolean(blocked)}>
             TZ yuborish
           </Button>
         </>
       }
     >
       {blocked && <Banner tone="red">{blocked}</Banner>}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Loyiha">
           <Select
             value={f.projectId}
@@ -580,7 +580,7 @@ export function ShootModal({ projectId, postIds, onClose }: { projectId?: string
       }
     >
       {blocked && <Banner tone="red">{blocked}</Banner>}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Loyiha">
           <Select
             value={f.projectId}
@@ -602,7 +602,12 @@ export function ShootModal({ projectId, postIds, onClose }: { projectId?: string
           <Input value={f.location} onChange={(e) => set("location", e.target.value)} placeholder="Manzil, mo'ljal" />
         </Field>
         <Field label="Nechta video olinadi">
-          <Input type="number" min={1} value={f.videoCount} onChange={(e) => set("videoCount", Number(e.target.value) || 1)} />
+          <Input
+            type="number"
+            min={1}
+            value={f.videoCount}
+            onChange={(e) => set("videoCount", Math.min(100, Math.max(1, Math.round(Number(e.target.value)) || 1)))}
+          />
         </Field>
         <Field label="Izoh">
           <Input value={f.note} onChange={(e) => set("note", e.target.value)} />

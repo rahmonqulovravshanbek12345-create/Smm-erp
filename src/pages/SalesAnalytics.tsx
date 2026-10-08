@@ -86,7 +86,7 @@ export function SalesAnalytics() {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <Card className="xl:col-span-2">
           <CardHeader icon={{ name: "list", color: "blue" }} title="Voronka" sub="Har bosqichga yetgan lidlar va keyingisiga o'tish foizi" />
           <div className="space-y-2.5 px-5 pb-5">
@@ -193,7 +193,7 @@ export function SalesAnalytics() {
             title="Xizmatlar kesimida"
             sub="Lid qaysi xizmatga qiziqib keldi va qaysi xizmat qancha daromad keltirdi (hisoblash usulida)"
           />
-          <div className="grid gap-4 p-4 pt-1 lg:grid-cols-[3fr_2fr]">
+          <div className="grid grid-cols-1 gap-4 p-4 pt-1 lg:grid-cols-[3fr_2fr]">
             <TableWrap min={560}>
               <thead>
                 <tr className="border-y border-sep">

@@ -193,7 +193,7 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
           marketing xizmatlarini ko'rsatish bo'yicha tuzildi.
         </p>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Party
             title="Ijrochi"
             name={co}
@@ -259,7 +259,7 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
           {marketing && (
             <>
               <h3 className="font-bold">{sub("Ish bosqichlari")}</h3>
-              <div className="grid gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
                 {[
                   ["01", "Brifing", "Kompaniya faoliyati va maqsadlarini aniqlash uchun uchrashuv"],
                   ["02", "Tayyorgarlik", "Sahifalar tahlili va 1 oylik media-reja"],
@@ -478,7 +478,7 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
         </Sec>
 
         <Sec n={9} title="Tomonlarning rekvizitlari">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Party
               title="Ijrochi"
               name={co}
@@ -509,7 +509,7 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
         </Sec>
 
         <Sec n={10} title="Imzolar">
-          <div className="grid gap-6 pt-1 text-[13px] sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 pt-1 text-[13px] sm:grid-cols-2">
             {[
               { role: "Ijrochi", name: co, who: r.director },
               { role: "Buyurtmachi", name: client, who: p.contactName },

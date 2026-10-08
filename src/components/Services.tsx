@@ -232,7 +232,7 @@ export function OneTimeService({ project: p, svc, compact }: { project: Project;
           })}
         </ol>
         {!compact && (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-[14px] bg-fill p-3">
               <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-label2">To'lov · {fmtMoney(svc.price)}</div>
               <ul className="space-y-1.5 text-sm">
@@ -288,7 +288,7 @@ function PerformanceKpi({ project: p, svc }: { project: Project; svc: ProjectSer
   return (
     <Card className="mb-4">
       <CardHeader icon={{ name: "target", color: "pink" }} title="Performance KPI" sub={`${per.index + 1}-davr: ${fmtDate(per.start)} – ${fmtDate(per.end)}`} />
-      <div className="grid gap-3 px-4 pb-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 px-4 pb-4 sm:grid-cols-3">
         <div className="rounded-[14px] bg-fill p-3">
           <div className="text-xs text-label2">Lidlar</div>
           <div className={`tabular text-xl font-bold ${leadOk ? "text-green" : "text-orange"}`}>

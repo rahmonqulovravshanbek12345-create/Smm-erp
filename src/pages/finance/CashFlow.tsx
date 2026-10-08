@@ -45,7 +45,7 @@ export function CashFlow() {
       />
       <FinNav />
 
-      <div className="mb-5 grid gap-4 xl:grid-cols-3">
+      <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader
             title="Oylik kirim va chiqim"

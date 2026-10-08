@@ -145,11 +145,25 @@
 }
 
 @layer base {
+  /* Sensorli ekranlarda (telefon, planshet) boshqaruv elementlari barmoq bilan qulay bosiladigan o'lchamda */
+  @media (pointer: coarse) {
+    select,
+    textarea,
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+      min-height: 40px;
+    }
+    button:not([role="img"]) {
+      min-height: 36px;
+    }
+  }
+
   body {
     @apply bg-bg font-sans text-label antialiased;
     font-size: 15px;
     letter-spacing: -0.01em;
     -webkit-tap-highlight-color: transparent;
+    /* Juda uzun so'z yoki havola (bo'sh joysiz) kartani kengaytirib, sahifani yonga surmasin */
+    overflow-wrap: anywhere;
   }
   h1,
   h2,

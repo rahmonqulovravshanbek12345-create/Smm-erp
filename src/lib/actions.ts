@@ -2,7 +2,7 @@
 import { addDays, diffDays, fmtDate, fmtDateShort, fmtDeadline, fmtMonth, fmtMoney, fmtNum, nowISO } from "./dates";
 import { contentTypes, findQuota, isAdType, quotaText, typeName } from "./content";
 import type { MetaResult } from "./integrations";
-import { ART, accountOf, articleOf, billPaid, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
+import { ART, accountOf, articleOf, billPaid, employeeBalance, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
 import { DOC_BLOCKS, FORMAT_LABELS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, ROLE_LABELS, TASK_KIND_LABELS, platformsText } from "./labels";
 import {
   hasAds,
@@ -258,6 +258,12 @@ function serviceStartInvoice(c: Ctx, p: Project, svc: ProjectService, issueDate:
 
 /** "Shartnoma bo'ldi": lid ma'lumotlari avtomatik Loyiha kartasiga ko'chadi. */
 export function createProject(c: Ctx, input: ProjectInput, leadId?: string): string {
+  if (!input.name.trim()) throw new Error("Mijoz nomini kiriting");
+  if (!input.contractNo.trim()) throw new Error("Shartnoma raqamini kiriting");
+  if (c.s.projects.some((p) => p.contractNo.trim().toLowerCase() === input.contractNo.trim().toLowerCase()))
+    throw new Error(`Shartnoma № ${input.contractNo.trim()} allaqachon bor — boshqa raqam kiriting`);
+  if (!isDate(input.contractDate)) throw new Error("Shartnoma sanasini tanlang");
+  if (input.services.some((x) => x.price > MAX_UZS)) throw new Error("Xizmat narxi juda katta — nollarni tekshiring");
   if (!input.services.length) throw new Error("Kamida bitta xizmatni qo'shing");
   input.services.forEach(validateService);
   const id = newId("prj");
@@ -858,6 +864,12 @@ const advance = (p: Post | undefined, to: PostStatus) => {
 
 export function createShoot(c: Ctx, data: Omit<Shoot, "id" | "createdAt" | "status">) {
   assertWorkAllowed(c, data.projectId);
+  if (!isDate(data.date)) throw new Error("Syomka sanasini tanlang");
+  if (data.date < c.today) throw new Error("Syomka sanasi o'tib ketgan — bugun yoki keyingi kunni tanlang");
+  if (!/^\d{2}:\d{2}$/.test(data.time ?? "")) throw new Error("Syomka vaqtini kiriting");
+  if (!data.location.trim()) throw new Error("Joyni kiriting");
+  if (!(Number.isInteger(data.videoCount) && data.videoCount >= 1 && data.videoCount <= 100)) throw new Error("Video soni 1 dan 100 gacha bo'lsin");
+  if (!c.s.users.find((u) => u.id === data.operatorId)?.active) throw new Error("Syomka operatorini tanlang");
   const sh: Shoot = { ...data, id: newId("shoot"), status: "planned", createdAt: nowISO() };
   c.s.shoots.push(sh);
   for (const pid of sh.postIds) {
@@ -1010,6 +1022,18 @@ export function launchTarget(c: Ctx, id: string, date: string) {
 const sameChannel = (a?: string, b?: string) => (a ?? "meta") === (b ?? "meta");
 
 export function saveTargetReport(c: Ctx, data: Omit<TargetReport, "id" | "authorId">) {
+  if (!isDate(data.date)) throw new Error("Sanani tanlang");
+  if (data.date > c.today) throw new Error("Kelajakdagi kun uchun hisobot kiritib bo'lmaydi");
+  for (const [k, v] of [
+    ["Sarf", data.spend],
+    ["Ko'rishlar", data.views],
+    ["Kliklar", data.clicks],
+    ["Lidlar", data.leads],
+  ] as const) {
+    if (!(Number.isFinite(v) && v >= 0)) throw new Error(`${k}: manfiy yoki noto'g'ri qiymat`);
+  }
+  if (data.views > 0 && data.clicks > data.views) throw new Error("Kliklar ko'rishlardan ko'p bo'lishi mumkin emas");
+  if (data.spend > MAX_UZS) throw new Error("Sarf juda katta — nollarni tekshiring");
   const existing = c.s.targetReports.find((r) => r.projectId === data.projectId && r.date === data.date && sameChannel(r.channel, data.channel));
   if (existing) Object.assign(existing, data);
   else c.s.targetReports.push({ ...data, id: newId("tr"), authorId: c.me.id });
@@ -1061,8 +1085,9 @@ export function setMetaAccount(c: Ctx, projectId: string, account: string) {
 }
 
 export function setUsdRate(c: Ctx, rate: number, rateDate: string, source: "cbu" | "manual") {
-  if (!(rate > 0)) throw new Error("Kursni kiriting");
-  c.s.settings.usdRate = Math.round(rate * 100) / 100;
+  const r = Math.round(rate * 100) / 100;
+  if (!(r >= 1000 && r <= 1_000_000)) throw new Error("Kurs noto'g'ri ko'rinadi (1 USD = 1 000 … 1 000 000 so'm)");
+  c.s.settings.usdRate = r;
   c.s.settings.integrations.cbu.lastUpdate = nowISO();
   c.s.settings.integrations.cbu.rateDate = rateDate;
   logIntegration(
@@ -1083,14 +1108,26 @@ export function setInvoiceDue(c: Ctx, invoiceId: string, dueDate: string) {
 }
 
 /** Pul harakati sanasi kelajakda bo'lmasligi va USD hisobda kurs bo'lishi shart. */
-function assertMoney(c: Ctx, o: { date: string; accountId: string; rate?: number }): number {
-  if (!o.date) throw new Error("Sanani kiriting");
+/** yyyy-mm-dd ko'rinishidagi sana. */
+const isDate = (d?: string) => /^\d{4}-\d{2}-\d{2}$/.test(d ?? "");
+
+/** Bitta amal uchun maksimal summa (so'm) — xato bilan qo'shimcha nollar yozilishidan himoya. */
+const MAX_UZS = 100_000_000_000;
+
+function assertMoney(c: Ctx, o: { date: string; accountId: string; rate?: number; amount?: number }): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date ?? "")) throw new Error("Sanani kiriting");
   if (o.date > c.today) throw new Error("Sana kelajakda bo'lishi mumkin emas — to'lov kelgan kunni kiriting");
+  if (o.date < "2015-01-01") throw new Error("Sana juda eski — tekshiring");
   const acc = accountOf(c.s, o.accountId);
   if (!acc) throw new Error("Hisobni tanlang");
-  if (acc.currency !== "USD") return 1;
-  if (!(o.rate && o.rate > 0)) throw new Error("USD hisob uchun kursni kiriting");
-  return o.rate;
+  let fx = 1;
+  if (acc.currency === "USD") {
+    if (!(o.rate && o.rate > 0)) throw new Error("USD hisob uchun kursni kiriting");
+    if (o.rate < 1000 || o.rate > 1_000_000) throw new Error("Kurs noto'g'ri ko'rinadi (1 USD = 1 000 … 1 000 000 so'm)");
+    fx = o.rate;
+  }
+  if (o.amount !== undefined && o.amount * fx > MAX_UZS) throw new Error(`Summa juda katta (${fmtMoney(o.amount * fx)}) — nollarni tekshiring`);
+  return fx;
 }
 
 /** Summa qolgan qarzdan keskin oshsa (odatda xato: nol ortiqcha yoki valyuta chalkashligi) — rad etiladi. */
@@ -1152,8 +1189,8 @@ export function addTransaction(c: Ctx, t: Omit<Transaction, "id" | "createdBy">)
 export function addTransfer(c: Ctx, o: { from: string; to: string; amountFrom: number; amountTo: number; rate?: number; date: string; note: string }) {
   if (o.from === o.to) throw new Error("Turli hisoblarni tanlang");
   if (!(o.amountFrom > 0) || !(o.amountTo > 0)) throw new Error("Summani kiriting");
-  if (!o.date) throw new Error("Sanani kiriting");
-  if (o.date > c.today) throw new Error("Sana kelajakda bo'lishi mumkin emas");
+  assertMoney(c, { date: o.date, accountId: o.from, rate: o.rate, amount: o.amountFrom });
+  assertMoney(c, { date: o.date, accountId: o.to, rate: o.rate, amount: o.amountTo });
   const tid = newId("trf");
   const base = { date: o.date, transferId: tid, note: o.note, createdBy: c.me.id };
   c.s.transactions.push({ ...base, id: newId("tx"), accountId: o.from, dir: "out", amount: o.amountFrom, rate: o.rate, articleId: ART.transferOut });
@@ -1170,6 +1207,9 @@ export function deleteTransaction(c: Ctx, id: string) {
 
 export function addBill(c: Ctx, b: Omit<Bill, "id">) {
   if (!(b.amount > 0)) throw new Error("Summani kiriting");
+  if (b.amount > MAX_UZS) throw new Error("Summa juda katta — nollarni tekshiring");
+  if (!isDate(b.date)) throw new Error("Hujjat sanasini tanlang");
+  if (b.dueDate && b.dueDate < b.date) throw new Error("To'lov muddati hujjat sanasidan oldin bo'lishi mumkin emas");
   c.s.bills.push({ ...b, id: newId("bill") });
   c.log(`Xarajat hujjati: ${c.s.vendors.find((v) => v.id === b.vendorId)?.name} — ${fmtMoney(b.amount)}`, "/moliya/debitor");
 }
@@ -1198,9 +1238,11 @@ export function payBill(c: Ctx, billId: string, o: { amount: number; date: strin
 }
 
 /** Xodimga to'lov yoki avans. FIFO bo'yicha eng eski hisoblashlarni yopadi. */
-export function payEmployee(c: Ctx, o: { userId: string; amount: number; date: string; accountId: string; rate?: number; note: string }) {
+export function payEmployee(c: Ctx, o: { userId: string; amount: number; date: string; accountId: string; rate?: number; note: string; advance?: boolean }) {
   if (!(o.amount > 0)) throw new Error("Summani kiriting");
-  assertMoney(c, o);
+  const fx = assertMoney(c, o);
+  // Hisoblangan ish haqi to'lovi qarzdan keskin oshmasin (avans — alohida tanlanadi)
+  if (o.advance === false) assertNotOverpaid(o.amount * fx, Math.max(0, employeeBalance(c.s, o.userId)));
   c.s.transactions.push({
     id: newId("tx"),
     date: o.date,

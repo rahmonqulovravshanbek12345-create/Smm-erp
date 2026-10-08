@@ -174,7 +174,7 @@ export function MyDay() {
           .filter((x) => x.assigneeId === me.id && x.status === "active")
           .map((x) => <OneTimeService key={x.id} project={p} svc={x} compact />),
       )}
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader
             title="Mening ishlarim"

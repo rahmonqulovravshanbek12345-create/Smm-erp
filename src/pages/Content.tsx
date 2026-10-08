@@ -131,47 +131,86 @@ export function ContentPlan({ projectId }: { projectId?: string }) {
         </div>
 
         {view === "calendar" ? (
-          <div className="overflow-x-auto">
-            <div className="grid min-w-[760px] grid-cols-7">
-              {WEEKDAYS.map((w) => (
-                <div key={w} className="border-b border-sep px-2 py-1.5 text-center text-[11px] font-medium text-label2">
-                  {w}
-                </div>
-              ))}
-              {cells.map((d) => {
-                const inCur = monthKey(d) === month;
-                const items = byDate(d);
-                return (
-                  <div
-                    key={d}
-                    onDoubleClick={() => editable && setOpen({ date: d })}
-                    className={`min-h-[104px] border-b border-r border-sep p-1.5 ${inCur ? "" : "opacity-35"} `}
-                  >
-                    <div className="mb-1 flex">
-                      <span
-                        className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold ${d === today ? "bg-red text-white" : "text-label2"}`}
-                      >
-                        {parseDate(d).getDate()}
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      {items.map((p) => (
-                        <PostChip
-                          key={p.id}
-                          post={p}
-                          today={today}
-                          onClick={() => setOpen({ id: p.id })}
-                          showProject={!projectId}
-                          projectName={look.projectName(p.projectId)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+          <>
+            {/* Telefonda: 7 ustunli jadval sig'maydi — kunlar bo'yicha ro'yxat */}
+            <div className="sm:hidden">
+              {cells.filter((d) => monthKey(d) === month && byDate(d).length > 0).length === 0 ? (
+                <Empty>Bu oyda post yo'q</Empty>
+              ) : (
+                <ul className="divide-y divide-sep">
+                  {cells
+                    .filter((d) => monthKey(d) === month && byDate(d).length > 0)
+                    .map((d) => (
+                      <li key={d} className="px-4 py-3">
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className={`text-[14px] font-semibold ${d === today ? "text-red" : "text-label"}`}>
+                            {fmtDate(d)} · {WEEKDAYS[(parseDate(d).getDay() + 6) % 7]}
+                          </span>
+                          {editable && (
+                            <button type="button" className="min-h-[36px] px-2 text-[13px] font-semibold text-accent" onClick={() => setOpen({ date: d })}>
+                              + Post
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          {byDate(d).map((p) => (
+                            <PostChip
+                              key={p.id}
+                              post={p}
+                              today={today}
+                              onClick={() => setOpen({ id: p.id })}
+                              showProject={!projectId}
+                              projectName={look.projectName(p.projectId)}
+                            />
+                          ))}
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              )}
             </div>
-            {editable && <p className="px-4 py-2 text-[11px] text-label2">Kunni ikki marta bossangiz — shu sanaga yangi post qo'shiladi.</p>}
-          </div>
+            <div className="hidden overflow-x-auto sm:block">
+              <div className="grid min-w-[760px] grid-cols-7">
+                {WEEKDAYS.map((w) => (
+                  <div key={w} className="border-b border-sep px-2 py-1.5 text-center text-[11px] font-medium text-label2">
+                    {w}
+                  </div>
+                ))}
+                {cells.map((d) => {
+                  const inCur = monthKey(d) === month;
+                  const items = byDate(d);
+                  return (
+                    <div
+                      key={d}
+                      onDoubleClick={() => editable && setOpen({ date: d })}
+                      className={`min-h-[104px] border-b border-r border-sep p-1.5 ${inCur ? "" : "opacity-35"} `}
+                    >
+                      <div className="mb-1 flex">
+                        <span
+                          className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold ${d === today ? "bg-red text-white" : "text-label2"}`}
+                        >
+                          {parseDate(d).getDate()}
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {items.map((p) => (
+                          <PostChip
+                            key={p.id}
+                            post={p}
+                            today={today}
+                            onClick={() => setOpen({ id: p.id })}
+                            showProject={!projectId}
+                            projectName={look.projectName(p.projectId)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {editable && <p className="px-4 py-2 text-[12px] text-label2">Kunni ikki marta bossangiz — shu sanaga yangi post qo'shiladi.</p>}
+            </div>
+          </>
         ) : inMonth.length === 0 ? (
           <Empty>Bu oyda post yo'q</Empty>
         ) : (
@@ -257,7 +296,7 @@ function PostChip({
       type="button"
       onClick={onClick}
       title={`${post.topic} — ${late ? "Kechikdi" : meta.label}`}
-      className={`block w-full truncate rounded-[9px] px-2 py-1 text-left text-[11px] leading-tight transition hover:brightness-95 ${
+      className={`block w-full truncate rounded-[9px] px-2 py-1 text-left text-[12px] leading-tight transition hover:brightness-95 ${
         late ? "bg-red/12" : "bg-fill"
       }`}
     >
@@ -270,7 +309,7 @@ function PostChip({
           published={post.status === "approved" || post.status === "published" ? (post.publishedOn ?? {}) : undefined}
         />
       </span>
-      {showProject && <span className="block truncate text-[10px] text-label2">{projectName}</span>}
+      {showProject && <span className="block truncate text-[11px] text-label2">{projectName}</span>}
     </button>
   );
 }

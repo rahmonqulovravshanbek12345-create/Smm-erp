@@ -37,7 +37,7 @@ export function Shoots() {
           <Empty>Syomka yo'q</Empty>
         </Card>
       )}
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {shoots.map((s) => {
           const posts = state.posts.filter((p) => s.postIds.includes(p.id));
           const overdue = s.status === "planned" && s.date < today;

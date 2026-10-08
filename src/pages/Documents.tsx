@@ -24,7 +24,7 @@ export function Documents() {
         title="Hujjatlar"
         sub="Shartnoma, hisob-faktura, bajarilgan ishlar dalolatnomasi va mijoz hisobotlari — ma'lumotlardan avtomatik to'ldiriladi"
       />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {projects.map((p) => {
           const invoices = state.invoices.filter((i) => i.projectId === p.id).sort((a, b) => a.issueDate.localeCompare(b.issueDate));
           const periods = reportPeriods(p, today).filter((x) => x.end <= today);
@@ -80,7 +80,7 @@ export function Documents() {
 
 function DocRow({ label, icon, children }: { label: string; icon: "checkSeal" | "send" | "list" | "sparkle"; children: ReactNode }) {
   return (
-    <div className="grid gap-1.5 sm:grid-cols-[150px_1fr]">
+    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[150px_1fr]">
       <span className="flex items-center gap-1.5 text-label2">
         <Icon name={icon} size={15} /> {label}
       </span>
@@ -103,7 +103,11 @@ function DocLink({ href, children, tone }: { href: string; children: ReactNode; 
 // ---------- Hujjat ko'rinishi (chop etishga tayyor) ----------
 
 export function DocumentView({ kind, id, index }: { kind: string; id: string; index?: number }) {
-  const { state, today } = useErp();
+  const { state: full, me, today } = useErp();
+  // Faqat o'ziga ko'rinadigan loyihalar hujjatlari; hisob-faktura — moliyaga ruxsati borlarga
+  const mine = new Set(visibleProjects(full, me).map((p) => p.id));
+  const state = { ...full, projects: full.projects.filter((p) => mine.has(p.id)) };
+  if (kind === "faktura" && !canView(me.role, "finance")) return <Empty>Hujjat topilmadi</Empty>;
   let title = "";
   let body: ReactNode = null;
   let back = "/hujjatlar";
@@ -243,7 +247,7 @@ function DocHead({ title, sub }: { title: string; sub: string }) {
 function Parties({ s, p, left, right }: { s: ErpState; p: Project; left: string; right: string }) {
   const r = s.settings.requisites;
   return (
-    <div className="grid gap-4 text-[13px] sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 text-[13px] sm:grid-cols-2">
       <div className="rounded-[12px] border border-black/10 p-3">
         <div className="text-[11px] uppercase tracking-[0.06em] text-black/50">{left}</div>
         <div className="font-semibold">{s.settings.companyName}</div>
@@ -314,7 +318,7 @@ function ServiceTable({ rows }: { rows: { name: string; unit: string; qty: numbe
 
 function Signs({ left, right }: { left: [string, string]; right: [string, string] }) {
   return (
-    <div className="mt-10 grid gap-10 text-[13px] sm:grid-cols-2">
+    <div className="mt-10 grid grid-cols-1 gap-10 text-[13px] sm:grid-cols-2">
       {[left, right].map(([role, name], i) => (
         <div key={i}>
           <div className="text-black/60">{role}</div>

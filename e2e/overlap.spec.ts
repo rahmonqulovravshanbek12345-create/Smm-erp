@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openAs, watch, type UserId } from "./helpers";
+import { openAs, settle, watch, type UserId } from "./helpers";
 
 /** Sahifadagi yozuvlar bir-birining ustiga chiqib ketmaganini tekshiradi (ko'rinadigan qismlari bo'yicha). */
 async function overlaps(page: Page): Promise<string[]> {
@@ -48,7 +48,10 @@ async function overlaps(page: Page): Promise<string[]> {
       const box = it.el.closest(".tile, .glass, .glass-strong");
       if (!box) continue;
       const b = box.getBoundingClientRect();
-      if (it.rect.r > b.right + 2 || it.rect.l < b.left - 2) out.push(`«${it.text.slice(0, 40)}» kartadan chiqib ketgan`);
+      if (it.rect.r > b.right + 2 || it.rect.l < b.left - 2)
+        out.push(
+          `«${it.text.slice(0, 40)}» kartadan chiqib ketgan (matn ${Math.round(it.rect.l)}–${Math.round(it.rect.r)}, karta ${Math.round(b.left)}–${Math.round(b.right)}, <${it.el.tagName.toLowerCase()} class="${String(it.el.className).slice(0, 50)}">)`,
+        );
     }
     for (let i = 0; i < items.length; i++) {
       for (let j = i + 1; j < items.length; j++) {
@@ -132,6 +135,7 @@ for (const size of SIZES) {
       for (const path of pages) {
         await page.evaluate((h) => (location.hash = h), path);
         await page.waitForTimeout(150);
+        await settle(page);
         const o = await overlaps(page);
         for (const x of o) bad.push(`${user} ${path}: ${x}`);
       }
@@ -153,5 +157,63 @@ test("boshqaruv paneli turli ekran kengligida ham ustma-ust tushmaydi", async ({
     if (w === 1550) await page.screenshot({ path: process.env.SHOT! });
   }
   console.log(bad.join("\n"));
+  expect(bad).toEqual([]);
+});
+
+/** Juda uzun nomlar (bo'sh joyli va bo'sh joysiz) sahifani gorizontal kengaytirmasligi kerak. */
+test("uzun nomlar: sahifa gorizontal kengaymaydi (390 va 1280)", async ({ page }) => {
+  test.setTimeout(300_000);
+  await watch(page);
+  await openAs(page, "u_boss");
+  await page.evaluate((key) => {
+    const s = JSON.parse(localStorage.getItem(key)!);
+    const long = "Juda uzun nomli mijoz kompaniyasi masuliyati cheklangan jamiyati Toshkent filiali";
+    const noSpace = "https://instagram.com/juda_uzun_profil_nomi_bosh_joysiz_yozilgan_matn_123456789";
+    s.projects[0].name = long;
+    s.projects[0].legalName = long;
+    s.projects[1].name = noSpace;
+    s.projects[0].links = noSpace;
+    s.leads[0].name = noSpace;
+    s.leads[1].name = long;
+    s.users[2].name = "Abdurahmonova Gulnoraxon Shavkatjon qizi (katta mutaxassis)";
+    s.posts[0].topic = noSpace;
+    localStorage.setItem(key, JSON.stringify(s));
+  }, "smm-erp-demo");
+  const ids = await page.evaluate(
+    (key) =>
+      JSON.parse(localStorage.getItem(key)!)
+        .projects.slice(0, 2)
+        .map((p: { id: string }) => p.id),
+    "smm-erp-demo",
+  );
+  const pages = [
+    "/",
+    "/crm",
+    "/loyihalar",
+    `/loyiha/${ids[0]}`,
+    `/loyiha/${ids[1]}`,
+    "/kontent",
+    "/target",
+    "/moliya",
+    "/moliya/debitor",
+    "/moliya/fakturalar",
+    "/moliya/ish-haqi",
+    "/hujjatlar",
+    `/hisobot/${ids[0]}`,
+    `/hujjat/shartnoma/${ids[0]}`,
+    "/takliflar",
+  ];
+  const bad: string[] = [];
+  for (const w of [390, 1280]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await openAs(page, "u_boss");
+    for (const path of pages) {
+      await page.evaluate((h) => (location.hash = h), path);
+      await page.waitForTimeout(200);
+      await settle(page);
+      const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (over > 1) bad.push(`${w}px ${path}: +${over}px`);
+    }
+  }
   expect(bad).toEqual([]);
 });

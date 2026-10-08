@@ -63,7 +63,7 @@ export function Admin() {
   return (
     <>
       <PageHeader title="Admin" sub="Foydalanuvchilar, huquqlar va tizim sozlamalari" />
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card className="xl:col-span-2">
           <CardHeader title="Foydalanuvchilar" sub="Telegram chat ID — xodim botga /start bosgandan keyin @userinfobot orqali olinadi" />
           <div className="overflow-x-auto">
@@ -89,6 +89,8 @@ export function Admin() {
                         onChange={(e) =>
                           run((c) => {
                             const x = c.s.users.find((y) => y.id === u.id);
+                            if (x?.role === "rahbar" && e.target.value !== "rahbar" && c.s.users.filter((y) => y.role === "rahbar" && y.active).length <= 1)
+                              throw new Error("Oxirgi faol rahbarning rolini o'zgartirib bo'lmaydi");
                             if (x) x.role = e.target.value as Role;
                             c.log(`${u.name}: rol → ${ROLE_LABELS[e.target.value as Role]}`, "/admin");
                           }, "Rol o'zgartirildi")
@@ -235,7 +237,7 @@ export function Admin() {
                 }
               />
             </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(
                 [
                   ["address", "Yuridik manzil"],
@@ -261,7 +263,7 @@ export function Admin() {
               ))}
             </div>
             <p className="text-[12px] text-label3">Rekvizitlar shartnoma, hisob-faktura, dalolatnoma va akt-sverkaga avtomatik tushadi.</p>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Field label="USD kursi (so'm)" hint="Yangi tranzaksiyalar uchun taklif">
                 <Input
                   type="number"

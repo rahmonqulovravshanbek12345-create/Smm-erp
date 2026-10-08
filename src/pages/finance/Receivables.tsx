@@ -69,7 +69,7 @@ export function Receivables() {
         <Stat icon="wallet" color="teal" label="Mijozlar puli bizda" value={fmtMoney(apAdv + apTransit)} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card className="xl:col-span-2">
           <CardHeader icon={{ name: "users", color: "orange" }} title="Debitorlik: mijozlar" sub="Faktura − to'lov; muddati bo'yicha guruhlangan" />
           <div className="px-5 pb-4">
@@ -154,11 +154,11 @@ export function Receivables() {
             <ul className="divide-y divide-sep">
               {empOwed.map((e) => (
                 <li key={e.user.id} className="flex items-center justify-between gap-3 px-5 py-2.5">
-                  <div>
+                  <div className="min-w-0">
                     <div className="font-medium text-label">{e.user.name}</div>
                     <div className="text-[12px] text-label3">{ROLE_LABELS[e.user.role]}</div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex shrink-0 items-center gap-3">
                     <Money v={e.balance} strong />
                     {editable && (
                       <Button size="sm" onClick={() => setPayUser(e.user.id)}>
@@ -204,7 +204,7 @@ export function Receivables() {
                         {b.note} · muddat {fmtDate(b.dueDate)} {late && <Badge tone="red">{diffDays(today, b.dueDate)} kun o'tdi</Badge>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex shrink-0 items-center gap-3">
                       <Money v={left} strong />
                       {editable && (
                         <Button size="sm" onClick={() => setPayBill(b)}>

@@ -72,10 +72,10 @@ export function Dashboard() {
         <Stat icon="wallet" color="orange" label="Qarzdor loyihalar" value={d.debtors.length} href="/moliya" tone={d.debtors.length ? "red" : "green"} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader icon={{ name: "gauge", color: "green" }} title="Reja bajarilishi" sub="Joriy hisob davri ichidagi kontent reja" />
-          <div className="grid gap-3 p-3 pt-1 sm:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 p-3 pt-1 sm:grid-cols-2 2xl:grid-cols-3">
             {state.projects.filter(hasContent).map((p) => {
               const { per, posts } = periodPosts(state, p, today);
               const done = posts.filter((x) => x.status === "published").length;

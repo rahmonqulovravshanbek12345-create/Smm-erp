@@ -5,7 +5,7 @@ import { AD_CHANNELS, SERVICE_META, adPctAmount, isRecurring, serviceHasAds, ser
 import { useErp, useLookup } from "../lib/store";
 import { serviceFromTariff, tariffOf, tariffService } from "../lib/tariffs";
 import type { Project, ServiceKind } from "../lib/types";
-import { Button, Field, Input, Modal, Select, Textarea, userOptions } from "./ui";
+import { AmountInput, Button, Field, Input, Modal, Select, Textarea, userOptions } from "./ui";
 
 /** Xizmat tanlanganda — shu xizmatning birinchi faol paketi yoki individual shartlar. */
 export function defaultService(state: ReturnType<typeof useErp>["state"], kind: ServiceKind, users: { id: string; role: string }[]): ServiceInput {
@@ -54,7 +54,7 @@ export function ServiceFields({
           </Button>
         )}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Paket">
           <Select
             value={value.tariffId ?? ""}
@@ -78,7 +78,7 @@ export function ServiceFields({
           </Field>
         )}
         <Field label={once ? "Umumiy narx (so'm)" : "Oylik narx (so'm)"}>
-          <Input type="number" min={0} step={100000} value={value.price} onChange={(e) => set("price", Number(e.target.value))} />
+          <AmountInput value={value.price ? String(value.price) : ""} onValue={(v) => set("price", Number(v) || 0)} placeholder="0" />
         </Field>
         {value.kind === "performance" && (
           <>
@@ -133,12 +133,10 @@ export function ServiceFields({
               />
             </Field>
             <Field label="Ijrochi haqi (so'm)" hint="Topshirilganda ish haqiga avtomatik hisoblanadi">
-              <Input
-                type="number"
-                min={0}
-                step={100000}
-                value={value.assigneeFee ?? 0}
-                onChange={(e) => set("assigneeFee", Number(e.target.value) || undefined)}
+              <AmountInput
+                value={value.assigneeFee ? String(value.assigneeFee) : ""}
+                onValue={(v) => set("assigneeFee", Number(v) || undefined)}
+                placeholder="0"
               />
             </Field>
             <Field label="Topshirish muddati">
@@ -225,7 +223,7 @@ export function ProjectFormModal({
         </>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Mijoz (loyiha nomi)">
           <Input value={f.name} onChange={(e) => set("name", e.target.value)} />
         </Field>
@@ -308,7 +306,7 @@ export function ProjectFormModal({
         )}
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Mas'ul marketolog">
           <Select value={f.marketologId} onChange={(e) => set("marketologId", e.target.value)} options={userOptions(look.usersByRole("marketolog"))} />
         </Field>

@@ -20,7 +20,7 @@ export function Approvals() {
           <Empty>Tasdiq kutayotgan material yo'q</Empty>
         </Card>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {queue.map((p) => {
             const tasks = state.tasks.filter((t) => t.postId === p.id && t.resultLink);
             const soon = relDays(p.date, today);

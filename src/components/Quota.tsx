@@ -234,7 +234,7 @@ export function QuotaSummary({ projects }: { projects: Project[] }) {
         {rows.map(({ p, rows: r, target, planned, given }) => {
           const short = quotaShortage(r);
           return (
-            <li key={p.id} className="grid gap-2 px-4 py-2.5 text-sm sm:grid-cols-[170px_1fr_auto_auto] sm:items-center">
+            <li key={p.id} className="grid grid-cols-1 gap-2 px-4 py-2.5 text-sm sm:grid-cols-[170px_1fr_auto_auto] sm:items-center">
               <span className="font-medium text-label">
                 {p.name}
                 {!given && <span className="ml-1.5 rounded-full bg-orange/15 px-1.5 py-0.5 text-[10px] font-semibold text-orange">berilmagan</span>}

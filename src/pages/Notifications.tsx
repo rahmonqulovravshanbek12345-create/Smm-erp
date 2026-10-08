@@ -36,7 +36,7 @@ export function Notifications() {
           )
         }
       />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader title="Eslatmalar va ogohlantirishlar" sub="Muddatlar bo'yicha avtomatik hisoblanadi" />
           <ul className="divide-y divide-sep">

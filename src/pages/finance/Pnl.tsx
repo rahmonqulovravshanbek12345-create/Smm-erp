@@ -95,7 +95,7 @@ export function Pnl() {
           </div>
         </Card>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Card className="xl:col-span-2">
             <CardHeader
               title="Loyihalar rentabelligi"
@@ -145,7 +145,7 @@ export function Pnl() {
                       <tr className="bg-fill">
                         <td colSpan={7} className="px-10 py-3">
                           <div className="mb-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-label3">Tannarx xodimlar bo'yicha</div>
-                          <div className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
+                          <div className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
                             {x.costByUser.map((c) => (
                               <div key={c.userId} className="flex justify-between text-[13px]">
                                 <span className="text-label2">{look.userName(c.userId)}</span>
