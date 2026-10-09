@@ -3,6 +3,7 @@ import { LATE, PAYMENT_STATUS, PLATFORM_LABELS, PLATFORM_SHORT, postStatusMeta, 
 import type { PayStatus } from "../lib/finance";
 import { isPostLate, isTaskLate, type Debt } from "../lib/rules";
 import type { Platform, Post, Task } from "../lib/types";
+import { useErp } from "../lib/store";
 import { Badge } from "./ui";
 
 export function PostBadge({ post, today }: { post: Post; today: string }) {
@@ -16,7 +17,8 @@ export function PostBadge({ post, today }: { post: Post; today: string }) {
 }
 
 export function TaskBadge({ task, today }: { task: Task; today: string }) {
-  const late = isTaskLate(task, today);
+  const { now } = useErp();
+  const late = isTaskLate(task, today, now);
   if (task.kind === "target") {
     return (
       <span className="inline-flex max-w-full flex-wrap gap-1">

@@ -1,7 +1,7 @@
 // Ilova holati: brauzerda (localStorage) saqlanadi. Har bir o'zgarish `run()` orqali o'tadi —
 // u bildirishnoma, faoliyat tarixi va Telegram xabarlarini bir joyda boshqaradi.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { nowISO, todayISO } from "./dates";
+import { nowHM, nowISO, todayISO } from "./dates";
 import { linkFor } from "./routes";
 import { syncAll } from "./store-sync";
 import { buildSeed, SEED_VERSION } from "./seed";
@@ -25,6 +25,8 @@ export interface Ctx {
   s: ErpState;
   me: User;
   today: string;
+  /** Hozirgi vaqt «HH:MM» (deadline soati uchun); testlarda berilmasligi mumkin. */
+  now?: string;
   /** Tizim ichida bildirishnoma + (sozlangan bo'lsa) Telegram xabar. */
   notify: (userIds: (string | undefined)[], text: string, href?: string) => void;
   /** Faoliyat tarixi: kim, qachon, nimani o'zgartirdi. */
@@ -38,6 +40,8 @@ interface Store {
   /** O'zgarishni qo'llaydi; qoida buzilsa false qaytaradi va xabar ko'rsatadi. */
   run: (fn: (c: Ctx) => void, toast?: string) => boolean;
   reset: () => void;
+  /** Hozirgi vaqt «HH:MM». */
+  now: string;
   toast: string | null;
   showToast: (t: string) => void;
   /** Brauzerga saqlab bo'lmadi (joy tugagan) — o'zgarishlar sahifa yopilsa yo'qoladi. */
@@ -108,6 +112,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [saveError, setSaveError] = useState(false);
   const toastTimer = useRef<number>();
   const today = todayISO();
+  // Har daqiqada yangilanadi: deadline soati o'tganda «Kechikdi» belgisi sahifani yangilamasdan chiqadi
+  const [now, setNow] = useState(nowHM);
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(nowHM()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   // Boshqa oynadan kelgan holat qayta yozilmasligi uchun
   const lastRaw = useRef<string | null>(null);
 
@@ -181,6 +191,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         s,
         me,
         today: todayISO(),
+        now: nowHM(),
         notify(userIds, text, href) {
           const uniq = new Set(userIds.filter((x): x is string => Boolean(x) && x !== me.id));
           for (const uid of uniq) {
@@ -235,7 +246,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const me = state.users.find((u) => u.id === state.currentUserId) ?? state.users[0]!;
 
-  const value = useMemo(() => ({ state, me, today, run, reset, toast, showToast, saveError }), [state, me, today, run, reset, toast, showToast, saveError]);
+  const value = useMemo(
+    () => ({ state, me, today, now, run, reset, toast, showToast, saveError }),
+    [state, me, today, now, run, reset, toast, showToast, saveError],
+  );
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

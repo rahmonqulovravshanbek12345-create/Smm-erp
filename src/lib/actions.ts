@@ -18,7 +18,7 @@ import {
   stagesFor,
   type ServiceInput,
 } from "./services";
-import { isTaskOpen, postStage, workBlockedReason } from "./rules";
+import { isTaskOpen, lateness, postStage, workBlockedReason } from "./rules";
 import { isSettled } from "./money";
 import { currentPeriod, periodAt } from "./period";
 import { newId, type Ctx } from "./store";
@@ -989,7 +989,7 @@ export function submitTask(c: Ctx, id: string, resultLink: string) {
   if (!resultLink.trim()) throw new Error("Tayyor ish havolasini kiriting (Google Drive)");
   t.status = "review";
   t.resultLink = resultLink.trim();
-  t.submittedAt = c.today;
+  t.submittedAt = c.now ? `${c.today}T${c.now}` : c.today;
   c.notify([t.createdBy, findProject(c, t.projectId)?.smmId], `Tekshiruvga topshirildi: ${t.title}`, taskHref(t));
   c.log(`${t.title}: tayyor, tekshiruvga topshirildi`, taskHref(t));
 }
@@ -1006,9 +1006,11 @@ export function acceptTask(c: Ctx, id: string) {
   const a = wt ? accruePiece(c, t.assigneeId, wt, t.projectId, `${projectName(c, t.projectId)}: ${t.title}`, `task:${t.id}`) : null;
   // Kechikkan ish uchun jarima (sozlamada yoqilgan bo'lsa)
   const pct = c.s.settings.latePenaltyPct;
-  // Kechikish ijrochi topshirgan kun bo'yicha (tekshiruvchining kechikishi ijrochiga jarima bo'lmaydi)
-  const doneOn = t.submittedAt ?? c.today;
-  if (a && pct > 0 && t.deadline && t.deadline < doneOn && !c.s.accruals.some((x) => x.sourceId === `late:${t.id}`)) {
+  // Kechikish ijrochi topshirgan kun va soat bo'yicha (tekshiruvchining kechikishi ijrochiga jarima bo'lmaydi)
+  const doneOn = (t.submittedAt ?? c.today).slice(0, 10);
+  const doneAt = t.submittedAt?.slice(11, 16) || undefined;
+  const late = t.deadline ? lateness(t.deadline, t.deadlineTime, doneOn, doneAt) : null;
+  if (a && pct > 0 && late && !c.s.accruals.some((x) => x.sourceId === `late:${t.id}`)) {
     const amount = -Math.round((a.amount * pct) / 100);
     c.s.accruals.push({
       id: newId("acr"),
@@ -1017,7 +1019,7 @@ export function acceptTask(c: Ctx, id: string) {
       date: c.today,
       kind: "penalty",
       sourceId: `late:${t.id}`,
-      title: `Jarima ${pct}%: «${t.title}» ${diffDays(doneOn, t.deadline)} kun kechikdi`,
+      title: `Jarima ${pct}%: «${t.title}» ${late}`,
       qty: 1,
       rate: amount,
       amount,

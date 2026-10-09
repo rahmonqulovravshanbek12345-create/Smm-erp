@@ -20,7 +20,7 @@ interface Step {
 
 /** Loyiha yo'li: 8 bosqich, har birining holati, mas'uli va "keyingi qadam". */
 export function ProjectJourney({ project: p }: { project: Project }) {
-  const { state, today } = useErp();
+  const { state, today, now } = useErp();
   const look = useLookup();
   const docsDone = Object.values(p.docs).filter((d) => d.status === "done").length;
   const per = currentPeriod(p, today);
@@ -28,7 +28,7 @@ export function ProjectJourney({ project: p }: { project: Project }) {
   const published = posts.filter((x) => x.status === "published").length;
   const latePosts = posts.filter((x) => isPostLate(x, today)).length;
   const openTasks = state.tasks.filter((t) => t.projectId === p.id && t.status !== "accepted" && t.kind !== "target");
-  const lateTasks = openTasks.filter((t) => isTaskLate(t, today)).length;
+  const lateTasks = openTasks.filter((t) => isTaskLate(t, today, now)).length;
   const report = per ? state.reports.find((r) => r.projectId === p.id && r.periodIndex === Math.max(0, per.index - 1)) : undefined;
   const nextInv = state.invoices.filter((i) => i.projectId === p.id && i.kind === "monthly").sort((a, b) => b.periodIndex - a.periodIndex)[0];
   const nextInvSt = nextInv ? invoiceStatus(state, nextInv, today) : null;

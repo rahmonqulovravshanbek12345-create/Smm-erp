@@ -31,7 +31,7 @@ const GREET = () => {
 
 /** Har bir xodimning bosh sahifasi: bugun nima qilishim kerak va qancha ishlab topdim. */
 export function MyDay() {
-  const { state, me, today } = useErp();
+  const { state, me, today, now } = useErp();
   const look = useLookup();
 
   const todos = useMemo(() => {
@@ -43,7 +43,7 @@ export function MyDay() {
         title: t.title,
         sub: `${TASK_KIND_LABELS[t.kind]} · ${look.projectName(t.projectId)}${t.deadlineTime ? ` · soat ${t.deadlineTime}` : ""}`,
         date: t.deadline,
-        late: isTaskLate(t, today),
+        late: isTaskLate(t, today, now),
         href: t.kind === "montaj" ? "/montaj" : t.kind === "dizayn" ? "/dizayn" : "/target",
         icon: t.kind === "montaj" ? "film" : t.kind === "dizayn" ? "brush" : "target",
         color: t.kind === "montaj" ? "indigo" : t.kind === "dizayn" ? "orange" : "pink",
@@ -149,9 +149,9 @@ export function MyDay() {
           });
     }
     return out.sort((a, b) => Number(b.late) - Number(a.late) || (a.date ?? "9").localeCompare(b.date ?? "9"));
-  }, [state, me, today, look]);
+  }, [state, me, today, now, look]);
 
-  const alerts = alertsFor(state, me, today);
+  const alerts = alertsFor(state, me, today, now);
   const month = monthKey(today);
   const earned = state.accruals.filter((a) => a.userId === me.id && monthKey(a.date) === month).reduce((x, a) => x + a.amount, 0);
   const balance = employeeBalance(state, me.id);

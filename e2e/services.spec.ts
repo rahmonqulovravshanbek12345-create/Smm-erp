@@ -315,3 +315,25 @@ test("Admin: xodimni arxivlashda ishlari tanlangan xodimga o'tadi", async ({ pag
   expect(s.users.find((u: { id: string }) => u.id === "u_smm1").archivedAt).toBeTruthy();
   expect(p.errors).toEqual([]);
 });
+
+test("TZ deadline soati o'tsa — o'sha kunning o'zida «Kechikdi» chiqadi", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-11-03T08:30:00") });
+  const p = await watch(page);
+  await openAs(page, "u_smm1", "/kontent");
+  await page.getByRole("button", { name: "+ Montaj TZ" }).click();
+  await dialog(page).getByLabel("Vazifa nomi").fill("Soat bo'yicha kechikish");
+  await dialog(page).getByLabel("Deadline sanasi").fill("2026-11-03");
+  await dialog(page).getByLabel("Deadline soati").fill("09:00");
+  await dialog(page).getByRole("button", { name: "TZ yuborish" }).click();
+  const s = await state(page);
+  const t = s.tasks.find((x: { title: string }) => x.title === "Soat bo'yicha kechikish");
+  await openAs(page, t.assigneeId, "/montaj");
+  const card = page.getByText("Soat bo'yicha kechikish", { exact: true }).first().locator("xpath=ancestor::div[contains(@class,'glass')][1]");
+  await expect(card.getByText("Kechikdi")).toHaveCount(0);
+  await page.clock.setSystemTime(new Date("2026-11-03T09:30:00"));
+  await openAs(page, t.assigneeId, "/montaj");
+  await expect(
+    page.getByText("Soat bo'yicha kechikish", { exact: true }).first().locator("xpath=ancestor::div[contains(@class,'glass')][1]").getByText("Kechikdi"),
+  ).toBeVisible();
+  expect(p.errors).toEqual([]);
+});

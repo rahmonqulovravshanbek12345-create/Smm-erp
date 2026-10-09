@@ -10,6 +10,12 @@ export function todayISO(): string {
   return toISODate(new Date());
 }
 
+/** Hozirgi mahalliy vaqt «HH:MM» (deadline soati bilan solishtirish uchun). */
+export function nowHM(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 export function nowISO(): string {
   return new Date().toISOString();
 }

@@ -237,7 +237,7 @@ const todayLabel = () => {
 
 export function App() {
   const path = usePath();
-  const { state, me, run, today, toast, saveError } = useErp();
+  const { state, me, run, today, now, toast, saveError } = useErp();
   const [theme, setTheme] = useTheme();
   useAutoSync();
   const [more, setMore] = useState(false);
@@ -255,7 +255,7 @@ export function App() {
     window.scrollTo(0, 0);
   }, [path]);
 
-  const unread = state.notifications.filter((n) => n.userId === me.id && !n.read).length + alertsFor(state, me, today).length;
+  const unread = state.notifications.filter((n) => n.userId === me.id && !n.read).length + alertsFor(state, me, today, now).length;
   const visible = (item: NavItem) => canView(me.role, item.module);
   const tabs = TAB_PRIORITY.map((p) => ALL_NAV.find((n) => n.path === p)!)
     .filter(visible)
