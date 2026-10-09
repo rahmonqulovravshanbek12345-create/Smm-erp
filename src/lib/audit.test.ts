@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import * as act from "./actions";
 import { addDays, monthKey, shiftMonthKey } from "./dates";
-import { employeeBalance, invoiceOutstanding, invoicePaid, invoiceStatus, pnl, projectDebt } from "./finance";
+import { employeeBalance, invoiceOutstanding, invoiceOutstandingUsd, invoicePaid, invoiceStatus, pnl, projectDebt } from "./finance";
 import { access } from "./permissions";
 import { linkFor, moduleOfPath as moduleOf } from "./routes";
 import { alertsFor } from "./rules";
@@ -113,7 +113,11 @@ describe("Tekshiruv: tasodifiy amallardan keyin ham hisob-kitoblar mos", () => {
             const chosen = [...new Set(Array.from({ length: n }, () => pick([...kinds])!))];
             const hasSmm = chosen.includes("smm");
             const ads = chosen.includes("target") || chosen.includes("performance");
+            // Har uchinchi shartnoma dollarda
+            const usdC = r() < 0.35;
+            const usdPrice = (uzs: number) => (usdC ? { priceUsd: Math.round(uzs / 12_500) + (r() < 0.3 ? 0.5 : 0) } : {});
             act.createProject(ctx("u_mk"), {
+              currency: usdC ? "USD" : undefined,
               name: `Fuzz ${step}`,
               contactName: "X",
               phone: "1",
@@ -130,11 +134,17 @@ describe("Tekshiruv: tasodifiy amallardan keyin ham hisob-kitoblar mos", () => {
               adBudgetUsd: ads ? Math.round(300 + r() * 1200) : undefined,
               services: chosen.map((k) =>
                 isRecurring(k)
-                  ? { kind: k, title: "T", price: 1_000_000 * (2 + Math.floor(r() * 10)), adPct: k === "performance" ? 10 : undefined }
+                  ? (() => {
+                      const price = 1_000_000 * (2 + Math.floor(r() * 10));
+                      return { kind: k, title: "T", price, ...usdPrice(price), adPct: k === "performance" ? 10 : undefined };
+                    })()
                   : {
                       kind: k,
                       title: "T",
-                      price: 1_000_000 * (3 + Math.floor(r() * 20)),
+                      ...(() => {
+                        const price = 1_000_000 * (3 + Math.floor(r() * 20));
+                        return { price, ...usdPrice(price) };
+                      })(),
                       prepayPct: r() < 0.5 ? (50 as const) : (100 as const),
                       assigneeId: k === "web" ? "u_web" : "u_dz",
                       assigneeFee: 500_000,
@@ -144,9 +154,28 @@ describe("Tekshiruv: tasodifiy amallardan keyin ham hisob-kitoblar mos", () => {
           });
         } else if (roll < 0.34) {
           run("to'lov", () => {
-            const unpaid = s.invoices.filter((i) => i.issueDate <= today && i.amount - invoicePaid(s, i) > 1);
+            const unpaid = s.invoices.filter((i) => i.issueDate <= today && !i.voidedAt && invoiceOutstanding(s, i) > 1);
             const inv = pick(unpaid);
             if (!inv) return;
+            if (inv.usd) {
+              // Dollardagi faktura: dollar karta, naqd so'm (ustamasiz) yoki bank (ustama bilan); kurs to'lov kunida farq qilishi mumkin
+              const leftUsd = invoiceOutstandingUsd(s, inv);
+              const part = r() < 0.5 ? leftUsd : Math.max(1, Math.round(leftUsd * (0.2 + r() * 0.6)));
+              const acc = pick(["acc_usd", "acc_cash", "acc_bank"])!;
+              const fxRate = Math.round(s.settings.usdRate * (0.97 + r() * 0.06));
+              if (acc === "acc_usd") act.recordClientPayment(ctx("u_mol"), inv.id, { amount: part, date: today, accountId: acc, rate: fxRate, note: "" });
+              else {
+                const mk = acc === "acc_cash" ? 0 : 2;
+                act.recordClientPayment(ctx("u_mol"), inv.id, {
+                  amount: Math.round(part * fxRate * (1 + mk / 100)),
+                  date: today,
+                  accountId: acc,
+                  fxRate,
+                  note: "",
+                });
+              }
+              return;
+            }
             const left = inv.amount - invoicePaid(s, inv);
             const amount = r() < 0.5 ? left : Math.max(1000, Math.round((left * (0.2 + r() * 0.6)) / 1000) * 1000);
             act.recordClientPayment(ctx("u_mol"), inv.id, { amount, date: today, accountId: "acc_bank", note: "" });
@@ -171,10 +200,13 @@ describe("Tekshiruv: tasodifiy amallardan keyin ham hisob-kitoblar mos", () => {
             if (k === "smm" && !p.smmId) return;
             if ((k === "target" || k === "performance") && !p.targetologId) return;
             if (isRecurring(k) && p.services.some((x) => x.kind === k && x.status !== "cancelled")) return;
+            const pu = p.currency === "USD" ? { priceUsd: isRecurring(k) ? 240 : 480.5 } : {};
             act.addService(
               ctx("u_mk"),
               p.id,
-              isRecurring(k) ? { kind: k, title: "T", price: 3_000_000 } : { kind: k, title: "T", price: 6_000_000, prepayPct: 50, assigneeId: "u_dz" },
+              isRecurring(k)
+                ? { kind: k, title: "T", price: 3_000_000, ...pu }
+                : { kind: k, title: "T", price: 6_000_000, prepayPct: 50, assigneeId: "u_dz", ...pu },
               { prorate: r() < 0.5 },
             );
           });
@@ -248,6 +280,8 @@ describe("Tekshiruv: tasodifiy amallardan keyin ham hisob-kitoblar mos", () => {
         } else {
           run("vaqt o'tdi", () => {
             today = addDays(today, 1 + Math.floor(r() * 12));
+            // Kurs har kuni o'zgaradi
+            if (r() < 0.6) act.setUsdRate(ctx("u_mol"), Math.round(12_000 + r() * 1_500), today, "manual");
             syncAll(s, today);
           });
         }

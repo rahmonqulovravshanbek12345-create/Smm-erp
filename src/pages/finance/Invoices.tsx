@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { PayBadge } from "../../components/bits";
 import { A, Button, Card, CardHeader, Empty, Field, Input, Modal, PageHeader, Select, Stat } from "../../components/ui";
 import * as act from "../../lib/actions";
-import { diffDays, fmtDate, fmtMoney, monthKey } from "../../lib/dates";
-import { invoicePaid, invoicePeriod, invoiceStatus, type PayStatus } from "../../lib/finance";
+import { diffDays, fmtDate, fmtMoney, fmtUsd, monthKey } from "../../lib/dates";
+import { invoiceOutstanding, invoiceOutstandingUsd, invoicePaid, invoicePaidUsd, invoicePeriod, invoiceStatus, type PayStatus } from "../../lib/finance";
 import { PAYMENT_KIND_LABELS, PAYMENT_STATUS } from "../../lib/labels";
 import { canEditFinance } from "../../lib/permissions";
 import { useErp, useLookup } from "../../lib/store";
@@ -11,6 +11,10 @@ import type { Invoice } from "../../lib/types";
 import { FinNav, Money, TableWrap, td, tdr, th, thr } from "./common";
 import { ExtraInvoiceModal, InvoicePayModal } from "./modals";
 import { ExportButton } from "../../components/ExportButton";
+
+function Usd({ v, strong, muted }: { v: number; strong?: boolean; muted?: boolean }) {
+  return <span className={`tabular whitespace-nowrap ${strong ? "font-semibold" : ""} ${muted ? "text-label2" : "text-label"}`}>${fmtUsd(v)}</span>;
+}
 
 export function Invoices({ projectId }: { projectId?: string }) {
   const { state, me, run, today } = useErp();
@@ -26,7 +30,7 @@ export function Invoices({ projectId }: { projectId?: string }) {
     () =>
       state.invoices
         .filter((i) => !project || i.projectId === project)
-        .map((inv) => ({ inv, st: invoiceStatus(state, inv, today), paid: invoicePaid(state, inv) }))
+        .map((inv) => ({ inv, st: invoiceStatus(state, inv, today), paid: invoicePaid(state, inv), out: invoiceOutstanding(state, inv) }))
         .filter((r) => !status || (status === "open" ? r.st !== "paid" && r.st !== "void" : r.st === status))
         .sort((a, b) => (b.inv.dueDate || "9999").localeCompare(a.inv.dueDate || "9999")),
     [state, project, status, today],
@@ -34,11 +38,11 @@ export function Invoices({ projectId }: { projectId?: string }) {
 
   const all = state.invoices
     .filter((i) => !project || i.projectId === project)
-    .map((inv) => ({ inv, st: invoiceStatus(state, inv, today), paid: invoicePaid(state, inv) }));
+    .map((inv) => ({ inv, st: invoiceStatus(state, inv, today), paid: invoicePaid(state, inv), out: invoiceOutstanding(state, inv) }));
   const month = monthKey(today);
   const issued = all.filter((r) => monthKey(r.inv.issueDate) === month).reduce((a, r) => a + r.inv.amount, 0);
-  const open = all.filter((r) => r.st !== "paid" && r.st !== "void").reduce((a, r) => a + r.inv.amount - r.paid, 0);
-  const overdue = all.filter((r) => r.st === "overdue").reduce((a, r) => a + r.inv.amount - r.paid, 0);
+  const open = all.reduce((a, r) => a + r.out, 0);
+  const overdue = all.filter((r) => r.st === "overdue").reduce((a, r) => a + r.out, 0);
 
   const table = (
     <Card>
@@ -88,7 +92,7 @@ export function Invoices({ projectId }: { projectId?: string }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-sep">
-            {rows.map(({ inv, st, paid }) => {
+            {rows.map(({ inv, st, paid, out }) => {
               const per = invoicePeriod(state, inv);
               return (
                 <tr key={inv.id} className={st === "overdue" ? "bg-red/[0.05]" : st === "void" ? "opacity-60" : "hover:bg-fill"}>
@@ -127,15 +131,32 @@ export function Invoices({ projectId }: { projectId?: string }) {
                       <span className="text-orange">sana kelishilmagan</span>
                     )}
                   </td>
-                  <td className={tdr}>
-                    <Money v={inv.amount} />
-                  </td>
-                  <td className={tdr}>
-                    <Money v={paid} muted />
-                  </td>
-                  <td className={tdr}>
-                    <Money v={st === "void" ? 0 : inv.amount - paid} strong />
-                  </td>
+                  {inv.usd ? (
+                    <>
+                      <td className={tdr}>
+                        <Usd v={inv.usd} />
+                        <div className="tabular text-[12px] text-label3">≈ {fmtMoney(inv.amount)}</div>
+                      </td>
+                      <td className={tdr}>
+                        <Usd v={invoicePaidUsd(state, inv)} muted />
+                      </td>
+                      <td className={tdr}>
+                        <Usd v={invoiceOutstandingUsd(state, inv)} strong />
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className={tdr}>
+                        <Money v={inv.amount} />
+                      </td>
+                      <td className={tdr}>
+                        <Money v={paid} muted />
+                      </td>
+                      <td className={tdr}>
+                        <Money v={out} strong />
+                      </td>
+                    </>
+                  )}
                   <td className={td}>
                     <PayBadge status={st} />
                     {inv.voidReason && <div className="mt-0.5 text-[12px] text-label3">{inv.voidReason}</div>}
@@ -194,8 +215,8 @@ export function Invoices({ projectId }: { projectId?: string }) {
               sheets={() => [
                 {
                   name: "Fakturalar",
-                  columns: ["Raqam", "Sana", "Mijoz", "Turi", "Davr", "Muddat", "Summa", "To'langan", "Qoldiq", "Holat"],
-                  rows: all.map(({ inv, st, paid }) => {
+                  columns: ["Raqam", "Sana", "Mijoz", "Turi", "Davr", "Muddat", "Summa", "To'langan", "Qoldiq", "Summa (USD)", "Qoldiq (USD)", "Holat"],
+                  rows: all.map(({ inv, st, paid, out }) => {
                     const per = invoicePeriod(state, inv);
                     return [
                       inv.number,
@@ -205,8 +226,10 @@ export function Invoices({ projectId }: { projectId?: string }) {
                       per ? `${per.start} – ${per.end}` : "",
                       inv.dueDate,
                       inv.amount,
-                      paid,
-                      st === "void" ? 0 : inv.amount - paid,
+                      Math.round(paid),
+                      Math.round(out),
+                      inv.usd ?? "",
+                      inv.usd ? invoiceOutstandingUsd(state, inv) : "",
                       PAYMENT_STATUS[st].label,
                     ];
                   }),

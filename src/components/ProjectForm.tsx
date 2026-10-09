@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ProjectInput } from "../lib/actions";
-import { fmtMoney } from "../lib/dates";
-import { AD_CHANNELS, SERVICE_META, adPctAmount, isRecurring, serviceHasAds, serviceLabel, serviceMeta, type ServiceInput } from "../lib/services";
+import { fmtMoney, fmtUsd } from "../lib/dates";
+import { AD_CHANNELS, SERVICE_META, adPctAmount, isRecurring, serviceHasAds, serviceLabel, serviceMeta, usdFromUzs, type ServiceInput } from "../lib/services";
 import { useErp, useLookup } from "../lib/store";
 import { serviceFromTariff, tariffOf, tariffService } from "../lib/tariffs";
 import type { Project, ServiceKind } from "../lib/types";
@@ -18,6 +18,45 @@ export function defaultService(state: ReturnType<typeof useErp>["state"], kind: 
   return base;
 }
 
+/** Dollardagi narx: yozish paytida "15." kabi oraliq matn yo'qolmasligi uchun o'z matnini saqlaydi. */
+export function UsdInput({
+  value,
+  onValue,
+  ...props
+}: {
+  value?: number;
+  onValue: (v: number | undefined) => void;
+  placeholder?: string;
+  "aria-label"?: string;
+}) {
+  const [text, setText] = useState(value ? String(value) : "");
+  useEffect(() => {
+    if ((Number(text) || undefined) !== value) setText(value ? String(value) : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-label2">$</span>
+      <AmountInput
+        {...props}
+        className="!pl-7"
+        value={text}
+        onValue={(v) => {
+          setText(v);
+          onValue(Number(v) || undefined);
+        }}
+      />
+    </div>
+  );
+}
+
+/** Dollar narxini o'rnatadi: so'mdagi qiymati bugungi kurs bo'yicha. */
+export const withUsd = (x: ServiceInput, usd: number | undefined, usdRate: number): ServiceInput => ({
+  ...x,
+  priceUsd: usd,
+  price: usd ? Math.round(usd * usdRate) : 0,
+});
+
 /** Bitta xizmat qatori: paket, narx va xizmat turiga xos maydonlar. */
 export function ServiceFields({
   value,
@@ -25,12 +64,15 @@ export function ServiceFields({
   onRemove,
   usdRate,
   adBudgetUsd,
+  usd,
 }: {
   value: ServiceInput;
   onChange: (v: ServiceInput) => void;
   onRemove?: () => void;
   usdRate: number;
   adBudgetUsd?: number;
+  /** Shartnoma dollarda: narx dollarda kiritiladi. */
+  usd?: boolean;
 }) {
   const { state } = useErp();
   const look = useLookup();
@@ -60,14 +102,17 @@ export function ServiceFields({
             value={value.tariffId ?? ""}
             onChange={(e) => {
               const t = tariffOf(state, e.target.value);
-              onChange(
-                t
-                  ? { ...value, ...serviceFromTariff(t), assigneeId: value.assigneeId, channels: value.channels }
-                  : { ...value, tariffId: undefined, title: "" },
-              );
+              const next: ServiceInput = t
+                ? { ...value, ...serviceFromTariff(t), assigneeId: value.assigneeId, channels: value.channels }
+                : { ...value, tariffId: undefined, title: "" };
+              // Paket narxi so'mda — dollardagi shartnomada bugungi kurs bo'yicha butun dollarga aylantiriladi
+              onChange(usd && t ? withUsd(next, usdFromUzs(t.price, usdRate), usdRate) : next);
             }}
             options={[
-              ...packs.map((t) => ({ value: t.id, label: `${t.name} — ${fmtMoney(t.price)}${once ? "" : "/oy"}` })),
+              ...packs.map((t) => ({
+                value: t.id,
+                label: `${t.name} — ${usd ? `$${fmtUsd(usdFromUzs(t.price, usdRate))}` : fmtMoney(t.price)}${once ? "" : "/oy"}`,
+              })),
               { value: "", label: "Individual shartlar" },
             ]}
           />
@@ -77,9 +122,15 @@ export function ServiceFields({
             <Input value={value.title} onChange={(e) => set("title", e.target.value)} placeholder={once ? "Masalan: Landing + logo" : "Masalan: Standart"} />
           </Field>
         )}
-        <Field label={once ? "Umumiy narx (so'm)" : "Oylik narx (so'm)"}>
-          <AmountInput value={value.price ? String(value.price) : ""} onValue={(v) => set("price", Number(v) || 0)} placeholder="0" />
-        </Field>
+        {usd ? (
+          <Field label={once ? "Umumiy narx (USD)" : "Oylik narx (USD)"} hint={value.price ? `≈ ${fmtMoney(value.price)} (bugungi kurs)` : undefined}>
+            <UsdInput value={value.priceUsd} onValue={(v) => onChange(withUsd(value, v, usdRate))} placeholder="0" />
+          </Field>
+        ) : (
+          <Field label={once ? "Umumiy narx (so'm)" : "Oylik narx (so'm)"}>
+            <AmountInput value={value.price ? String(value.price) : ""} onValue={(v) => set("price", Number(v) || 0)} placeholder="0" />
+          </Field>
+        )}
         {value.kind === "performance" && (
           <>
             <Field
@@ -115,7 +166,14 @@ export function ServiceFields({
         )}
         {once && (
           <>
-            <Field label="Oldindan to'lov" hint={`${fmtMoney(Math.round((value.price * (value.prepayPct ?? 50)) / 100))} oldindan, qolgani topshirishda`}>
+            <Field
+              label="Oldindan to'lov"
+              hint={`${
+                usd
+                  ? `$${fmtUsd(((value.priceUsd ?? 0) * (value.prepayPct ?? 50)) / 100)}`
+                  : fmtMoney(Math.round((value.price * (value.prepayPct ?? 50)) / 100))
+              } oldindan, qolgani topshirishda`}
+            >
               <Select
                 value={String(value.prepayPct ?? 50)}
                 onChange={(e) => set("prepayPct", Number(e.target.value) as 50 | 100)}
@@ -188,6 +246,17 @@ export function ProjectFormModal({
   const hasAds = f.services.some(serviceHasAds);
   const recurring = f.services.filter((x) => isRecurring(x.kind));
   const usdRate = state.settings.usdRate;
+  const usd = f.currency === "USD";
+  const monthlyUsd = recurring.reduce((a, x) => a + (x.priceUsd ?? 0) + (x.kind === "performance" && x.adPct ? ((f.adBudgetUsd ?? 0) * x.adPct) / 100 : 0), 0);
+  const money = (uzs: number, dollars: number) => (usd ? `$${fmtUsd(dollars)} (≈ ${fmtMoney(uzs)})` : fmtMoney(uzs));
+  const setCurrency = (cur: "UZS" | "USD") =>
+    setF((x) => ({
+      ...x,
+      currency: cur,
+      services: x.services.map((svc) =>
+        cur === "USD" ? withUsd(svc, svc.price ? usdFromUzs(svc.price, usdRate) : undefined, usdRate) : { ...svc, priceUsd: undefined },
+      ),
+    }));
   const monthly = recurring.reduce(
     (a, x) => a + x.price + adPctAmount({ ...x, id: "", status: "active", createdAt: "" }, { adBudgetUsd: f.adBudgetUsd } as Project, usdRate),
     0,
@@ -195,12 +264,15 @@ export function ProjectFormModal({
   const once = f.services.filter((x) => !isRecurring(x.kind));
   const prepay = Math.round((monthly * f.prepayType) / 100);
   const servicesValid =
-    f.services.length > 0 && f.services.every((x) => x.price > 0 && (isRecurring(x.kind) || x.assigneeId) && (x.tariffId || x.title.trim()));
+    f.services.length > 0 &&
+    f.services.every((x) => x.price > 0 && (!usd || (x.priceUsd ?? 0) > 0) && (isRecurring(x.kind) || x.assigneeId) && (x.tariffId || x.title.trim()));
   const valid = f.name.trim() && f.contractNo.trim() && f.marketologId && servicesValid && (!hasSmm || f.smmId) && (!hasAds || f.targetologId);
 
   const submit = () =>
     onSubmit({
       ...f,
+      currency: usd ? "USD" : undefined,
+      services: usd ? f.services : f.services.map(({ priceUsd: _d, ...x }) => x),
       smmId: hasSmm ? f.smmId : "",
       targetologId: hasAds ? f.targetologId || undefined : undefined,
       adBudgetUsd: hasAds ? f.adBudgetUsd : undefined,
@@ -245,15 +317,37 @@ export function ProjectFormModal({
         <Field label="Shartnoma sanasi">
           <Input type="date" value={f.contractDate} onChange={(e) => set("contractDate", e.target.value)} />
         </Field>
+        <Field
+          label="Shartnoma valyutasi"
+          className="sm:col-span-2"
+          hint={
+            usd
+              ? `Narx dollarda. Mijoz to'lov kunidagi kurs bo'yicha so'mda yoki dollarda to'laydi; so'mda bank/karta orqali to'lasa +${state.settings.usdMarkupPct ?? 2}% ustama. Bugungi kurs: 1 $ = ${fmtMoney(usdRate)}`
+              : undefined
+          }
+        >
+          <Select
+            value={usd ? "USD" : "UZS"}
+            onChange={(e) => setCurrency(e.target.value as "UZS" | "USD")}
+            options={[
+              { value: "UZS", label: "So'm" },
+              { value: "USD", label: "AQSH dollari ($)" },
+            ]}
+          />
+        </Field>
       </div>
 
       <div className="mt-5">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-label">Xizmatlar</h3>
           <span className="text-xs text-label2">
-            {monthly > 0 && `Oylik: ${fmtMoney(monthly)}`}
+            {monthly > 0 && `Oylik: ${money(monthly, monthlyUsd)}`}
             {monthly > 0 && once.length > 0 && " · "}
-            {once.length > 0 && `Bir martalik: ${fmtMoney(once.reduce((a, x) => a + x.price, 0))}`}
+            {once.length > 0 &&
+              `Bir martalik: ${money(
+                once.reduce((a, x) => a + x.price, 0),
+                once.reduce((a, x) => a + (x.priceUsd ?? 0), 0),
+              )}`}
           </span>
         </div>
         <div className="space-y-3">
@@ -261,6 +355,7 @@ export function ProjectFormModal({
             <ServiceFields
               key={i}
               value={svc}
+              usd={usd}
               usdRate={usdRate}
               adBudgetUsd={f.adBudgetUsd}
               onChange={(v) =>
@@ -288,7 +383,8 @@ export function ProjectFormModal({
                 key={m.id}
                 size="sm"
                 onClick={() => {
-                  set("services", [...f.services, defaultService(state, m.id, state.users)]);
+                  const d = defaultService(state, m.id, state.users);
+                  set("services", [...f.services, usd ? withUsd(d, d.price ? usdFromUzs(d.price, usdRate) : undefined, usdRate) : d]);
                   setAdding(false);
                 }}
               >
@@ -331,7 +427,7 @@ export function ProjectFormModal({
         )}
         {monthly > 0 && (
           <>
-            <Field label="Oylik xizmatlar: oldindan to'lov" hint={`Oldindan: ${fmtMoney(prepay)}`}>
+            <Field label="Oylik xizmatlar: oldindan to'lov" hint={`Oldindan: ${money(prepay, (monthlyUsd * f.prepayType) / 100)}`}>
               <Select
                 value={String(f.prepayType)}
                 onChange={(e) => set("prepayType", Number(e.target.value) as 100 | 50)}

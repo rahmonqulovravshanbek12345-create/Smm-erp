@@ -1,6 +1,5 @@
 // Xizmatlar: oylik (SMM, target, performance) va bir martalik bosqichli (video, branding, sayt).
 // Bitta mijozda bir nechta xizmat bo'lishi mumkin; har birining o'z narxi, mas'uli va holati bor.
-import { isSettled } from "./money";
 import type { ErpState, Invoice, InvoiceLine, Project, ProjectService, Role, ServiceKind, ServiceStage } from "./types";
 
 /** Xizmat ma'lumotlari (loyiha yaratishda yoki keyin qo'shishda). */
@@ -124,6 +123,45 @@ export const oneTimeServices = (p: Project) => servicesOf(p).filter((x) => !isRe
 /** Oylik xizmati bor loyiha — hisob davri, abonent fakturasi va loyiha oyligi shu loyihalar uchun. */
 export const hasRecurring = (p: Project) => !p.services?.length || recurringServices(p).length > 0;
 
+/** Dollar summasini sentgacha yaxlitlash. */
+export const round2 = (x: number) => Math.round(x * 100) / 100;
+
+/** Qatorlar dollarda bo'lsa — jami USD (aks holda undefined). */
+export function linesUsd(lines?: InvoiceLine[]): number | undefined {
+  if (!lines?.length || lines.some((l) => l.usd === undefined)) return undefined;
+  return round2(lines.reduce((a, l) => a + l.usd!, 0));
+}
+
+/** Shartnoma dollarda tuzilganmi. */
+export const isUsd = (p: Pick<Project, "currency">) => p.currency === "USD";
+
+/** Dollardagi xizmatlarning so'mdagi qiymatini joriy kurs bo'yicha yangilaydi (topshirilgan va bekor qilinganlar o'zgarmaydi). */
+export function refreshUsdPrices(p: Project, usdRate: number) {
+  if (!isUsd(p)) return;
+  for (const svc of p.services ?? []) {
+    if (svc.priceUsd !== undefined && svc.status === "active") svc.price = Math.round(svc.priceUsd * usdRate);
+  }
+}
+
+/** Narx matni: dollardagi shartnomada «$1 500 (≈ 19 050 000 so'm)», aks holda so'mda. */
+export function priceText(uzs: number, usd: number | undefined, fmtMoney: (n: number) => string, fmtUsd: (n: number) => string, approx = true): string {
+  if (usd === undefined) return fmtMoney(uzs);
+  return approx ? `$${fmtUsd(usd)} (≈ ${fmtMoney(uzs)})` : `$${fmtUsd(usd)}`;
+}
+
+/** Dollardagi shartnoma: oylik xizmatlar jami dollarda (performance foizi bilan). */
+export function monthlyFeeUsd(p: Project): number {
+  return round2(
+    recurringServices(p).reduce((a, x) => a + (x.priceUsd ?? 0) + (x.kind === "performance" && x.adPct ? ((p.adBudgetUsd ?? 0) * x.adPct) / 100 : 0), 0),
+  );
+}
+
+/** Paket narxini (so'm) dollarga: bugungi kurs bo'yicha, 10 dollargacha yaxlitlangan. */
+export const usdFromUzs = (uzs: number, usdRate: number) => {
+  const v = uzs / usdRate;
+  return v >= 100 ? Math.round(v / 10) * 10 : Math.round(v);
+};
+
 /** Performance: reklama byudjetidan foiz qismi (so'm). */
 export function adPctAmount(svc: ProjectService, p: Project, usdRate: number): number {
   if (svc.kind !== "performance" || !svc.adPct || !p.adBudgetUsd) return 0;
@@ -136,9 +174,21 @@ export function recurringLines(p: Project, usdRate: number, at?: string): Invoic
   const out: InvoiceLine[] = [];
   const list = at ? p.services.filter((x) => isRecurring(x.kind) && activeOn(x, at)) : recurringServices(p);
   for (const svc of list) {
-    out.push({ kind: svc.kind, title: `${serviceLabel(svc.kind)}${svc.title ? ` — ${svc.title}` : ""}`, amount: svc.price });
+    const usd = isUsd(p) && svc.priceUsd !== undefined ? svc.priceUsd : undefined;
+    out.push({
+      kind: svc.kind,
+      title: `${serviceLabel(svc.kind)}${svc.title ? ` — ${svc.title}` : ""}`,
+      amount: usd !== undefined ? Math.round(usd * usdRate) : svc.price,
+      ...(usd !== undefined ? { usd } : {}),
+    });
     const pct = adPctAmount(svc, p, usdRate);
-    if (pct) out.push({ kind: svc.kind, title: `Performance: reklama byudjetidan ${svc.adPct}%`, amount: pct });
+    if (pct)
+      out.push({
+        kind: svc.kind,
+        title: `Performance: reklama byudjetidan ${svc.adPct}%`,
+        amount: pct,
+        ...(isUsd(p) ? { usd: Math.round((((p.adBudgetUsd ?? 0) * (svc.adPct ?? 0)) / 100) * 100) / 100 } : {}),
+      });
   }
   return out;
 }
@@ -177,9 +227,9 @@ export function invoiceLines(s: ErpState, inv: Invoice): InvoiceLine[] {
 }
 
 /** Bir martalik xizmat bo'yicha oldindan to'lov kelganmi (faktura bo'lmasa — ha). */
-export function servicePrepayPaid(s: ErpState, serviceId: string, paidOf: (inv: Invoice) => number): boolean {
+export function servicePrepayPaid(s: ErpState, serviceId: string, settled: (inv: Invoice) => boolean): boolean {
   const pre = s.invoices.find((i) => i.serviceId === serviceId && i.kind === "prepay" && !i.voidedAt);
-  return !pre || isSettled(pre.amount, paidOf(pre));
+  return !pre || settled(pre);
 }
 
 /** Xizmat ijrochisi (bir martalik — o'zi; oylik — loyiha jamoasidan). */

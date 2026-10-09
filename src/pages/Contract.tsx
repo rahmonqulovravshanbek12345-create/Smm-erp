@@ -2,12 +2,12 @@
 // Barcha raqam va nomlar loyiha, tarif, oylik topshiriq va kompaniya rekvizitlaridan avtomatik to'ldiriladi.
 import type { ReactNode } from "react";
 import { quotaFor, SHOOT_KEY, typeName } from "../lib/content";
-import { fmtDate, fmtMoney, monthKey } from "../lib/dates";
+import { fmtDate, fmtMoney, fmtUsd, monthKey } from "../lib/dates";
 import { PLATFORM_LABELS } from "../lib/labels";
-import { AD_CHANNELS, hasAds, hasContent, isRecurring, serviceLabel, serviceMeta, servicesOf } from "../lib/services";
+import { AD_CHANNELS, hasAds, hasContent, isRecurring, isUsd, monthlyFeeUsd, round2, serviceLabel, serviceMeta, servicesOf } from "../lib/services";
 import { tariffOf } from "../lib/tariffs";
 import type { ErpState, Project } from "../lib/types";
-import { moneyWords } from "../lib/words";
+import { moneyWords, usdWords } from "../lib/words";
 
 const GOAL: Record<string, string> = {
   ct_video: "Ko'rishlar, tanilish va organik qamrov",
@@ -64,7 +64,7 @@ function Table({ head, rows, wide, total }: { head: string[]; rows: ReactNode[][
         <thead>
           <tr style={{ background: BLACK, color: "#fff" }}>
             {head.map((h, i) => (
-              <th key={i} className="px-3 py-1.5 text-left font-semibold">
+              <th key={i} className={`px-3 py-1.5 text-left font-semibold ${i > 0 && i !== wide ? "whitespace-nowrap" : ""}`}>
                 {h}
               </th>
             ))}
@@ -74,7 +74,7 @@ function Table({ head, rows, wide, total }: { head: string[]; rows: ReactNode[][
           {rows.map((r, i) => (
             <tr key={i} className="border-b border-black/10">
               {r.map((c, j) => (
-                <td key={j} className={`px-3 py-1.5 ${j === 0 ? "font-semibold" : ""} ${j === wide ? "w-1/2" : ""}`}>
+                <td key={j} className={`px-3 py-1.5 ${j === 0 ? "font-semibold" : ""} ${j === wide ? "w-1/2" : j > 0 ? "whitespace-nowrap" : ""}`}>
                   {c}
                 </td>
               ))}
@@ -83,7 +83,7 @@ function Table({ head, rows, wide, total }: { head: string[]; rows: ReactNode[][
           {total && (
             <tr className="font-bold" style={{ background: "#eef8e3" }}>
               {total.map((c, j) => (
-                <td key={j} className="px-3 py-1.5">
+                <td key={j} className={`px-3 py-1.5 ${j > 0 && j !== wide ? "whitespace-nowrap" : ""}`}>
                   {c}
                 </td>
               ))}
@@ -136,7 +136,12 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
         ...(once.some((x) => x.kind === "branding") ? [TEAM[6]!] : []),
         ...(once.some((x) => x.kind === "web") ? [["Veb-dasturchi", "Sayt dizayni, dasturlash va ishga tushirish"] as [string, string]] : []),
       ];
-  const fee = fmtMoney(p.monthlyFee);
+  // Dollardagi shartnoma: narxlar dollarda, to'lov kunidagi kurs bo'yicha so'mda to'lanadi (8.1-band)
+  const usd = isUsd(p);
+  const feeUsd = monthlyFeeUsd(p);
+  const amt = (uzs: number, dollars: number) => (usd ? `$${fmtUsd(dollars)}` : fmtMoney(uzs));
+  const words = (uzs: number, dollars: number) => (usd ? usdWords(dollars) : moneyWords(uzs));
+  const fee = amt(p.monthlyFee, feeUsd);
   const prepay = p.prepayType;
   const smmSvc = services.find((x) => x.kind === "smm");
   const t = tariffOf(s, smmSvc?.tariffId ?? p.tariffId);
@@ -153,6 +158,7 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
     .flatMap((x) => (x.channels ?? []).map((c) => AD_CHANNELS.find((a) => a.id === c)?.label ?? c));
   const perf = services.find((x) => x.kind === "performance");
   const onceTotal = once.reduce((a, x) => a + x.price, 0);
+  const onceUsd = round2(once.reduce((a, x) => a + (x.priceUsd ?? 0), 0));
   const tags = [client, ...(smm ? ["SMM", "Kontent marketing"] : []), ...(ads ? ["Target reklama"] : []), ...once.map((x) => serviceLabel(x.kind))];
   const no = p.contractNo;
   const dueText = "Shartnoma imzolangan kundan 3 kun ichida";
@@ -224,9 +230,9 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
               text={recurring ? "Shartnoma muddati — har oy uzaytirish sharti bilan" : "Ish bosqichlar bo'yicha topshiriladi"}
             />
             <Tile
-              big={recurring ? fee : fmtMoney(onceTotal)}
+              big={recurring ? fee : amt(onceTotal, onceUsd)}
               unit={recurring ? "/ oy" : ""}
-              text={recurring ? `Oylik xizmat haqi (${moneyWords(p.monthlyFee)})` : `Jami xizmat haqi (${moneyWords(onceTotal)})`}
+              text={recurring ? `Oylik xizmat haqi (${words(p.monthlyFee, feeUsd)})` : `Jami xizmat haqi (${words(onceTotal, onceUsd)})`}
             />
             {smm ? (
               <Tile
@@ -451,7 +457,7 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
               ...(recurring ? [[`Oylik xizmat haqi — 1-oy (${prepay}% oldindan)`, fee, dueText]] : []),
               ...once.map((x) => [
                 `${serviceLabel(x.kind)} (${x.prepayPct ?? 50}% oldindan${(x.prepayPct ?? 50) < 100 ? ", qolgani topshirilganda" : ""})`,
-                fmtMoney(x.price),
+                amt(x.price, x.priceUsd ?? 0),
                 dueText,
               ]),
               ...(ads ? [["Reklama byudjeti", "Alohida", "Reklama platformalariga, Buyurtmachi tomonidan"]] : []),
@@ -460,14 +466,21 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
             wide={2}
             total={[
               recurring ? "Ja'mi oylik xizmat haqi (Ijrochiga):" : "Ja'mi xizmat haqi (Ijrochiga):",
-              recurring ? fee : fmtMoney(onceTotal),
+              recurring ? fee : amt(onceTotal, onceUsd),
               recurring ? `Har oy boshida, ${prepay}% oldindan` : "Shartnoma shartlariga muvofiq",
             ]}
           />
-          <p className="pt-1">
-            <b>8.1.</b> Agar to'lov pul o'tkazish sharti bilan amalga oshirilsa, umumiy to'lov summasi O'zbekiston Respublikasi Markaziy bankining o'sha kundagi
-            AQSH dollari kursida so'mga o'giriladi va umumiy to'lov summasiga 2% ustama qo'yiladi.
-          </p>
+          {usd ? (
+            <p className="pt-1">
+              <b>8.1.</b> Narxlar AQSH dollarida belgilangan. Agar to'lov pul o'tkazish sharti bilan amalga oshirilsa, umumiy to'lov summasi O'zbekiston
+              Respublikasi Markaziy bankining o'sha kundagi AQSH dollari kursida so'mga o'giriladi va umumiy to'lov summasiga {s.settings.usdMarkupPct ?? 2}%
+              ustama qo'yiladi. Naqd to'lovda ustama qo'yilmaydi.
+            </p>
+          ) : (
+            <p className="pt-1">
+              <b>8.1.</b> To'lovlar O'zbekiston Respublikasining milliy valyutasida (so'mda) naqd yoki pul o'tkazish yo'li bilan amalga oshiriladi.
+            </p>
+          )}
           <p>
             <b>8.2.</b> Ijrochi ishni {prepay}% oldindan to'lov tushgan kundan boshlaydi
             {recurring ? "; keyingi oylar uchun to'lov ham har oy boshida oldindan amalga oshiriladi" : ""}.

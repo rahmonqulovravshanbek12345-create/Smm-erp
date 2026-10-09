@@ -1,25 +1,41 @@
 // Biznes amallari. Har biri Ctx oladi: holatni o'zgartiradi, bildirishnoma yuboradi va tarixga yozadi.
-import { addDays, diffDays, fmtDate, fmtDateShort, fmtDeadline, fmtMonth, fmtMoney, fmtNum, nowISO } from "./dates";
+import { addDays, diffDays, fmtDate, fmtDateShort, fmtDeadline, fmtMonth, fmtMoney, fmtNum, fmtUsd, nowISO } from "./dates";
 import { contentTypes, findQuota, isAdType, quotaText, typeName } from "./content";
 import type { MetaResult } from "./integrations";
-import { ART, accountOf, articleOf, billPaid, employeeBalance, invoicePaid, nextInvoiceNumber, pieceAccrual, taskWorkType, txUZS } from "./finance";
+import {
+  ART,
+  accountOf,
+  articleOf,
+  billPaid,
+  employeeBalance,
+  invoiceOutstandingUsd,
+  invoicePaid,
+  invoiceSettled,
+  nextInvoiceNumber,
+  pieceAccrual,
+  taskWorkType,
+  txUZS,
+} from "./finance";
 import { DOC_BLOCKS, FORMAT_LABELS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, ROLE_LABELS, TASK_KIND_LABELS, platformsText } from "./labels";
 import {
   hasAds,
   isRecurring,
   recurringFee,
   recurringLines,
+  refreshUsdPrices,
+  isUsd,
   serviceLabel,
   serviceHasAds,
   serviceOf,
   servicePrepayPaid,
   servicesSummary,
   stageIndex,
+  linesUsd,
+  round2,
   stagesFor,
   type ServiceInput,
 } from "./services";
 import { isTaskOpen, lateness, postStage, workBlockedReason } from "./rules";
-import { isSettled } from "./money";
 import { currentPeriod, periodAt } from "./period";
 import { newId, type Ctx } from "./store";
 import { acceptedIds, defaultPicks, nextProposalNumber, proposalPrice, tariffOf, tariffService } from "./tariffs";
@@ -32,6 +48,7 @@ import type {
   InvoiceLine,
   Platform,
   ProjectService,
+  ServiceKind,
   IntegrationKind,
   Integrations,
   Lead,
@@ -145,7 +162,24 @@ export interface ProjectInput {
   smmId: string;
   targetologId?: string;
   adBudgetUsd?: number;
+  /** Shartnoma valyutasi (bo'lmasa — so'm). Dollarda bo'lsa xizmat narxi priceUsd da. */
+  currency?: "UZS" | "USD";
   services: ServiceInput[];
+}
+
+const MAX_USD = 10_000_000;
+
+/** Dollardagi shartnomada narx dollarda kiritiladi, so'mdagi qiymati joriy kurs bo'yicha hisoblanadi. */
+function priceInput<T extends { price?: number; priceUsd?: number; kind?: ServiceKind }>(x: T, usd: boolean, usdRate: number): T {
+  if (!usd) {
+    const rest = { ...x };
+    delete rest.priceUsd;
+    return rest;
+  }
+  if (x.priceUsd === undefined) return x;
+  if (!(x.priceUsd > 0)) throw new Error(`${x.kind ? `${serviceLabel(x.kind)}: ` : ""}narxni dollarda kiriting`);
+  if (x.priceUsd > MAX_USD) throw new Error("Narx juda katta — nollarni tekshiring");
+  return { ...x, priceUsd: round2(x.priceUsd), price: Math.round(round2(x.priceUsd) * usdRate) };
 }
 
 /** Fakturani bekor qilish (faqat to'lanmagan). */
@@ -178,6 +212,7 @@ export function voidInvoice(c: Ctx, invoiceId: string, reason: string) {
 
 /** Xizmatlar o'zgarganda loyihaning hisoblangan maydonlari: oylik summa, qisqa tavsif, SMM paketi. */
 function refreshProject(c: Ctx, p: Project) {
+  refreshUsdPrices(p, c.s.settings.usdRate);
   p.monthlyFee = recurringFee(p, c.s.settings.usdRate);
   p.tariff = servicesSummary(p.services);
   p.tariffId = p.services.find((x) => x.kind === "smm" && x.status !== "cancelled")?.tariffId;
@@ -204,9 +239,19 @@ function validateService(x: ServiceInput) {
 /** Qatorlarni ulushga ko'ra kichraytiradi (oldindan / qoldiq to'lov), yig'indi aniq summaga teng bo'ladi. */
 function scaleLines(lines: InvoiceLine[], amount: number): InvoiceLine[] {
   const total = lines.reduce((a, l) => a + l.amount, 0) || 1;
-  const out = lines.map((l) => ({ ...l, amount: Math.round((l.amount * amount) / total) }));
+  const out = lines.map((l) => ({
+    ...l,
+    amount: Math.round((l.amount * amount) / total),
+    ...(l.usd !== undefined ? { usd: round2((l.usd * amount) / total) } : {}),
+  }));
   const diff = amount - out.reduce((a, l) => a + l.amount, 0);
   if (out.length) out[out.length - 1]!.amount += diff;
+  // Dollardagi qatorlar ham ulushga ko'ra; yig'indi sentgacha aniq
+  const fullUsd = linesUsd(lines);
+  if (fullUsd !== undefined && out.length) {
+    const want = round2((fullUsd * amount) / total);
+    out[out.length - 1]!.usd = round2(out[out.length - 1]!.usd! + want - linesUsd(out)!);
+  }
   return out;
 }
 
@@ -224,6 +269,7 @@ function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue
     kind: "prepay",
     amount: prepay,
     lines: scaleLines(lines, prepay),
+    usd: linesUsd(scaleLines(lines, prepay)),
     dueDate: prepayDue || issueDate,
     note: only ? `1-davr: qo'shilgan xizmat — oldindan to'lov (${p.prepayType}%)` : `Oldindan to'lov (${p.prepayType}%)`,
   });
@@ -235,6 +281,7 @@ function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue
       kind: "remainder",
       amount: fee - prepay,
       lines: scaleLines(lines, fee - prepay),
+      usd: linesUsd(scaleLines(lines, fee - prepay)),
       dueDate: remainderDue,
       note: "Qoldiq to'lov (50%)",
     });
@@ -245,6 +292,7 @@ function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue
 function serviceStartInvoice(c: Ctx, p: Project, svc: ProjectService, issueDate: string, dueDate: string): Invoice {
   const pct = svc.prepayPct ?? 50;
   const amount = Math.round((svc.price * pct) / 100);
+  const usd = isUsd(p) && svc.priceUsd !== undefined ? round2((svc.priceUsd * pct) / 100) : undefined;
   const inv: Invoice = {
     id: newId("inv"),
     number: nextInvoiceNumber(c.s),
@@ -253,7 +301,8 @@ function serviceStartInvoice(c: Ctx, p: Project, svc: ProjectService, issueDate:
     kind: "prepay",
     periodIndex: 0,
     amount,
-    lines: [{ kind: svc.kind, title: `${serviceLabel(svc.kind)}${svc.title ? ` — ${svc.title}` : ""}`, amount }],
+    lines: [{ kind: svc.kind, title: `${serviceLabel(svc.kind)}${svc.title ? ` — ${svc.title}` : ""}`, amount, ...(usd !== undefined ? { usd } : {}) }],
+    ...(usd !== undefined ? { usd } : {}),
     issueDate,
     dueDate: dueDate || issueDate,
     note: `${serviceLabel(svc.kind)}: oldindan to'lov (${pct}%)`,
@@ -269,14 +318,18 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
   if (c.s.projects.some((p) => p.contractNo.trim().toLowerCase() === input.contractNo.trim().toLowerCase()))
     throw new Error(`Shartnoma № ${input.contractNo.trim()} allaqachon bor — boshqa raqam kiriting`);
   if (!isDate(input.contractDate)) throw new Error("Shartnoma sanasini tanlang");
+  const usdContract = input.currency === "USD";
+  if (usdContract && input.services.some((x) => x.priceUsd === undefined)) throw new Error("Dollardagi shartnoma: har bir xizmat narxini dollarda kiriting");
+  input = { ...input, services: input.services.map((x) => priceInput(x, usdContract, c.s.settings.usdRate)) };
   if (input.services.some((x) => x.price > MAX_UZS)) throw new Error("Xizmat narxi juda katta — nollarni tekshiring");
   if (!input.services.length) throw new Error("Kamida bitta xizmatni qo'shing");
   input.services.forEach(validateService);
   const id = newId("prj");
   const docs = Object.fromEntries(DOC_BLOCKS.map((b) => [b.id, { content: "", status: "progress" }])) as Project["docs"];
-  const { prepayDueDate, remainderDueDate, services, ...rest } = input;
+  const { prepayDueDate, remainderDueDate, services, currency, ...rest } = input;
   const project: Project = {
     ...rest,
+    ...(currency === "USD" ? { currency } : {}),
     id,
     leadId,
     tariff: "",
@@ -337,6 +390,9 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
 export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { dueDate?: string; prorate?: boolean } = {}) {
   const p = findProject(c, projectId);
   if (!p) return;
+  if (isUsd(p) && input.priceUsd === undefined) throw new Error("Dollardagi shartnoma: narxni dollarda kiriting");
+  input = priceInput(input, isUsd(p), c.s.settings.usdRate);
+  if (input.price > MAX_UZS) throw new Error("Narx juda katta — nollarni tekshiring");
   validateService(input);
   // Reklama yoki SMM xizmatiga mas'ul xodim bo'lmasa — birinchi faol xodim tayinlanadi (keyin o'zgartirish mumkin)
   const needRole = (role: "targetolog" | "smm", field: "targetologId" | "smmId") => {
@@ -368,7 +424,9 @@ export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { 
     const left = diffDays(curPer.end, c.today);
     const total = diffDays(curPer.end, curPer.start);
     const fee = recurringFee({ ...p, services: [svc] }, c.s.settings.usdRate);
+    const feeUsd = linesUsd(recurringLines({ ...p, services: [svc] }, c.s.settings.usdRate));
     prorated = Math.round((fee * left) / total / 1000) * 1000;
+    const proUsd = feeUsd !== undefined ? round2((feeUsd * left) / total) : undefined;
     if (prorated > 0) {
       c.s.invoices.push({
         id: newId("inv"),
@@ -377,7 +435,15 @@ export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { 
         kind: "extra",
         periodIndex: curPer.index,
         amount: prorated,
-        lines: [{ kind: svc.kind, title: `${serviceLabel(svc.kind)} — joriy davrning ${left} kuni`, amount: prorated }],
+        lines: [
+          {
+            kind: svc.kind,
+            title: `${serviceLabel(svc.kind)} — joriy davrning ${left} kuni`,
+            amount: prorated,
+            ...(proUsd !== undefined ? { usd: proUsd } : {}),
+          },
+        ],
+        ...(proUsd !== undefined ? { usd: proUsd } : {}),
         issueDate: c.today,
         dueDate: o.dueDate || addDays(c.today, 3),
         note: `${serviceLabel(svc.kind)}: ${fmtDate(c.today)} – ${fmtDate(addDays(curPer.end, -1))} (${left}/${total} kun)`,
@@ -400,12 +466,20 @@ export function updateService(c: Ctx, projectId: string, serviceId: string, patc
   const p = findProject(c, projectId);
   const svc = p?.services.find((x) => x.id === serviceId);
   if (!p || !svc) return;
+  if (isUsd(p) && patch.price !== undefined && patch.priceUsd === undefined) throw new Error("Dollardagi shartnoma: narxni dollarda kiriting");
+  patch = priceInput(patch, isUsd(p), c.s.settings.usdRate);
   if (patch.price !== undefined && !(patch.price > 0)) throw new Error("Narxni kiriting");
   if (patch.price !== undefined && patch.price > MAX_UZS) throw new Error("Narx juda katta — nollarni tekshiring");
   if (svc.status !== "active") throw new Error("Faqat faol xizmatni o'zgartirish mumkin");
   if (patch.price !== undefined && !isRecurring(svc.kind)) {
-    const billed = c.s.invoices.filter((x) => x.serviceId === svc.id && !x.voidedAt).reduce((a, x) => a + x.amount, 0);
-    if (patch.price < billed) throw new Error(`Narx chiqarilgan fakturalardan (${fmtMoney(billed)}) kam bo'lishi mumkin emas`);
+    const invs = c.s.invoices.filter((x) => x.serviceId === svc.id && !x.voidedAt);
+    if (patch.priceUsd !== undefined) {
+      const billedUsd = round2(invs.reduce((a, x) => a + (x.usd ?? 0), 0));
+      if (patch.priceUsd < billedUsd) throw new Error(`Narx chiqarilgan fakturalardan ($${fmtUsd(billedUsd)}) kam bo'lishi mumkin emas`);
+    } else {
+      const billed = invs.reduce((a, x) => a + x.amount, 0);
+      if (patch.price < billed) throw new Error(`Narx chiqarilgan fakturalardan (${fmtMoney(billed)}) kam bo'lishi mumkin emas`);
+    }
   }
   if (patch.assigneeId && !c.s.users.find((u) => u.id === patch.assigneeId)?.active) throw new Error("Ijrochini tanlang (faol xodim)");
   if (patch.deadline !== undefined && patch.deadline && !isDate(patch.deadline)) throw new Error("Muddatni tanlang");
@@ -470,7 +544,7 @@ export function advanceServiceStage(c: Ctx, projectId: string, serviceId: string
   if (svc.status !== "active") throw new Error("Xizmat to'xtatilgan");
   const i = stageIndex(svc);
   if (i >= svc.stages.length) return;
-  if (i >= 1 && !servicePrepayPaid(c.s, svc.id, (inv) => invoicePaid(c.s, inv))) {
+  if (i >= 1 && !servicePrepayPaid(c.s, svc.id, (inv) => invoiceSettled(c.s, inv))) {
     throw new Error("Oldindan to'lov hali kelmagan — ish to'lovdan keyin davom etadi");
   }
   svc.stages[i]!.doneAt = c.today;
@@ -486,8 +560,11 @@ export function advanceServiceStage(c: Ctx, projectId: string, serviceId: string
   }
   svc.deliveredAt = c.today;
   svc.status = "done";
-  const pre = c.s.invoices.filter((x) => x.serviceId === svc.id && !x.voidedAt).reduce((a, x) => a + x.amount, 0);
-  const rest = svc.price - pre;
+  const preInv = c.s.invoices.filter((x) => x.serviceId === svc.id && !x.voidedAt);
+  const pre = preInv.reduce((a, x) => a + x.amount, 0);
+  // Dollardagi shartnoma: qoldiq USD da, so'mdagi qiymati — bugungi kurs bo'yicha
+  const restUsd = isUsd(p) && svc.priceUsd !== undefined ? round2(svc.priceUsd - preInv.reduce((a, x) => a + (x.usd ?? 0), 0)) : undefined;
+  const rest = restUsd !== undefined ? Math.round(restUsd * c.s.settings.usdRate) : svc.price - pre;
   if (rest > 0) {
     c.s.invoices.push({
       id: newId("inv"),
@@ -497,7 +574,8 @@ export function advanceServiceStage(c: Ctx, projectId: string, serviceId: string
       kind: "remainder",
       periodIndex: 0,
       amount: rest,
-      lines: [{ kind: svc.kind, title: `${label}${svc.title ? ` — ${svc.title}` : ""}`, amount: rest }],
+      lines: [{ kind: svc.kind, title: `${label}${svc.title ? ` — ${svc.title}` : ""}`, amount: rest, ...(restUsd !== undefined ? { usd: restUsd } : {}) }],
+      ...(restUsd !== undefined ? { usd: restUsd } : {}),
       issueDate: c.today,
       dueDate: addDays(c.today, 3),
       note: `${label}: topshirildi — qoldiq to'lov`,
@@ -695,6 +773,8 @@ export function updateProject(c: Ctx, id: string, patch: Partial<Project>) {
       throw new Error("Oylik fakturalar chiqqan — hisob davri boshini o'zgartirib bo'lmaydi (fakturalar siljib ketadi)");
     if (patch.periodStart && patch.periodStart > c.today) throw new Error("Hisob davri boshi kelajakda bo'lishi mumkin emas");
   }
+  if ("currency" in patch && (patch.currency ?? "UZS") !== (p.currency ?? "UZS"))
+    throw new Error("Shartnoma valyutasini o'zgartirib bo'lmaydi — kerak bo'lsa yangi shartnoma tuzing");
   if (patch.pauseWork !== undefined && patch.pauseWork !== p.pauseWork) {
     c.notify([p.marketologId, p.smmId], `${p.name}: ish ${patch.pauseWork ? "to'xtatildi (qarz)" : "qayta tiklandi"}`, `/loyiha/${id}`);
   }
@@ -1137,6 +1217,13 @@ export function setUsdRate(c: Ctx, rate: number, rateDate: string, source: "cbu"
   );
 }
 
+/** Dollardagi shartnoma: so'mda pul o'tkazish (bank/karta) orqali to'lovga ustama foizi. */
+export function setUsdMarkup(c: Ctx, pct: number) {
+  if (!(pct >= 0 && pct <= 20)) throw new Error("Ustama 0 … 20% oralig'ida bo'lishi kerak");
+  c.s.settings.usdMarkupPct = Math.round(pct * 100) / 100;
+  c.log(`Dollardagi shartnomalar: pul o'tkazishda ustama ${c.s.settings.usdMarkupPct}%`, "/integratsiyalar");
+}
+
 // ---------- Moliya ----------
 
 export function setInvoiceDue(c: Ctx, invoiceId: string, dueDate: string) {
@@ -1177,14 +1264,37 @@ function assertNotOverpaid(uzs: number, outstanding: number) {
 }
 
 /** Mijoz to'lovi fakturaga bog'lanadi. USD hisobga tushsa — kurs bilan. */
-export function recordClientPayment(c: Ctx, invoiceId: string, o: { amount: number; date: string; accountId: string; rate?: number; note: string }) {
+export function recordClientPayment(
+  c: Ctx,
+  invoiceId: string,
+  o: { amount: number; date: string; accountId: string; rate?: number; note: string; fxRate?: number; markupPct?: number },
+) {
   const inv = c.s.invoices.find((x) => x.id === invoiceId);
   if (!inv) throw new Error("Faktura topilmadi");
   if (inv.voidedAt) throw new Error("Faktura bekor qilingan — to'lov qabul qilinmaydi");
   if (!(o.amount > 0)) throw new Error("Summani kiriting");
   const fx = assertMoney(c, o);
-  assertNotOverpaid(o.amount * fx, Math.max(0, inv.amount - invoicePaid(c.s, inv)));
+  // Dollardagi shartnoma: to'lov qancha dollarni qoplaydi. Dollar hisobga — o'zi; so'mga — to'lov kunidagi kurs
+  // (+ bank/karta o'tkazmasida ustama, naqdda — ustamasiz).
+  let usdPart: { invoiceUsd: number; fxRate?: number; markupPct?: number } | null = null;
+  if (inv.usd) {
+    const acc = accountOf(c.s, o.accountId)!;
+    const left = invoiceOutstandingUsd(c.s, inv);
+    if (acc.currency === "USD") usdPart = { invoiceUsd: round2(o.amount) };
+    else {
+      const fxRate = o.fxRate ?? c.s.settings.usdRate;
+      if (!(fxRate >= 1000 && fxRate <= 1_000_000)) throw new Error("To'lov kunidagi kursni kiriting (1 USD = … so'm)");
+      const markupPct = o.markupPct ?? (acc.kind === "cash" ? 0 : (c.s.settings.usdMarkupPct ?? 2));
+      if (!(markupPct >= 0 && markupPct <= 20)) throw new Error("Ustama 0–20% oralig'ida bo'lsin");
+      usdPart = { invoiceUsd: round2(o.amount / (fxRate * (1 + markupPct / 100))), fxRate, markupPct };
+    }
+    if (usdPart.invoiceUsd > left * 1.05 + 1)
+      throw new Error(`To'lov ($${usdPart.invoiceUsd.toFixed(2)}) qolgan qarzdan ($${left.toFixed(2)}) ancha oshib ketdi — summani va valyutani tekshiring`);
+    // Sentlik yaxlitlash farqi qarz bo'lib qolmasin
+    if (Math.abs(usdPart.invoiceUsd - left) <= 0.02) usdPart.invoiceUsd = left;
+  } else assertNotOverpaid(o.amount * fx, Math.max(0, inv.amount - invoicePaid(c.s, inv)));
   c.s.transactions.push({
+    ...(usdPart ?? {}),
     id: newId("tx"),
     date: o.date,
     accountId: o.accountId,
@@ -1198,7 +1308,7 @@ export function recordClientPayment(c: Ctx, invoiceId: string, o: { amount: numb
     createdBy: c.me.id,
   });
   const p = findProject(c, inv.projectId);
-  if (inv.kind === "prepay" && p && isSettled(inv.amount, invoicePaid(c.s, inv))) {
+  if (inv.kind === "prepay" && p && invoiceSettled(c.s, inv)) {
     c.notify([p.marketologId, p.smmId], `${p.name}: oldindan to'lov keldi — ish boshlanadi`, `/loyiha/${p.id}`);
   }
   c.log(`${p?.name}: to'lov qabul qilindi — ${inv.number}, ${fmtMoney(txUZS(c.s, c.s.transactions[c.s.transactions.length - 1]!))}`, "/moliya/fakturalar");
