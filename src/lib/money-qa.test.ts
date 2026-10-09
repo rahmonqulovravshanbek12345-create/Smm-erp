@@ -207,3 +207,36 @@ describe("K: archived employee keeps accruing project salary", () => {
     expect(after.map((a) => a.sourceId)).toEqual([]);
   });
 });
+
+describe("Oy o'rtasida qo'shilgan oylik xizmat", () => {
+  it("so'ralsa joriy davrning qolgan kunlari uchun kunlarga bo'lingan faktura chiqadi; keyingi davrdan to'liq", () => {
+    const s = demoState("2026-10-07");
+    const p = s.projects.find((x) => x.id === "p_gym")!; // davr 2-sanadan
+    const n0 = s.invoices.length;
+    act.addService(ctxAt(s, "2026-10-07", "u_mk"), p.id, { kind: "target", title: "Target", price: 3_100_000 }, { prorate: true });
+    const extra = s.invoices.slice(n0).find((i) => i.kind === "extra")!;
+    // 2-okt – 2-noy = 31 kun, qolgani 26 kun → 3 100 000 × 26/31 = 2 600 000
+    expect(extra.amount).toBe(2_600_000);
+    walk(s, "2026-10-08", "2026-11-03");
+    const next = s.invoices.find((i) => i.projectId === p.id && i.kind === "monthly" && i.dueDate === "2026-11-02")!;
+    expect(next.lines!.some((l) => l.kind === "target" && l.amount === 3_100_000)).toBe(true);
+  });
+  it("so'ralmasa joriy davr uchun faktura chiqmaydi", () => {
+    const s = demoState("2026-10-07");
+    const n0 = s.invoices.length;
+    act.addService(ctxAt(s, "2026-10-07", "u_mk"), "p_gym", { kind: "target", title: "Target", price: 3_100_000 });
+    expect(s.invoices.slice(n0).filter((i) => i.kind === "extra")).toEqual([]);
+  });
+  it("xizmat narxini o'zgartirish: chiqarilgan fakturadan kam qilib bo'lmaydi, arxivdagi ijrochi tanlanmaydi", () => {
+    const s = demoState("2026-10-07");
+    const p = s.projects.find((x) => x.services.some((y) => !["smm", "target", "performance"].includes(y.kind) && y.status === "active"))!;
+    const svc = p.services.find((y) => !["smm", "target", "performance"].includes(y.kind) && y.status === "active")!;
+    const c = ctxAt(s, "2026-10-07", "u_mk");
+    expect(() => act.updateService(c, p.id, svc.id, { price: 1000 })).toThrow(/fakturalardan/);
+    act.archiveUser(ctxAt(s, "2026-10-07", "u_admin"), "u_dz");
+    expect(() => act.updateService(c, p.id, svc.id, { assigneeId: "u_dz" })).toThrow(/faol/);
+    const before = svc.price;
+    act.updateService(c, p.id, svc.id, { price: before + 1_000_000 });
+    expect(p.services.find((y) => y.id === svc.id)!.price).toBe(before + 1_000_000);
+  });
+});

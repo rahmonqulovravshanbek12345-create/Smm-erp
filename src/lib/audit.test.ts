@@ -219,28 +219,51 @@ function check(s: ErpState, today: string): string[] {
   const gotExp = P.lines.filter((l) => l.section !== "revenue" && !l.key.startsWith("pay_")).reduce((a, l) => a + l.total, 0);
   if (!near(gotExp, expectExp, 1)) fail(`xarajatlar ${Math.round(gotExp)} ≠ mustaqil hisob ${Math.round(expectExp)}`);
 
-  // 7. Ish haqi xarajati = hisoblanganlar + joriy davr/oy uchun «ishlab topilgan» ulush
+  // 7. Ish haqi xarajati = hisoblanganlar + joriy davr/oy uchun «ishlab topilgan» ulush (xodim ishlagan kunlar bo'yicha, kunma-kun)
+  const workedOn = (uid: string, d: string) => {
+    const u = s.users.find((x) => x.id === uid);
+    if (!u || (u.hiredAt && d < u.hiredAt)) return false;
+    if (!u.archivedAt) return u.active;
+    if (d < u.archivedAt) return true;
+    return u.active && (!u.activeFrom || u.activeFrom <= u.archivedAt || d >= u.activeFrom);
+  };
+  const daysWorked = (uid: string, from: string, toIncl: string) => {
+    let n = 0;
+    for (let d = from; d <= toIncl; d = addDays(d, 1)) if (workedOn(uid, d)) n++;
+    return n;
+  };
+  const billedAt = (p: (typeof s.projects)[number], d: string) =>
+    !p.services.length
+      ? p.monthlyFee > 0
+      : p.services.some(
+          (x) =>
+            isRecurring(x.kind) &&
+            (!x.billFrom || x.billFrom <= d) &&
+            (x.status === "cancelled" ? Boolean(x.cancelledAt && x.cancelledAt > d) : true) &&
+            x.price > 0,
+        );
   let accrued = s.accruals.reduce((a, x) => a + x.amount, 0);
   for (const p of s.projects) {
     const per = currentPeriod(p, today);
-    if (!per || p.status === "closed") continue;
-    const share = diffDays(addDays(today, 1), per.start) / diffDays(per.end, per.start);
+    if (!per || p.status === "closed" || !billedAt(p, per.start)) continue;
+    const total = diffDays(per.end, per.start);
     const act_ = p.services.filter((x) => x.status === "active");
     const staff = [
-      act_.some((x) => x.kind === "smm") ? p.smmId : undefined,
+      !p.services.length || act_.some((x) => x.kind === "smm") ? p.smmId : undefined,
       act_.some((x) => x.kind === "target" || x.kind === "performance" || (x.kind === "smm" && x.withTarget)) ? p.targetologId : undefined,
       p.marketologId,
     ];
     for (const uid of new Set(staff.filter(Boolean) as string[])) {
       const rate = s.payProfiles.find((x) => x.userId === uid)?.perProject ?? 0;
-      accrued += rate * share;
+      accrued += (rate * daysWorked(uid, per.start, today)) / total;
     }
   }
   for (const prof of s.payProfiles) {
-    if (prof.fixed <= 0 || !s.users.find((u) => u.id === prof.userId)?.active) continue;
+    if (prof.fixed <= 0) continue;
     if (s.accruals.some((a) => a.sourceId === `fix:${prof.userId}:${cur}`)) continue;
     const dim = diffDays(`${shiftMonthKey(cur, 1)}-01`, `${cur}-01`);
-    accrued += (prof.fixed * diffDays(addDays(today, 1), `${cur}-01`)) / dim;
+    const from = prof.fixedFrom && prof.fixedFrom > `${cur}-01` ? prof.fixedFrom : `${cur}-01`;
+    accrued += (prof.fixed * daysWorked(prof.userId, from, today)) / dim;
   }
   const gotPay = P.lines.filter((l) => l.key.startsWith("pay_")).reduce((a, l) => a + l.total, 0);
   if (!near(gotPay, accrued, 2)) fail(`ish haqi xarajati P&L'da ${Math.round(gotPay)} ≠ hisoblangan ${Math.round(accrued)}`);
@@ -495,6 +518,7 @@ describe("Tekshiruv: tasodifiy amallardan keyin ham hisob-kitoblar mos", () => {
               ctx("u_mk"),
               p.id,
               isRecurring(k) ? { kind: k, title: "T", price: 3_000_000 } : { kind: k, title: "T", price: 6_000_000, prepayPct: 50, assigneeId: "u_dz" },
+              { prorate: r() < 0.5 },
             );
           });
         } else if (roll < 0.7) {
@@ -523,20 +547,42 @@ describe("Tekshiruv: tasodifiy amallardan keyin ham hisob-kitoblar mos", () => {
               });
           });
         } else if (roll < 0.87) {
-          run("qo'shimcha faktura", () => {
-            const p = pick(s.projects.filter((x) => x.status === "active"));
-            if (p)
-              act.createExtraInvoice(ctx("u_mol"), { projectId: p.id, amount: 1_500_000, issueDate: today, dueDate: addDays(today, 5), note: "qo'shimcha" });
-          });
+          if (r() < 0.5)
+            run("faktura bekor", () => {
+              const inv = pick(s.invoices.filter((i) => !i.voidedAt && invoicePaid(s, i) < 0.5));
+              if (inv) act.voidInvoice(ctx("u_mol"), inv.id, "test");
+            });
+          else
+            run("qo'shimcha faktura", () => {
+              const p = pick(s.projects.filter((x) => x.status === "active"));
+              if (p)
+                act.createExtraInvoice(ctx("u_mol"), { projectId: p.id, amount: 1_500_000, issueDate: today, dueDate: addDays(today, 5), note: "qo'shimcha" });
+            });
         } else if (roll < 0.9) {
           run("bonus/jarima", () => {
             const u = pick(s.users.filter((x) => x.role !== "admin"));
             if (u) act.addManualAccrual(ctx("u_mol"), { userId: u.id, date: today, kind: r() < 0.5 ? "bonus" : "penalty", amount: 100_000, title: "x" });
           });
         } else if (roll < 0.92) {
-          run("xarajat", () => {
-            act.addTransaction(ctx("u_mol"), { date: today, accountId: "acc_card", dir: "out", amount: 250_000, articleId: "a_software", note: "x" } as never);
-          });
+          if (r() < 0.5)
+            run("xodim arxiv/qaytarish", () => {
+              const u = pick(s.users.filter((x) => !["admin", "rahbar"].includes(x.role)));
+              if (!u) return;
+              if (!u.active) return act.restoreUser(ctx("u_admin"), u.id);
+              const rep = s.users.find((x) => x.active && x.role === u.role && x.id !== u.id);
+              act.archiveUser(ctx("u_admin"), u.id, r() < 0.7 ? rep?.id : undefined);
+            });
+          else
+            run("xarajat", () => {
+              act.addTransaction(ctx("u_mol"), {
+                date: today,
+                accountId: "acc_card",
+                dir: "out",
+                amount: 250_000,
+                articleId: "a_software",
+                note: "x",
+              } as never);
+            });
         } else if (roll < 0.94) {
           run("loyiha yopish", () => {
             const p = pick(s.projects.filter((x) => x.status === "active" && x.id.startsWith("p_") && !["p_mebel", "p_gym"].includes(x.id)));

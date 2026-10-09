@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as act from "../lib/actions";
-import { fmtDate, fmtMoney, fmtNum } from "../lib/dates";
+import { diffDays, fmtDate, fmtMoney, fmtNum } from "../lib/dates";
 import { invoicePaid, invoiceStatus } from "../lib/finance";
 import { canEdit } from "../lib/permissions";
 import { currentPeriod } from "../lib/rules";
@@ -10,6 +10,7 @@ import {
   adPctAmount,
   isRecurring,
   serviceLabel,
+  serviceMeta,
   serviceOwner,
   servicePrepayPaid,
   servicesOf,
@@ -21,7 +22,7 @@ import type { Project, ProjectService, Role } from "../lib/types";
 import { PayBadge } from "./bits";
 import { Icon } from "./icons";
 import { defaultService, ServiceFields } from "./ProjectForm";
-import { Badge, Banner, Button, Card, CardHeader, Field, Input, Modal } from "./ui";
+import { AmountInput, Badge, Banner, Button, Card, CardHeader, Field, Input, Modal, Select, userOptions } from "./ui";
 
 const canManage = (role: Role) => role === "admin" || role === "rahbar" || role === "marketolog";
 
@@ -42,6 +43,28 @@ export function ServicesPanel({ project: p }: { project: Project }) {
   const { state, me, run } = useErp();
   const look = useLookup();
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<ProjectService | null>(null);
+  const actions = (svc: ProjectService) =>
+    manage &&
+    svc.status === "active" &&
+    !svc.deliveredAt && (
+      <span className="inline-flex gap-1">
+        <Button size="sm" variant="ghost" onClick={() => setEditing(svc)} aria-label={`${serviceLabel(svc.kind)}: o'zgartirish`}>
+          O'zgartirish
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="!text-red"
+          onClick={() =>
+            window.confirm(`${serviceLabel(svc.kind)} to'xtatilsinmi? To'lanmagan fakturalari bekor qilinadi.`) &&
+            run((c) => act.cancelService(c, p.id, svc.id), `${serviceLabel(svc.kind)} to'xtatildi`)
+          }
+        >
+          To'xtatish
+        </Button>
+      </span>
+    );
   const list = (p.services ?? []).slice().sort((a, b) => Number(a.status === "cancelled") - Number(b.status === "cancelled"));
   const manage = canManage(me.role) && p.status === "active";
   const usd = state.settings.usdRate;
@@ -80,6 +103,7 @@ export function ServicesPanel({ project: p }: { project: Project }) {
                 {statusOf(svc)}
               </div>
               <div className="mt-1 text-xs text-label2">Mas'ul: {look.userName(serviceOwner(p, svc))}</div>
+              {actions(svc) && <div className="mt-2">{actions(svc)}</div>}
             </li>
           ))}
         </ul>
@@ -118,23 +142,7 @@ export function ServicesPanel({ project: p }: { project: Project }) {
                     </td>
                     <td className="px-4 py-2.5 text-label2">{look.userName(serviceOwner(p, svc))}</td>
                     <td className="px-4 py-2.5">{statusOf(svc)}</td>
-                    {manage && (
-                      <td className="px-4 py-2.5 text-right">
-                        {svc.status === "active" && !svc.deliveredAt && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="!text-red"
-                            onClick={() =>
-                              window.confirm(`${serviceLabel(svc.kind)} to'xtatilsinmi?`) &&
-                              run((c) => act.cancelService(c, p.id, svc.id), `${serviceLabel(svc.kind)} to'xtatildi`)
-                            }
-                          >
-                            To'xtatish
-                          </Button>
-                        )}
-                      </td>
-                    )}
+                    {manage && <td className="whitespace-nowrap px-4 py-2.5 text-right">{actions(svc)}</td>}
                   </tr>
                 );
               })}
@@ -158,6 +166,7 @@ export function ServicesPanel({ project: p }: { project: Project }) {
           <PerformanceKpi key={svc.id} project={p} svc={svc} />
         ))}
       {adding && <AddServiceModal project={p} onClose={() => setAdding(false)} />}
+      {editing && <EditServiceModal project={p} svc={editing} onClose={() => setEditing(null)} />}
     </>
   );
 }
@@ -344,6 +353,11 @@ function AddServiceModal({ project: p, onClose }: { project: Project; onClose: (
   const options = SERVICE_META.filter((m) => !taken.has(m.id));
   const [svc, setSvc] = useState<ServiceInput>(() => defaultService(state, options[0]?.id ?? "web", state.users));
   const [due, setDue] = useState(today);
+  const [prorate, setProrate] = useState(true);
+  const per = p.periodStart ? currentPeriod(p, today) : null;
+  const left = per ? diffDays(per.end, today) : 0;
+  const total = per ? diffDays(per.end, per.start) : 1;
+  const proAmount = Math.round(((svc.price || 0) * left) / total / 1000) * 1000;
   const valid = svc.price > 0 && (isRecurring(svc.kind) || svc.assigneeId) && (svc.tariffId || svc.title.trim());
   return (
     <Modal
@@ -359,7 +373,10 @@ function AddServiceModal({ project: p, onClose }: { project: Project; onClose: (
           <Button
             variant="primary"
             disabled={!valid}
-            onClick={() => run((c) => act.addService(c, p.id, svc, { dueDate: due }), "Xizmat qo'shildi — moliyaga xabar ketdi") && onClose()}
+            onClick={() =>
+              run((c) => act.addService(c, p.id, svc, { dueDate: due, prorate: Boolean(per) && prorate }), "Xizmat qo'shildi — moliyaga xabar ketdi") &&
+              onClose()
+            }
           >
             Qo'shish
           </Button>
@@ -385,12 +402,79 @@ function AddServiceModal({ project: p, onClose }: { project: Project; onClose: (
           <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
         </Field>
       )}
-      {isRecurring(svc.kind) && p.monthlyFee > 0 && (
-        <p className="mt-3 text-xs text-label2">
-          Oylik xizmat keyingi davr fakturasidan boshlab alohida qator bo'lib qo'shiladi. Joriy davr uchun faktura chiqmaydi — kerak bo'lsa Moliya → Fakturalar
-          → «Qo'shimcha xizmat» orqali chiqariladi.
-        </p>
+      {isRecurring(svc.kind) && per && (
+        <div className="mt-3 space-y-1.5 text-sm">
+          <p className="text-xs text-label2">Oylik xizmat keyingi davr fakturasidan boshlab alohida qator bo'lib qo'shiladi.</p>
+          <label className="flex items-start gap-2">
+            <input type="checkbox" className="mt-1" checked={prorate} onChange={(e) => setProrate(e.target.checked)} />
+            <span>
+              Joriy davrning qolgan {left} kuni uchun faktura chiqarish{svc.price > 0 ? ` (≈ ${fmtMoney(proAmount)})` : ""}
+              <span className="block text-xs text-label2">
+                Davr: {fmtDate(per.start)} – {fmtDate(per.end)}. Belgilanmasa, joriy davr uchun hisob chiqmaydi.
+              </span>
+            </span>
+          </label>
+        </div>
       )}
+    </Modal>
+  );
+}
+
+/** Faol xizmat shartlarini o'zgartirish: narx, ijrochi, muddat, ijrochi haqi (performance — foiz va KPI). */
+function EditServiceModal({ project: p, svc, onClose }: { project: Project; svc: ProjectService; onClose: () => void }) {
+  const { state, run } = useErp();
+  const once = !isRecurring(svc.kind);
+  const [price, setPrice] = useState(String(svc.price));
+  const [assigneeId, setAssigneeId] = useState(svc.assigneeId ?? "");
+  const [deadline, setDeadline] = useState(svc.deadline ?? "");
+  const [fee, setFee] = useState(svc.assigneeFee ? String(svc.assigneeFee) : "");
+  const [adPct, setAdPct] = useState(String(svc.adPct ?? ""));
+  const people = state.users.filter((u) => u.active && serviceMeta(svc.kind).assigneeRoles.includes(u.role));
+  const save = () => {
+    const patch: Partial<ServiceInput> = { price: Number(price) || 0 };
+    if (once) Object.assign(patch, { assigneeId, deadline: deadline || undefined, assigneeFee: Number(fee) || undefined });
+    if (svc.kind === "performance") patch.adPct = Math.max(0, Math.min(50, Number(adPct) || 0));
+    if (run((c) => act.updateService(c, p.id, svc.id, patch), "Xizmat shartlari yangilandi")) onClose();
+  };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`${p.name}: ${serviceLabel(svc.kind)}`}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Bekor qilish
+          </Button>
+          <Button variant="primary" onClick={save} disabled={!(Number(price) > 0) || (once && !assigneeId)}>
+            Saqlash
+          </Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label={once ? "Narx (so'm)" : "Oylik narx (so'm)"} hint={once ? undefined : "Keyingi davr fakturasidan boshlab"}>
+          <AmountInput value={price} onValue={setPrice} />
+        </Field>
+        {svc.kind === "performance" && (
+          <Field label="Reklama byudjetidan foiz (%)">
+            <Input type="number" min={0} max={50} value={adPct} onChange={(e) => setAdPct(e.target.value)} />
+          </Field>
+        )}
+        {once && (
+          <>
+            <Field label="Ijrochi">
+              <Select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} options={userOptions(people, "Tanlang…")} />
+            </Field>
+            <Field label="Topshirish muddati">
+              <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+            </Field>
+            <Field label="Ijrochi haqi (so'm)" hint="Topshirilganda ish haqiga hisoblanadi">
+              <AmountInput value={fee} onValue={setFee} placeholder="0" />
+            </Field>
+          </>
+        )}
+      </div>
     </Modal>
   );
 }

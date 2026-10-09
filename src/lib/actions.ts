@@ -11,6 +11,7 @@ import {
   recurringLines,
   serviceLabel,
   serviceHasAds,
+  serviceOf,
   servicePrepayPaid,
   servicesSummary,
   stageIndex,
@@ -166,6 +167,11 @@ export function voidInvoice(c: Ctx, invoiceId: string, reason: string) {
   if (!inv || inv.voidedAt) return;
   if (!reason.trim()) throw new Error("Bekor qilish sababini yozing");
   if (invoicePaid(c.s, inv) > 0.5) throw new Error("Faktura bo'yicha to'lov bor — bekor qilib bo'lmaydi");
+  const svc = inv.serviceId ? serviceOf(c.s, inv.serviceId)?.service : undefined;
+  if (svc && svc.status !== "cancelled")
+    throw new Error(
+      `Bu ${serviceLabel(svc.kind)} xizmati fakturasi — bekor qilish uchun loyiha kartasida xizmatni to'xtating (narx kelishilgan bo'lsa — narxni o'zgartiring)`,
+    );
   voidInv(inv, c.today, reason.trim());
   c.log(`Faktura ${inv.number} bekor qilindi: ${reason.trim()} (${projectName(c, inv.projectId)})`, "/moliya/fakturalar");
 }
@@ -328,7 +334,7 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
 // ---------- Xizmatlar ----------
 
 /** Mavjud mijozga yangi xizmat qo'shish (masalan, SMM mijozi sayt buyurtma qildi). */
-export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { dueDate?: string } = {}) {
+export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { dueDate?: string; prorate?: boolean } = {}) {
   const p = findProject(c, projectId);
   if (!p) return;
   validateService(input);
@@ -355,7 +361,30 @@ export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { 
       recurringStartInvoices(c, p, c.today, o.dueDate ?? c.today, "", only);
     }
   } else serviceStartInvoice(c, p, svc, c.today, o.dueDate ?? c.today);
-  const midPeriod = isRecurring(svc.kind) && hadRecurring && Boolean(currentPeriod(p, c.today));
+  const curPer = isRecurring(svc.kind) && p.periodStart ? currentPeriod(p, c.today) : null;
+  // Joriy davrning qolgan kunlari uchun (kunlarga bo'lib) qo'shimcha faktura — so'ralgan bo'lsa
+  let prorated = 0;
+  if (curPer && o.prorate) {
+    const left = diffDays(curPer.end, c.today);
+    const total = diffDays(curPer.end, curPer.start);
+    const fee = recurringFee({ ...p, services: [svc] }, c.s.settings.usdRate);
+    prorated = Math.round((fee * left) / total / 1000) * 1000;
+    if (prorated > 0) {
+      c.s.invoices.push({
+        id: newId("inv"),
+        number: nextInvoiceNumber(c.s),
+        projectId: p.id,
+        kind: "extra",
+        periodIndex: curPer.index,
+        amount: prorated,
+        lines: [{ kind: svc.kind, title: `${serviceLabel(svc.kind)} — joriy davrning ${left} kuni`, amount: prorated }],
+        issueDate: c.today,
+        dueDate: o.dueDate || addDays(c.today, 3),
+        note: `${serviceLabel(svc.kind)}: ${fmtDate(c.today)} – ${fmtDate(addDays(curPer.end, -1))} (${left}/${total} kun)`,
+      });
+    }
+  }
+  const midPeriod = Boolean(curPer) && !prorated;
   c.notify(
     [p.marketologId, ...financeIds(c)],
     `${p.name}: yangi xizmat — ${serviceLabel(svc.kind)} (${fmtMoney(svc.price)})${
@@ -372,6 +401,14 @@ export function updateService(c: Ctx, projectId: string, serviceId: string, patc
   const svc = p?.services.find((x) => x.id === serviceId);
   if (!p || !svc) return;
   if (patch.price !== undefined && !(patch.price > 0)) throw new Error("Narxni kiriting");
+  if (patch.price !== undefined && patch.price > MAX_UZS) throw new Error("Narx juda katta — nollarni tekshiring");
+  if (svc.status !== "active") throw new Error("Faqat faol xizmatni o'zgartirish mumkin");
+  if (patch.price !== undefined && !isRecurring(svc.kind)) {
+    const billed = c.s.invoices.filter((x) => x.serviceId === svc.id && !x.voidedAt).reduce((a, x) => a + x.amount, 0);
+    if (patch.price < billed) throw new Error(`Narx chiqarilgan fakturalardan (${fmtMoney(billed)}) kam bo'lishi mumkin emas`);
+  }
+  if (patch.assigneeId && !c.s.users.find((u) => u.id === patch.assigneeId)?.active) throw new Error("Ijrochini tanlang (faol xodim)");
+  if (patch.deadline !== undefined && patch.deadline && !isDate(patch.deadline)) throw new Error("Muddatni tanlang");
   if (patch.assigneeId && patch.assigneeId !== svc.assigneeId) {
     c.notify([patch.assigneeId], `${p.name}: sizga ish biriktirildi — ${serviceLabel(svc.kind)}`, "/mening");
   }
@@ -449,7 +486,7 @@ export function advanceServiceStage(c: Ctx, projectId: string, serviceId: string
   }
   svc.deliveredAt = c.today;
   svc.status = "done";
-  const pre = c.s.invoices.filter((x) => x.serviceId === svc.id).reduce((a, x) => a + x.amount, 0);
+  const pre = c.s.invoices.filter((x) => x.serviceId === svc.id && !x.voidedAt).reduce((a, x) => a + x.amount, 0);
   const rest = svc.price - pre;
   if (rest > 0) {
     c.s.invoices.push({
