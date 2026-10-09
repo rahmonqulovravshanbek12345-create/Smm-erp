@@ -20,7 +20,8 @@ export function makeCtx(s: ErpState, userId = "u_boss", today = TODAY) {
     s,
     me,
     today,
-    notify: (ids, text) => notes.push({ to: ids.filter((x): x is string => Boolean(x) && x !== me.id), text }),
+    notify: (ids, text) =>
+      notes.push({ to: ids.filter((x): x is string => Boolean(x) && x !== me.id && Boolean(s.users.find((u) => u.id === x)?.active)), text }),
     log: (text) => logs.push(text),
   };
   return { c, notes, logs };

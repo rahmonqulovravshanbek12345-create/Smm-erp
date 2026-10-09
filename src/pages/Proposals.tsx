@@ -189,7 +189,7 @@ export function Proposals() {
             {serviceMeta(kind).hint}. {isRecurring(kind) ? "Oylik to'lov, oldindan." : "Bir martalik: bosqichlar bilan, odatda 50% oldindan, 50% topshirishda."}{" "}
             Narxlar — namuna, «Tahrirlash» orqali o'zgartiriladi.
           </p>
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {state.tariffs
               .filter((t) => tariffService(t) === kind)
               .map((t) => {
@@ -267,6 +267,7 @@ function TariffScope({ t }: { t: Tariff }) {
           `${t.shoots} ta syomka kuni`,
           t.platforms.map((p) => PLATFORM_LABELS[p]).join(" + "),
           t.target ? `Target reklama · byudjet tavsiyasi $${fmtNum(t.adBudgetUsd)}/oy` : "Target reklamasiz",
+          ...(t.target && t.targetVideos ? [`${t.targetVideos} ta alohida reklama videosi oyiga`] : []),
         ]
       : kind === "target" || kind === "performance"
         ? [
@@ -341,7 +342,7 @@ export function ProposalModal({ leadId, onClose }: { leadId?: string; onClose: (
         </>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Mijoz (lid)">
           <Select
             value={lid}
@@ -372,7 +373,7 @@ export function ProposalModal({ leadId, onClose }: { leadId?: string; onClose: (
           return (
             <div key={m.id}>
               <div className="mb-1 px-1 text-[12px] font-semibold uppercase tracking-wider text-label3">{m.label}</div>
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {list.map((t) => {
                   const on = ids.includes(t.id);
                   return (
@@ -397,7 +398,7 @@ export function ProposalModal({ leadId, onClose }: { leadId?: string; onClose: (
           );
         })}
       </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-[160px_1fr]">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[160px_1fr]">
         <Field label="Chegirma, %" hint="0–50">
           <Input type="number" min={0} max={50} value={discount} onChange={(e) => setDiscount(Math.max(0, Math.min(50, Number(e.target.value) || 0)))} />
         </Field>
@@ -438,7 +439,7 @@ function TariffModal({ tariff, service, onClose }: { tariff?: Tariff; service: S
   const smm = kind === "smm";
   const [features, setFeatures] = useState(f.features.join("\n"));
   const set = <K extends keyof Tariff>(k: K, v: Tariff[K]) => setF((x) => ({ ...x, [k]: v }));
-  const num = (k: "price" | "posts" | "videos" | "designs" | "texts" | "stories" | "shoots" | "adBudgetUsd" | "adPct", label: string) => (
+  const num = (k: "price" | "posts" | "videos" | "designs" | "texts" | "stories" | "shoots" | "targetVideos" | "adBudgetUsd" | "adPct", label: string) => (
     <Field label={label}>
       <Input type="number" min={0} value={f[k] ?? 0} onChange={(e) => set(k, Number(e.target.value) || 0)} />
     </Field>
@@ -476,7 +477,7 @@ function TariffModal({ tariff, service, onClose }: { tariff?: Tariff; service: S
         </>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Field label="Nomi">
           <Input value={f.name} onChange={(e) => set("name", e.target.value)} />
         </Field>
@@ -491,6 +492,7 @@ function TariffModal({ tariff, service, onClose }: { tariff?: Tariff; service: S
             {num("texts", "Matnli post oyiga")}
             {num("stories", "Stories")}
             {num("shoots", "Syomka kunlari")}
+            {f.target && num("targetVideos", "Target uchun reklama videosi oyiga")}
           </>
         )}
         {kind === "performance" && num("adPct", "Reklama byudjetidan foiz (%)")}
@@ -688,6 +690,7 @@ export function ProposalPage({ id }: { id: string }) {
                   ["Syomka kunlari", (t) => `${t.shoots} ta`],
                   ["Platformalar", (t) => t.platforms.map((x) => PLATFORM_LABELS[x]).join(" + ")],
                   ["Target reklama", (t) => (t.target ? "✓" : "—")],
+                  ["  reklama videolari oyiga", (t) => (t.target && t.targetVideos ? `${t.targetVideos} ta` : "—")],
                   ["Reklama byudjeti tavsiyasi", (t) => (t.target ? `$${fmtNum(t.adBudgetUsd)}/oy` : "—")],
                   ["Oldindan to'lov", (t) => `${t.prepayType}%`],
                 ]
@@ -769,7 +772,7 @@ export function ProposalPage({ id }: { id: string }) {
 
         <Card className="p-5">
           <h2 className="text-[19px] font-bold tracking-tight text-label">Qanday ishlaymiz</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(hasSmm || !firstOnce
               ? STEPS
               : serviceMeta(firstOnce.kind).stages.map((st) => [st, "Har bosqich tugagach sizga ko'rsatamiz va tasdig'ingizni olamiz"])
@@ -788,7 +791,7 @@ export function ProposalPage({ id }: { id: string }) {
         {cases.length > 0 && (
           <Card className="p-5">
             <h2 className="text-[19px] font-bold tracking-tight text-label">Mijozlarimiz natijalari</h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
               {cases.map((c) => {
                 const drop = c.cplFrom ? ((c.cplTo - c.cplFrom) / c.cplFrom) * 100 : 0;
                 return (

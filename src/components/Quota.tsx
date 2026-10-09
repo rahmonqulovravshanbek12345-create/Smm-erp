@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as act from "../lib/actions";
-import { SHOOT_KEY, SHOOT_LABEL, contentTypes, quotaFor, quotaProgress, quotaShortage, tariffQuota, typeName } from "../lib/content";
+import { AD_VIDEO, SHOOT_KEY, SHOOT_LABEL, quotaFor, typesFor, quotaProgress, quotaShortage, tariffQuota, typeName } from "../lib/content";
 import { fmtDateTime, fmtMonth, shiftMonthKey } from "../lib/dates";
 import { FORMAT_LABELS } from "../lib/labels";
 import { useErp, useLookup } from "../lib/store";
@@ -69,7 +69,8 @@ export function QuotaPanel({ project, month, compact }: { project: Project; mont
                   </div>
                   <Bar value={r.planned} max={r.target} tone={ok ? "green" : "orange"} />
                   <div className="mt-1 text-[11px] text-label2">
-                    {r.key === SHOOT_KEY ? `o'tkazildi: ${r.done}` : `joylandi: ${r.done}`} · rejada: {r.planned}
+                    {r.key === SHOOT_KEY ? `o'tkazildi: ${r.done}` : r.key === AD_VIDEO ? `targetologga berildi: ${r.done}` : `joylandi: ${r.done}`} · rejada:{" "}
+                    {r.planned}
                   </div>
                 </div>
               );
@@ -100,7 +101,7 @@ export function QuotaModal({ project, month, onClose }: { project: Project; mont
   const q = quotaFor(state, project, month);
   const fromTariff = tariffQuota(tariffOf(state, project.tariffId));
   const keys = [
-    ...contentTypes(state)
+    ...typesFor(state, project)
       .filter((t) => t.active || q.counts[t.id])
       .map((t) => t.id),
     SHOOT_KEY,
@@ -111,7 +112,7 @@ export function QuotaModal({ project, month, onClose }: { project: Project; mont
   const allKeys = [
     ...new Set([
       ...keys,
-      ...contentTypes(state)
+      ...typesFor(state, project)
         .filter((t) => t.active)
         .map((t) => t.id),
     ]),
@@ -233,7 +234,7 @@ export function QuotaSummary({ projects }: { projects: Project[] }) {
         {rows.map(({ p, rows: r, target, planned, given }) => {
           const short = quotaShortage(r);
           return (
-            <li key={p.id} className="grid gap-2 px-4 py-2.5 text-sm sm:grid-cols-[170px_1fr_auto_auto] sm:items-center">
+            <li key={p.id} className="grid grid-cols-1 gap-2 px-4 py-2.5 text-sm sm:grid-cols-[170px_1fr_auto_auto] sm:items-center">
               <span className="font-medium text-label">
                 {p.name}
                 {!given && <span className="ml-1.5 rounded-full bg-orange/15 px-1.5 py-0.5 text-[10px] font-semibold text-orange">berilmagan</span>}

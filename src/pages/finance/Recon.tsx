@@ -86,7 +86,7 @@ export function Recon() {
             { id: "employee", label: "Xodim bilan" },
           ]}
         />
-        <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {kind === "client" ? (
             <Field label="Mijoz">
               <Select value={clientId} onChange={(e) => setClientId(e.target.value)} options={state.projects.map((p) => ({ value: p.id, label: p.name }))} />
@@ -117,7 +117,7 @@ export function Recon() {
             {fmtDate(from)} – {fmtDate(to)} davri uchun o'zaro hisob-kitoblar
           </p>
         </div>
-        <div className="mt-6 grid gap-4 text-[14px] sm:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-4 text-[14px] sm:grid-cols-2">
           <div className="rounded-[14px] bg-fill p-3">
             <div className="text-[12px] text-label3">1-tomon</div>
             <div className="font-semibold text-label">{company}</div>
@@ -191,7 +191,7 @@ export function Recon() {
 
         <p className="mt-6 rounded-[14px] bg-accent/10 px-4 py-3 text-[14px] font-semibold text-label">{conclusion}</p>
 
-        <div className="mt-10 grid gap-10 text-[14px] sm:grid-cols-2">
+        <div className="mt-10 grid grid-cols-1 gap-10 text-[14px] sm:grid-cols-2">
           {[company, party].map((p, i) => (
             <div key={i}>
               <div className="text-label2">{i === 0 ? "1-tomon" : "2-tomon"}</div>

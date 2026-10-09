@@ -237,7 +237,7 @@ const todayLabel = () => {
 
 export function App() {
   const path = usePath();
-  const { state, me, run, today, toast } = useErp();
+  const { state, me, run, today, toast, saveError } = useErp();
   const [theme, setTheme] = useTheme();
   useAutoSync();
   const [more, setMore] = useState(false);
@@ -389,6 +389,14 @@ export function App() {
         </div>
       )}
 
+      {saveError && (
+        <div
+          role="alert"
+          className="fixed inset-x-3 top-3 z-[60] mx-auto max-w-xl rounded-[14px] bg-red px-4 py-2.5 text-center text-[14px] font-semibold text-white shadow-float"
+        >
+          ⚠ Ma'lumot brauzerga saqlanmadi (joy tugagan yoki yashirin rejim). Sahifani yopsangiz, oxirgi o'zgarishlar yo'qoladi.
+        </div>
+      )}
       {toast && <Island text={toast} />}
     </div>
   );

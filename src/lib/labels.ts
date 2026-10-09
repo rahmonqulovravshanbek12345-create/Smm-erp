@@ -99,7 +99,8 @@ export const TASK_STATUSES: { id: TaskStatus; label: string; tone: Tone }[] = [
   { id: "accepted", label: "Qabul qilindi", tone: "green" },
 ];
 
-export const PAYMENT_STATUS: Record<"pending" | "paid" | "partial" | "overdue", { label: string; tone: Tone }> = {
+export const PAYMENT_STATUS: Record<"pending" | "paid" | "partial" | "overdue" | "void", { label: string; tone: Tone }> = {
+  void: { label: "Bekor qilingan", tone: "gray" },
   pending: { label: "Kutilmoqda", tone: "gray" },
   paid: { label: "To'langan", tone: "green" },
   partial: { label: "Qisman", tone: "amber" },
@@ -113,9 +114,13 @@ export const PAYMENT_KIND_LABELS = {
   extra: "Qo'shimcha xizmat",
 };
 
-export function postStatusMeta(id: PostStatus) {
-  return POST_STATUSES.find((s) => s.id === id) ?? POST_STATUSES[0]!;
+export function postStatusMeta(id: PostStatus, adVideo = false) {
+  const m = POST_STATUSES.find((s) => s.id === id) ?? POST_STATUSES[0]!;
+  return adVideo && id === "published" ? { ...m, label: "Targetologga berildi" } : m;
 }
+
+/** Postning platformalari matni; reklama videosida — «Reklama uchun (target)». */
+export const platformsText = (ps: Platform[]) => (ps.length ? ps.map((x) => PLATFORM_LABELS[x]).join(", ") : "Reklama uchun (target)");
 
 export function taskStatusMeta(id: TaskStatus) {
   return TASK_STATUSES.find((s) => s.id === id) ?? TASK_STATUSES[0]!;

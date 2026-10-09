@@ -29,7 +29,7 @@ export function ProjectFinance({ project }: { project: Project }) {
   return (
     <Card className="mb-4">
       <CardHeader title="Loyiha moliyasi" sub="Butun hamkorlik davri, hisoblash usulida" />
-      <div className="grid gap-3 px-5 pb-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 px-5 pb-4 sm:grid-cols-3 lg:grid-cols-5">
         {tiles.map((t) => (
           <div key={t.l} className="tile rounded-[16px] p-3">
             <div className="text-[12px] text-label2">{t.l}</div>
@@ -40,7 +40,7 @@ export function ProjectFinance({ project }: { project: Project }) {
       {d.byUser.length > 0 && (
         <div className="border-t border-sep px-5 py-3">
           <div className="mb-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-label3">Kim qancha ishlab topdi (shu loyihada)</div>
-          <div className="grid gap-x-8 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
             {d.byUser.map(([uid, v]) => (
               <div key={uid} className="flex justify-between text-[13px]">
                 <span className="text-label2">{look.userName(uid)}</span>

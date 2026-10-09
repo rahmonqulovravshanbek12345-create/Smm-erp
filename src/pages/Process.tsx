@@ -141,7 +141,7 @@ export function Process() {
   return (
     <>
       <PageHeader title="Qanday ishlaydi" sub="Lid kelganidan to'lov va hisobotgacha — har bosqichda kim nima qiladi va tizim nimani o'zi bajaradi" />
-      <div className="relative grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="relative grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {STAGES.map((s) => (
           <A key={s.n} href={s.href} className="block">
             <Card className="h-full p-5 transition duration-300 hover:-translate-y-0.5">
@@ -175,7 +175,7 @@ export function Process() {
         martalik ishlar bosqichma-bosqich yuritiladi — ijrochi «Mening kunim»da bosqichni belgilaydi, oxirgi bosqichda qoldiq faktura chiqadi va ijrochiga haq
         hisoblanadi.
       </p>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {SERVICE_META.map((m) => (
           <Card key={m.id} className="p-4">
             <div className="flex items-center justify-between gap-2">
@@ -192,7 +192,7 @@ export function Process() {
       </div>
 
       <h2 className="mb-3 mt-8 text-[22px] font-bold tracking-tight text-label">Pul qanday aylanadi</h2>
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         {MONEY.map((m) => (
           <Card key={m.title}>
             <CardHeader icon={{ name: m.icon, color: m.color }} title={m.title} />

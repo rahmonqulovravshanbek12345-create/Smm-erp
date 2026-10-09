@@ -109,6 +109,17 @@ export const hasContent = (p: Project) => !p.services?.length || hasService(p, "
 /** Reklama ishi bormi (target yoki performance). */
 export const hasAds = (p: Project) => servicesOf(p).some((x) => x.status === "active" && serviceHasAds(x)) || (!p.services?.length && Boolean(p.targetologId));
 export const recurringServices = (p: Project) => servicesOf(p).filter((x) => isRecurring(x.kind) && x.status === "active");
+
+/**
+ * Xizmat shu sanada amalda bo'lganmi: hisoblash boshlangan (billFrom) va hali to'xtatilmagan (cancelledAt).
+ * Sana berilmasa — hozirgi holat.
+ */
+export function activeOn(svc: ProjectService, date?: string): boolean {
+  if (!date) return svc.status === "active";
+  if (svc.billFrom && svc.billFrom > date) return false;
+  if (svc.status === "cancelled") return Boolean(svc.cancelledAt && svc.cancelledAt > date);
+  return true;
+}
 export const oneTimeServices = (p: Project) => servicesOf(p).filter((x) => !isRecurring(x.kind));
 /** Oylik xizmati bor loyiha — hisob davri, abonent fakturasi va loyiha oyligi shu loyihalar uchun. */
 export const hasRecurring = (p: Project) => !p.services?.length || recurringServices(p).length > 0;
@@ -120,10 +131,11 @@ export function adPctAmount(svc: ProjectService, p: Project, usdRate: number): n
 }
 
 /** Oylik faktura qatorlari: har oylik xizmat va performance foizi alohida qator. */
-export function recurringLines(p: Project, usdRate: number): InvoiceLine[] {
+export function recurringLines(p: Project, usdRate: number, at?: string): InvoiceLine[] {
   if (!p.services?.length) return p.monthlyFee > 0 ? [{ kind: "smm", title: `SMM xizmati (${p.tariff})`, amount: p.monthlyFee }] : [];
   const out: InvoiceLine[] = [];
-  for (const svc of recurringServices(p)) {
+  const list = at ? p.services.filter((x) => isRecurring(x.kind) && activeOn(x, at)) : recurringServices(p);
+  for (const svc of list) {
     out.push({ kind: svc.kind, title: `${serviceLabel(svc.kind)}${svc.title ? ` — ${svc.title}` : ""}`, amount: svc.price });
     const pct = adPctAmount(svc, p, usdRate);
     if (pct) out.push({ kind: svc.kind, title: `Performance: reklama byudjetidan ${svc.adPct}%`, amount: pct });
@@ -131,7 +143,7 @@ export function recurringLines(p: Project, usdRate: number): InvoiceLine[] {
   return out;
 }
 
-export const recurringFee = (p: Project, usdRate: number) => recurringLines(p, usdRate).reduce((a, l) => a + l.amount, 0);
+export const recurringFee = (p: Project, usdRate: number, at?: string) => recurringLines(p, usdRate, at).reduce((a, l) => a + l.amount, 0);
 
 /** Kartada ko'rsatiladigan qisqa tavsif: «SMM: Biznes · Target · Sayt». */
 export function servicesSummary(services: ProjectService[]): string {
@@ -166,7 +178,7 @@ export function invoiceLines(s: ErpState, inv: Invoice): InvoiceLine[] {
 
 /** Bir martalik xizmat bo'yicha oldindan to'lov kelganmi (faktura bo'lmasa — ha). */
 export function servicePrepayPaid(s: ErpState, serviceId: string, paidOf: (inv: Invoice) => number): boolean {
-  const pre = s.invoices.find((i) => i.serviceId === serviceId && i.kind === "prepay");
+  const pre = s.invoices.find((i) => i.serviceId === serviceId && i.kind === "prepay" && !i.voidedAt);
   return !pre || isSettled(pre.amount, paidOf(pre));
 }
 

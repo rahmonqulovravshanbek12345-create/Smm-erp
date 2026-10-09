@@ -1,8 +1,8 @@
 import { useState } from "react";
 import * as act from "../lib/actions";
 import { addDays, fmtDate, fmtDeadline } from "../lib/dates";
-import { contentTypes } from "../lib/content";
-import { PLATFORMS, PLATFORM_LABELS, PLATFORM_SHORT, POST_STATUSES, TASK_KIND_LABELS } from "../lib/labels";
+import { isAdType, typesFor } from "../lib/content";
+import { PLATFORMS, PLATFORM_LABELS, PLATFORM_SHORT, POST_STATUSES, TASK_KIND_LABELS, postStatusMeta } from "../lib/labels";
 import { hasAds, hasContent } from "../lib/services";
 import { access, canEdit } from "../lib/permissions";
 import { isPostLate, workBlockedReason } from "../lib/rules";
@@ -14,13 +14,31 @@ import { Banner, Button, Field, Input, LinkOut, Modal, Select, Textarea, userOpt
 
 // ---------- Post kartasi ----------
 
+const PRODUCTION: PostStatus[] = ["plan", "shoot", "editing", "design"];
+
+/** Ro'yxatda faqat ruxsat etilgan qadamlar: ishlab chiqarish bosqichlari va tasdiq zinasining keyingi pog'onasi. */
+function statusChoices(cur: PostStatus, approver: boolean): PostStatus[] {
+  const next: PostStatus[] = PRODUCTION.includes(cur)
+    ? ["internal"]
+    : cur === "internal"
+      ? approver
+        ? ["client"]
+        : []
+      : cur === "client"
+        ? ["approved"]
+        : cur === "approved"
+          ? ["published"]
+          : [];
+  return [...new Set<PostStatus>([...PRODUCTION, cur, ...next])];
+}
+
 export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor?: { projectId: string; date: string }; onClose: () => void }) {
   const { state, me, run, today } = useErp();
   const look = useLookup();
   const existing = state.posts.find((p) => p.id === postId);
   const projectId = existing?.projectId ?? newFor?.projectId ?? "";
   const project = look.project(projectId);
-  const types = contentTypes(state).filter((t) => t.active || t.id === existing?.typeId);
+  const types = typesFor(state, project).filter((t) => t.active || t.id === existing?.typeId);
   const [form, setForm] = useState(() => ({
     projectId,
     date: existing?.date ?? newFor?.date ?? today,
@@ -35,10 +53,12 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
   const [returnNote, setReturnNote] = useState("");
   const [notesOpen, setNotesOpen] = useState(() => Object.values(existing?.platformNotes ?? {}).some(Boolean));
   const format = types.find((t) => t.id === form.typeId)?.format ?? existing?.format ?? "video";
+  const ad = isAdType(state, form.typeId);
+  const needPlatforms = !ad && !form.platforms.length;
   const [sub, setSub] = useState<null | TaskKind | "shoot">(null);
 
   const editable = canEdit(me.role, "content");
-  const isBoss = access(me.role, "content") === "approve" || me.role === "admin";
+  const isBoss = access(me.role, "content") === "approve" || access(me.role, "content") === "full";
   const blocked = project ? workBlockedReason(state, project) : null;
   const tasks = state.tasks.filter((t) => t.postId === postId);
   const shoot = state.shoots.find((s) => postId && s.postIds.includes(postId));
@@ -48,7 +68,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
   const togglePlatform = (pl: Platform) =>
     set("platforms", form.platforms.includes(pl) ? form.platforms.filter((x) => x !== pl) : PLATFORMS.filter((x) => x === pl || form.platforms.includes(x)));
   const save = () => {
-    if (!form.topic.trim() || !form.projectId || !form.platforms.length) return;
+    if (!form.topic.trim() || !form.projectId || needPlatforms) return;
     const platformNotes = Object.fromEntries(Object.entries(form.platformNotes).filter(([k, v]) => v?.trim() && form.platforms.includes(k as Platform)));
     const ok = run(
       (c) =>
@@ -88,7 +108,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
             <Button variant="ghost" onClick={onClose}>
               Bekor qilish
             </Button>
-            <Button variant="primary" onClick={save} disabled={!form.topic.trim() || !form.platforms.length || (!existing && Boolean(blocked))}>
+            <Button variant="primary" onClick={save} disabled={!form.topic.trim() || needPlatforms || (!existing && Boolean(blocked))}>
               Saqlash
             </Button>
           </>
@@ -107,7 +127,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
       )}
       {existing?.reviewNote && <Banner tone="amber">Marketolog izohi: {existing.reviewNote}</Banner>}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Loyiha">
           <Select
             value={form.projectId}
@@ -127,42 +147,51 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
             options={types.map((t) => ({ value: t.id, label: t.name }))}
           />
         </Field>
-        <div className="sm:col-span-2">
-          <div className="mb-1.5 text-[13px] font-medium text-label2" id="pl-label">
-            Platformalar — bir nechtasini tanlash mumkin
+        {ad ? (
+          <div className="sm:col-span-2">
+            <Banner tone="amber">
+              Reklama uchun video: platformalarga joylanmaydi. Syomka, montaj va tasdiqdan keyin «Targetologga berish» bosiladi — targetologga TZ ketadi va
+              rejada bajarilgan deb sanaladi.
+            </Banner>
           </div>
-          <div className="flex flex-wrap gap-2" role="group" aria-labelledby="pl-label">
-            {PLATFORMS.map((pl) => {
-              const on = form.platforms.includes(pl);
-              return (
-                <button
-                  key={pl}
-                  type="button"
-                  disabled={!editable}
-                  aria-pressed={on}
-                  onClick={() => togglePlatform(pl)}
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${
-                    on ? "bg-accent/12 text-accent ring-[1.5px] ring-accent/60" : "bg-fill text-label2"
-                  }`}
-                >
-                  <span
-                    aria-hidden
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-[6px] text-[9px] font-bold text-white"
-                    style={{ background: PLATFORM_BG[pl] }}
+        ) : (
+          <div className="sm:col-span-2">
+            <div className="mb-1.5 text-[13px] font-medium text-label2" id="pl-label">
+              Platformalar — bir nechtasini tanlash mumkin
+            </div>
+            <div className="flex flex-wrap gap-2" role="group" aria-labelledby="pl-label">
+              {PLATFORMS.map((pl) => {
+                const on = form.platforms.includes(pl);
+                return (
+                  <button
+                    key={pl}
+                    type="button"
+                    disabled={!editable}
+                    aria-pressed={on}
+                    onClick={() => togglePlatform(pl)}
+                    className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${
+                      on ? "bg-accent/12 text-accent ring-[1.5px] ring-accent/60" : "bg-fill text-label2"
+                    }`}
                   >
-                    {PLATFORM_SHORT[pl]}
-                  </span>
-                  {PLATFORM_LABELS[pl]}
-                  {on && <span aria-hidden>✓</span>}
-                </button>
-              );
-            })}
+                    <span
+                      aria-hidden
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-[6px] text-[9px] font-bold text-white"
+                      style={{ background: PLATFORM_BG[pl] }}
+                    >
+                      {PLATFORM_SHORT[pl]}
+                    </span>
+                    {PLATFORM_LABELS[pl]}
+                    {on && <span aria-hidden>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {!form.platforms.length && <p className="mt-1 text-xs text-red">Kamida bitta platformani tanlang</p>}
+            {form.platforms.length > 1 && (
+              <p className="mt-1 text-xs text-label2">Rejada va oylik topshiriqda 1 ta post deb sanaladi — syomka, montaj va tasdiq bir marta.</p>
+            )}
           </div>
-          {!form.platforms.length && <p className="mt-1 text-xs text-red">Kamida bitta platformani tanlang</p>}
-          {form.platforms.length > 1 && (
-            <p className="mt-1 text-xs text-label2">Rejada va oylik topshiriqda 1 ta post deb sanaladi — syomka, montaj va tasdiq bir marta.</p>
-          )}
-        </div>
+        )}
         <Field label="Mavzu" className="sm:col-span-2">
           <Input value={form.topic} disabled={!editable} onChange={(e) => set("topic", e.target.value)} placeholder="Masalan: Yangi kolleksiya obzori" />
         </Field>
@@ -178,7 +207,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
                 </Button>
               )
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {form.platforms.map((pl) => (
                   <Field key={pl} label={`${PLATFORM_LABELS[pl]} uchun izoh`}>
                     <Input
@@ -201,10 +230,12 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
             options={userOptions(look.usersByRole("smm"))}
           />
         </Field>
-        <label className="flex items-center gap-2 self-end pb-2 text-sm text-label/80">
-          <input type="checkbox" checked={form.forTarget} disabled={!editable} onChange={(e) => set("forTarget", e.target.checked)} />
-          Target reklama uchun ham
-        </label>
+        {!ad && (
+          <label className="flex items-center gap-2 self-end pb-2 text-sm text-label/80">
+            <input type="checkbox" checked={form.forTarget} disabled={!editable} onChange={(e) => set("forTarget", e.target.checked)} />
+            Target reklama uchun ham
+          </label>
+        )}
       </div>
 
       {existing && (
@@ -227,7 +258,12 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
                   ✓ Mijoz tasdiqladi
                 </Button>
               )}
-              {editable && existing.status === "approved" && (
+              {editable && existing.status === "approved" && !existing.platforms.length && (
+                <Button variant="primary" size="sm" onClick={() => step((c) => act.handToTarget(c, existing.id), "Targetologga berildi — TZ ketdi", true)}>
+                  → Targetologga berish
+                </Button>
+              )}
+              {editable && existing.status === "approved" && existing.platforms.length > 0 && (
                 <Button variant="primary" size="sm" onClick={() => step((c) => act.publishPost(c, existing.id), "Hamma platformada joylandi", true)}>
                   ⬆ {existing.platforms.length > 1 ? "Hammasida joylandi" : "Joylandi"}
                 </Button>
@@ -236,56 +272,60 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
                 <Select
                   value={existing.status}
                   onChange={(e) => run((c) => act.setPostStatus(c, existing.id, e.target.value as PostStatus), "Status yangilandi")}
-                  options={POST_STATUSES.map((s) => ({ value: s.id, label: `Status: ${s.label}` }))}
+                  options={POST_STATUSES.filter((s) => statusChoices(existing.status, isBoss).includes(s.id)).map((s) => ({
+                    value: s.id,
+                    label: `Status: ${postStatusMeta(s.id, !existing.platforms.length).label}`,
+                  }))}
                   className="!w-auto !py-1 !text-xs"
                 />
               )}
             </div>
-            {(existing.status === "approved" || existing.status === "published" || Object.keys(existing.publishedOn ?? {}).length > 0) && (
-              <div className="mt-3">
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-label2">Joylash holati</div>
-                <ul className="divide-y divide-sep rounded-[12px] bg-elevated/70">
-                  {existing.platforms.map((pl) => {
-                    const at = existing.publishedOn?.[pl];
-                    return (
-                      <li key={pl} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
-                        <span className="flex items-center gap-2">
-                          <span
-                            aria-hidden
-                            className="inline-flex h-5 w-5 items-center justify-center rounded-[6px] text-[9px] font-bold text-white"
-                            style={{ background: PLATFORM_BG[pl] }}
-                          >
-                            {PLATFORM_SHORT[pl]}
+            {existing.platforms.length > 0 &&
+              (existing.status === "approved" || existing.status === "published" || Object.keys(existing.publishedOn ?? {}).length > 0) && (
+                <div className="mt-3">
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-label2">Joylash holati</div>
+                  <ul className="divide-y divide-sep rounded-[12px] bg-elevated/70">
+                    {existing.platforms.map((pl) => {
+                      const at = existing.publishedOn?.[pl];
+                      return (
+                        <li key={pl} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                          <span className="flex items-center gap-2">
+                            <span
+                              aria-hidden
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-[6px] text-[9px] font-bold text-white"
+                              style={{ background: PLATFORM_BG[pl] }}
+                            >
+                              {PLATFORM_SHORT[pl]}
+                            </span>
+                            {PLATFORM_LABELS[pl]}
+                            {existing.platformNotes?.[pl] && <span className="text-xs text-label2">· {existing.platformNotes[pl]}</span>}
                           </span>
-                          {PLATFORM_LABELS[pl]}
-                          {existing.platformNotes?.[pl] && <span className="text-xs text-label2">· {existing.platformNotes[pl]}</span>}
-                        </span>
-                        {at ? (
-                          <span className="flex items-center gap-1.5">
-                            <span className="rounded-full bg-green/15 px-2.5 py-0.5 text-xs font-semibold text-green">✓ Joylandi · {fmtDate(at)}</span>
-                            {editable && (
-                              <button
-                                type="button"
-                                className="text-xs text-label2 underline"
-                                onClick={() => run((c) => act.unpublishPlatform(c, existing.id, pl), "Belgi olib tashlandi")}
-                              >
-                                bekor
-                              </button>
-                            )}
-                          </span>
-                        ) : editable && existing.status === "approved" && existing.platforms.length > 1 ? (
-                          <Button size="sm" onClick={() => run((c) => act.publishPost(c, existing.id, pl), `${PLATFORM_LABELS[pl]}: joylandi`)}>
-                            Joylandi
-                          </Button>
-                        ) : (
-                          <span className="rounded-full bg-orange/15 px-2.5 py-0.5 text-xs font-semibold text-orange">Kutilmoqda</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
+                          {at ? (
+                            <span className="flex items-center gap-1.5">
+                              <span className="rounded-full bg-green/15 px-2.5 py-0.5 text-xs font-semibold text-green">✓ Joylandi · {fmtDate(at)}</span>
+                              {editable && (
+                                <button
+                                  type="button"
+                                  className="text-xs text-label2 underline"
+                                  onClick={() => run((c) => act.unpublishPlatform(c, existing.id, pl), "Belgi olib tashlandi")}
+                                >
+                                  bekor
+                                </button>
+                              )}
+                            </span>
+                          ) : editable && existing.status === "approved" && existing.platforms.length > 1 ? (
+                            <Button size="sm" onClick={() => run((c) => act.publishPost(c, existing.id, pl), `${PLATFORM_LABELS[pl]}: joylandi`)}>
+                              Joylandi
+                            </Button>
+                          ) : (
+                            <span className="rounded-full bg-orange/15 px-2.5 py-0.5 text-xs font-semibold text-orange">Kutilmoqda</span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             {isBoss && existing.status === "internal" && (
               <div className="mt-3 flex gap-2">
                 <Input placeholder="Qaytarish izohi (nima tuzatilsin)" value={returnNote} onChange={(e) => setReturnNote(e.target.value)} />
@@ -316,9 +356,11 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
                       + Dizayn TZ
                     </Button>
                   )}
-                  <Button size="sm" onClick={() => setSub("target")} disabled={Boolean(blocked)}>
-                    + Targetga berish
-                  </Button>
+                  {existing.platforms.length > 0 && (
+                    <Button size="sm" onClick={() => setSub("target")} disabled={Boolean(blocked)}>
+                      + Targetga berish
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -368,7 +410,10 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
     return {
       projectId: pid,
       postId: post?.id ?? "",
-      assigneeId: kind === "target" ? (prj?.targetologId ?? look.usersByRole("targetolog")[0]?.id ?? "") : (look.usersByRole(KIND_ROLE[kind])[0]?.id ?? ""),
+      assigneeId:
+        kind === "target"
+          ? (look.usersByRole("targetolog").find((u) => u.id === prj?.targetologId)?.id ?? look.usersByRole("targetolog")[0]?.id ?? "")
+          : (look.usersByRole(KIND_ROLE[kind])[0]?.id ?? ""),
       title: post ? `${post.topic}${kind === "dizayn" ? " — oblojka" : ""}` : "",
       brief: "",
       script: post?.script ?? "",
@@ -418,14 +463,14 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
           <Button variant="ghost" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button variant="primary" onClick={save} disabled={!f.title.trim() || !f.assigneeId || !f.projectId || Boolean(blocked)}>
+          <Button variant="primary" onClick={save} disabled={!f.title.trim() || !f.assigneeId || !f.projectId || !f.deadline || Boolean(blocked)}>
             TZ yuborish
           </Button>
         </>
       }
     >
       {blocked && <Banner tone="red">{blocked}</Banner>}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Loyiha">
           <Select
             value={f.projectId}
@@ -535,7 +580,7 @@ export function ShootModal({ projectId, postIds, onClose }: { projectId?: string
       }
     >
       {blocked && <Banner tone="red">{blocked}</Banner>}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Loyiha">
           <Select
             value={f.projectId}
@@ -557,7 +602,12 @@ export function ShootModal({ projectId, postIds, onClose }: { projectId?: string
           <Input value={f.location} onChange={(e) => set("location", e.target.value)} placeholder="Manzil, mo'ljal" />
         </Field>
         <Field label="Nechta video olinadi">
-          <Input type="number" min={1} value={f.videoCount} onChange={(e) => set("videoCount", Number(e.target.value) || 1)} />
+          <Input
+            type="number"
+            min={1}
+            value={f.videoCount}
+            onChange={(e) => set("videoCount", Math.min(100, Math.max(1, Math.round(Number(e.target.value)) || 1)))}
+          />
         </Field>
         <Field label="Izoh">
           <Input value={f.note} onChange={(e) => set("note", e.target.value)} />

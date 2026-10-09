@@ -14,6 +14,9 @@ import { ProposalModal } from "./Proposals";
 
 type Pending = { leadId: string; stage: LeadStage } | null;
 
+/** Telefon: kamida 9 ta raqam (+998 bilan yoki usiz), faqat raqam, bo'sh joy, +, (), -. */
+const phoneOk = (v: string) => /^[\d+\s()-]+$/.test(v) && v.replace(/\D/g, "").length >= 9;
+
 export function Crm() {
   const { state, me, run, today } = useErp();
   const look = useLookup();
@@ -208,7 +211,7 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
             <Button variant="ghost" onClick={onClose}>
               Yopish
             </Button>
-            <Button variant="primary" onClick={save} disabled={!f.name.trim() || f.phone.trim().length < 7}>
+            <Button variant="primary" onClick={save} disabled={!f.name.trim() || !phoneOk(f.phone)}>
               Saqlash
             </Button>
           </>
@@ -232,12 +235,18 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
       )}
       {lead?.rejectReason && <Banner tone="red">Sabab: {lead.rejectReason}</Banner>}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Ism / kompaniya">
           <Input value={f.name} disabled={!editable} onChange={(e) => set("name", e.target.value)} />
         </Field>
         <Field label="Telefon">
-          <Input value={f.phone} disabled={!editable} onChange={(e) => set("phone", e.target.value)} />
+          <Input
+            type="tel"
+            value={f.phone}
+            disabled={!editable}
+            onChange={(e) => set("phone", e.target.value.replace(/[^\d+\s()-]/g, ""))}
+            aria-invalid={!phoneOk(f.phone)}
+          />
         </Field>
         <Field label="Manba">
           <Select
@@ -367,10 +376,8 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
       {proposing && lead && (
         <ProposalModal
           leadId={lead.id}
-          onClose={() => {
-            setProposing(false);
-            onClose();
-          }}
+          // Bekor qilinsa faqat taklif oynasi yopiladi (lid kartasidagi kiritilganlar saqlanib qoladi); saqlansa — taklif sahifasiga o'tiladi
+          onClose={() => setProposing(false)}
         />
       )}
     </Modal>
@@ -440,7 +447,7 @@ function StageDialog({ pending, onClose }: { pending: NonNullable<Pending>; onCl
       }
     >
       {isMeeting ? (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Sana">
             <Input type="date" value={meeting.date} onChange={(e) => setMeeting({ ...meeting, date: e.target.value })} />
           </Field>

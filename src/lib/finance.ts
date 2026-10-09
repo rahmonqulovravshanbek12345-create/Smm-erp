@@ -103,7 +103,7 @@ export function totalCashUZS(s: ErpState, upTo?: string): number {
 
 // ---------- Fakturalar va mijoz to'lovlari ----------
 
-export type PayStatus = "pending" | "paid" | "partial" | "overdue";
+export type PayStatus = "pending" | "paid" | "partial" | "overdue" | "void";
 
 export function invoicePaid(s: ErpState, inv: Invoice, upTo?: string): number {
   let sum = 0;
@@ -111,9 +111,13 @@ export function invoicePaid(s: ErpState, inv: Invoice, upTo?: string): number {
   return sum;
 }
 
-export const invoiceOutstanding = (s: ErpState, inv: Invoice) => outstandingOf(inv.amount, invoicePaid(s, inv));
+export const invoiceOutstanding = (s: ErpState, inv: Invoice) => (inv.voidedAt ? 0 : outstandingOf(inv.amount, invoicePaid(s, inv)));
+
+/** Bekor qilinmagan fakturalar. */
+export const liveInvoices = (s: ErpState) => s.invoices.filter((i) => !i.voidedAt);
 
 export function invoiceStatus(s: ErpState, inv: Invoice, today: string): PayStatus {
+  if (inv.voidedAt) return "void";
   const paid = invoicePaid(s, inv);
   if (isSettled(inv.amount, paid)) return "paid";
   if (inv.dueDate && inv.dueDate < today) return "overdue";
@@ -140,7 +144,8 @@ export function projectDebt(s: ErpState, projectId: string, today: string): Debt
 
 /** Oylik xizmatlar bo'yicha oldindan to'lov (bir martalik xizmatlarniki — alohida). */
 export function prepayPaid(s: ErpState, projectId: string): boolean {
-  const pre = s.invoices.find((i) => i.projectId === projectId && i.kind === "prepay" && !i.serviceId);
+  // Bekor qilinganlar hisobga olinmaydi (masalan, SMM o'rniga target tanlansa — eski oldindan to'lov fakturasi bekor)
+  const pre = s.invoices.find((i) => i.projectId === projectId && i.kind === "prepay" && !i.serviceId && !i.voidedAt);
   return !pre || isSettled(pre.amount, invoicePaid(s, pre));
 }
 
@@ -154,13 +159,17 @@ export function nextInvoiceNumber(s: ErpState): string {
  * Bir martalik xizmat (sayt, branding, video) — topshirilgan kuni tan olinadi; topshirilguncha olingan pul — avans.
  */
 export function invoicePeriod(s: ErpState, inv: Invoice): Period | null {
+  if (inv.voidedAt) return null;
   if (inv.kind === "extra") return { index: inv.periodIndex, start: inv.issueDate, end: addDays(inv.issueDate, 1) };
   if (inv.serviceId) {
     const d = serviceOf(s, inv.serviceId)?.service.deliveredAt;
     return d ? { index: 0, start: d, end: addDays(d, 1) } : null;
   }
   const p = s.projects.find((x) => x.id === inv.projectId);
-  return p ? periodAt(p, inv.periodIndex) : null;
+  const per = p ? periodAt(p, inv.periodIndex) : null;
+  // Loyiha yopilgandan keyin boshlanadigan davr xizmati ko'rsatilmaydi — to'langan bo'lsa, bu avans (qaytariladi)
+  if (per && p?.status === "closed" && p.closedAt && per.start >= p.closedAt) return null;
+  return per;
 }
 
 /**
@@ -172,10 +181,11 @@ export function syncInvoices(s: ErpState, today: string, newId: () => string): v
     if (!p.periodStart || p.status === "closed") continue;
     for (let i = 1; addMonths(p.periodStart, i) <= addDays(today, 3); i++) {
       if (s.invoices.some((x) => x.projectId === p.id && x.kind === "monthly" && x.periodIndex === i)) continue;
-      const lines = recurringLines(p, s.settings.usdRate);
+      const due = addMonths(p.periodStart, i);
+      // Faqat shu davr boshida amalda bo'lgan xizmatlar (to'xtatilgan oylar keyin qayta qo'shilsa ham hisoblanmaydi)
+      const lines = recurringLines(p, s.settings.usdRate, due);
       const amount = lines.reduce((a, l) => a + l.amount, 0);
       if (amount <= 0) continue;
-      const due = addMonths(p.periodStart, i);
       s.invoices.push({
         id: newId(),
         number: nextInvoiceNumber(s),
@@ -218,6 +228,7 @@ function allocateByDays(amount: number, start: string, end: string, out: Map<str
 /** Faktura daromadi oylar bo'yicha — faqat bugungacha ko'rsatilgan xizmat kunlari. */
 export function invoiceRevenueByMonth(s: ErpState, inv: Invoice, today: string): Map<string, number> {
   const out = new Map<string, number>();
+  if (inv.voidedAt) return out;
   const per = invoicePeriod(s, inv);
   if (per) allocateByDays(inv.amount, per.start, per.end, out, today);
   return out;
@@ -228,6 +239,7 @@ export function invoiceRevenueByMonth(s: ErpState, inv: Invoice, today: string):
  * invoiceRevenueByMonth bilan bir xil qoida: bugungi kun ham ko'rsatilgan xizmat kuni hisoblanadi.
  */
 export function unrecognizedRevenue(s: ErpState, inv: Invoice, today: string): number {
+  if (inv.voidedAt) return 0;
   const per = invoicePeriod(s, inv);
   if (!per) return inv.amount;
   const total = diffDays(per.end, per.start);
@@ -299,6 +311,32 @@ export const projectStaff = (p: Project) =>
   [hasContent(p) ? p.smmId : undefined, hasAds(p) ? p.targetologId : undefined, p.marketologId].filter((x): x is string => Boolean(x));
 
 /**
+ * Xodim [from, to) oralig'ida necha kun ishlagan: ishga kirgan sanadan, arxivlangan kungacha;
+ * arxivdan qaytarilgan bo'lsa — qaytgan kundan yana. Sanalari yo'q eski yozuvlar: faol — hamma kun, arxivda — 0.
+ */
+export function workedDays(u: User | undefined, from: string, to: string): number {
+  if (!u) return 0;
+  const hire = u.hiredAt ?? "0000-01-01";
+  const spans: [string, string][] = [];
+  if (u.archivedAt) {
+    if (u.activeFrom && u.activeFrom > u.archivedAt) {
+      spans.push([hire, u.archivedAt]);
+      if (u.active) spans.push([u.activeFrom, "9999-12-31"]);
+    } else spans.push([hire, u.active ? "9999-12-31" : u.archivedAt]);
+  } else if (u.active) spans.push([hire, "9999-12-31"]);
+  let days = 0;
+  for (const [a, b] of spans) {
+    const st = a > from ? a : from;
+    const en = b < to ? b : to;
+    if (en > st) days += diffDays(en, st);
+  }
+  return days;
+}
+
+/** Fiks oylik qaysi sanadan hisoblanadi (profil 0 dan oshirilgan sana). */
+const fixedStart = (prof: PayProfile) => prof.fixedFrom ?? "0000-01-01";
+
+/**
  * Davriy hisoblashlar:
  *  • loyiha oyligi — har bir yopilgan loyiha davri uchun;
  *  • fiks oylik — har bir tugagan oy uchun (oyning oxirgi kuni).
@@ -314,10 +352,21 @@ export function syncAccruals(s: ErpState, today: string, newId: () => string): v
       if (per.end > today) break;
       if (p.status === "closed" && p.closedAt && per.start >= p.closedAt) break;
       if (per.end < start) continue;
+      // Davr hisoblanmagan bo'lsa (oylik xizmat yo'q edi) — loyiha oyligi ham yo'q
+      if (recurringFee(p, s.settings.usdRate, per.start) <= 0) continue;
+      const total = diffDays(per.end, per.start);
       for (const uid of new Set(projectStaff(p))) {
-        const rate = profileOf(s, uid).perProject;
+        const full = profileOf(s, uid).perProject;
         const src = `per:${p.id}:${i}:${uid}`;
-        if (rate <= 0 || has(src)) continue;
+        if (full <= 0 || has(src)) continue;
+        // Davr ichida ishlagan kunlariga ko'ra (yangi kelgan yoki arxivlangan xodim)
+        const days = workedDays(
+          s.users.find((u) => u.id === uid),
+          per.start,
+          per.end,
+        );
+        if (days <= 0) continue;
+        const rate = days >= total ? full : Math.round((full * days) / total);
         s.accruals.push({
           id: newId(),
           userId: uid,
@@ -325,7 +374,7 @@ export function syncAccruals(s: ErpState, today: string, newId: () => string): v
           date: per.end,
           kind: "project",
           sourceId: src,
-          title: `${p.name}: ${i + 1}-davr uchun loyiha oyligi`,
+          title: `${p.name}: ${i + 1}-davr uchun loyiha oyligi${days < total ? ` (${days}/${total} kun)` : ""}`,
           qty: 1,
           rate,
           amount: rate,
@@ -340,20 +389,27 @@ export function syncAccruals(s: ErpState, today: string, newId: () => string): v
   for (const prof of s.payProfiles) {
     if (prof.fixed <= 0) continue;
     const user = s.users.find((u) => u.id === prof.userId);
-    if (!user?.active) continue;
     for (let m = s.settings.payrollStart; m < curMonth; m = shiftMonthKey(m, 1)) {
       const src = `fix:${prof.userId}:${m}`;
       if (has(src)) continue;
+      // Oyda ishlagan kunlariga ko'ra: ishga kirgan, arxivlangan oy va fiks oylik belgilangan sanadan
+      const from = `${m}-01`;
+      const to = `${shiftMonthKey(m, 1)}-01`;
+      const dim = diffDays(to, from);
+      const fs = fixedStart(prof);
+      const days = fs >= to ? 0 : workedDays(user, fs > from ? fs : from, to);
+      if (days <= 0) continue;
+      const amount = days >= dim ? prof.fixed : Math.round((prof.fixed * days) / dim);
       s.accruals.push({
         id: newId(),
         userId: prof.userId,
         date: addDays(`${shiftMonthKey(m, 1)}-01`, -1),
         kind: "fixed",
         sourceId: src,
-        title: `Fiks oylik — ${fmtMonth(m)}`,
+        title: `Fiks oylik — ${fmtMonth(m)}${days < dim ? ` (${days}/${dim} kun)` : ""}`,
         qty: 1,
-        rate: prof.fixed,
-        amount: prof.fixed,
+        rate: amount,
+        amount,
         approved: false,
         createdBy: "system",
       });
@@ -520,23 +576,39 @@ export function pnl(s: ErpState, months: string[], today: string, projectId?: st
     if (projectId && p.id !== projectId) continue;
     const per = currentPeriod(p, today);
     if (!per || p.status === "closed") continue;
-    const share = diffDays(addDays(today, 1), per.start) / diffDays(per.end, per.start);
+    if (recurringFee(p, s.settings.usdRate, per.start) <= 0) continue;
+    const total = diffDays(per.end, per.start);
     for (const uid of new Set(projectStaff(p))) {
       const rate = profileOf(s, uid).perProject;
       if (rate <= 0) continue;
+      const days = workedDays(
+        s.users.find((u) => u.id === uid),
+        per.start,
+        addDays(today, 1),
+      );
+      if (days <= 0) continue;
       const out = new Map<string, number>();
-      allocateByDays(rate * share, per.start, addDays(today, 1), out);
+      allocateByDays((rate * days) / total, per.start, addDays(today, 1), out);
       for (const [m, v] of out) add(ACCRUAL_LINE.project.key, ACCRUAL_LINE.project.label, "direct", m, v);
     }
   }
   const cur = monthKey(today);
   if (!projectId && set.has(cur)) {
     const dim = diffDays(`${shiftMonthKey(cur, 1)}-01`, `${cur}-01`);
-    const elapsed = diffDays(addDays(today, 1), `${cur}-01`);
     for (const prof of s.payProfiles) {
-      if (prof.fixed <= 0 || !s.users.find((u) => u.id === prof.userId)?.active) continue;
+      if (prof.fixed <= 0) continue;
       if (s.accruals.some((a) => a.sourceId === `fix:${prof.userId}:${cur}`)) continue;
-      add(ACCRUAL_LINE.fixed.key, ACCRUAL_LINE.fixed.label, "overhead", cur, (prof.fixed * elapsed) / dim);
+      const fs = fixedStart(prof);
+      const from = fs > `${cur}-01` ? fs : `${cur}-01`;
+      const days =
+        from > today
+          ? 0
+          : workedDays(
+              s.users.find((u) => u.id === prof.userId),
+              from,
+              addDays(today, 1),
+            );
+      if (days > 0) add(ACCRUAL_LINE.fixed.key, ACCRUAL_LINE.fixed.label, "overhead", cur, (prof.fixed * days) / dim);
     }
   }
 
@@ -611,9 +683,38 @@ export function projectProfitability(s: ErpState, months: string[], today: strin
   const rows = s.projects.map((project) => {
     const r = pnl(s, months, today, project.id);
     const set = new Set(months);
+    // Xodimlar bo'yicha to'g'ridan-to'g'ri xarajat — P&L bilan bir xil qoida (davr kunlariga taqsimlash va joriy davr ulushi)
     const byUser = new Map<string, number>();
+    const put = (uid: string, m: string, v: number) => set.has(m) && byUser.set(uid, (byUser.get(uid) ?? 0) + v);
     for (const a of s.accruals) {
-      if (a.projectId === project.id && set.has(monthKey(a.date))) byUser.set(a.userId, (byUser.get(a.userId) ?? 0) + a.amount);
+      if (a.projectId !== project.id) continue;
+      const l = a.kind === "manual" ? ACCRUAL_LINE.piece : ACCRUAL_LINE[a.kind];
+      if (l.section !== "direct") continue;
+      const per = a.kind === "project" ? accrualPeriod(s, a) : null;
+      if (per) {
+        const out = new Map<string, number>();
+        allocateByDays(a.amount, per.start, per.end, out);
+        for (const [m, v] of out) put(a.userId, m, v);
+      } else put(a.userId, monthKey(a.date), a.amount);
+    }
+    const per = project.status === "closed" ? null : currentPeriod(project, today);
+    if (per && recurringFee(project, s.settings.usdRate, per.start) > 0) {
+      const total = diffDays(per.end, per.start);
+      for (const uid of new Set(projectStaff(project))) {
+        const rate = profileOf(s, uid).perProject;
+        const days =
+          rate > 0
+            ? workedDays(
+                s.users.find((u) => u.id === uid),
+                per.start,
+                addDays(today, 1),
+              )
+            : 0;
+        if (days <= 0) continue;
+        const out = new Map<string, number>();
+        allocateByDays((rate * days) / total, per.start, addDays(today, 1), out);
+        for (const [m, v] of out) put(uid, m, v);
+      }
     }
     return {
       project,
@@ -742,7 +843,7 @@ export interface ReceivableRow {
 export function receivables(s: ErpState, today: string): ReceivableRow[] {
   return s.projects
     .map((project) => {
-      const invs = s.invoices.filter((i) => i.projectId === project.id && i.issueDate <= today);
+      const invs = liveInvoices(s).filter((i) => i.projectId === project.id && i.issueDate <= today);
       const row: ReceivableRow = { project, invoiced: 0, paid: 0, balance: 0, notDue: 0, d30: 0, d60: 0, d60plus: 0, advance: 0 };
       for (const inv of invs) {
         const paid = invoicePaid(s, inv);
@@ -805,7 +906,7 @@ export interface ReconRow {
  */
 export function reconClient(s: ErpState, projectId: string, from: string, to: string) {
   const rows: (ReconRow & { before: boolean })[] = [];
-  for (const inv of s.invoices) {
+  for (const inv of liveInvoices(s)) {
     if (inv.projectId !== projectId || inv.issueDate > to) continue;
     rows.push({ date: inv.issueDate, doc: `Hisob-faktura ${inv.number} — ${inv.note}`, debit: inv.amount, credit: 0, before: inv.issueDate < from });
   }

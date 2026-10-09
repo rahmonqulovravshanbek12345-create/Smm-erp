@@ -3,7 +3,7 @@ import { DebtBadge, PostBadge, TaskBadge } from "../components/bits";
 import { PostModal } from "../components/forms";
 import { A, Badge, Card, CardHeader, Empty, PageHeader, Ring, Select, Stat } from "../components/ui";
 import { diffDays, fmtDate, fmtMoney, relDays } from "../lib/dates";
-import { PLATFORM_LABELS, ROLE_LABELS, TASK_KIND_LABELS } from "../lib/labels";
+import { ROLE_LABELS, TASK_KIND_LABELS, platformsText } from "../lib/labels";
 import { isPostLate, isTaskLate, isTaskOpen, periodPosts, postNeedsWarning, projectDebt, targetReportMissing, workBlockedReason } from "../lib/rules";
 import { hasContent, oneTimeServices } from "../lib/services";
 import { useErp, useLookup } from "../lib/store";
@@ -72,10 +72,10 @@ export function Dashboard() {
         <Stat icon="wallet" color="orange" label="Qarzdor loyihalar" value={d.debtors.length} href="/moliya" tone={d.debtors.length ? "red" : "green"} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader icon={{ name: "gauge", color: "green" }} title="Reja bajarilishi" sub="Joriy hisob davri ichidagi kontent reja" />
-          <div className="grid gap-3 p-3 pt-1 sm:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 p-3 pt-1 sm:grid-cols-2 2xl:grid-cols-3">
             {state.projects.filter(hasContent).map((p) => {
               const { per, posts } = periodPosts(state, p, today);
               const done = posts.filter((x) => x.status === "published").length;
@@ -124,7 +124,7 @@ export function Dashboard() {
                   <button type="button" onClick={() => setOpenPost(p.id)} className="w-full px-5 py-2.5 text-left hover:bg-fill">
                     <div className="text-sm text-label">{p.topic}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-label2">
-                      {look.projectName(p.projectId)} · {p.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")} <PostBadge post={p} today={today} />
+                      {look.projectName(p.projectId)} · {platformsText(p.platforms)} <PostBadge post={p} today={today} />
                     </div>
                   </button>
                 </li>

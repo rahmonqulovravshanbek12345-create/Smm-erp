@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Banner, Button, Field, Input, Modal, Select, userOptions } from "../../components/ui";
+import { AmountInput, Banner, Button, Field, Input, Modal, Select, userOptions } from "../../components/ui";
 import * as act from "../../lib/actions";
 import { fmtMoney } from "../../lib/dates";
 import { WORK_LABELS, accountOf, billPaid, employeeBalance, invoiceOutstanding, payrollStaff } from "../../lib/finance";
@@ -28,7 +28,13 @@ interface MoneyState {
 function useMoneyFields(defaultAccount = "acc_bank") {
   const { state, today } = useErp();
   const [accountId, setAccountId] = useState(state.accounts.some((a) => a.id === defaultAccount) ? defaultAccount : (state.accounts[0]?.id ?? ""));
-  const [amount, setAmount] = useState("");
+  const [amount, setAmountRaw] = useState("");
+  // Foydalanuvchi summani o'zgartirgach (hatto o'chirib tashlasa ham) taklif etilgan summa qaytib kelmaydi
+  const [touched, setTouched] = useState(false);
+  const setAmount = (v: string) => {
+    setTouched(true);
+    setAmountRaw(v);
+  };
   const [rate, setRate] = useState(String(state.settings.usdRate));
   const [date, setDate] = useState(today);
   const isUsd = accountOf(state, accountId)?.currency === "USD";
@@ -55,7 +61,7 @@ function useMoneyFields(defaultAccount = "acc_bank") {
      * USD hisobda so'm summasi dollar bo'lib yozilib ketmasligi uchun.
      */
     withDefault(suggestedUzs: number): MoneyState {
-      if (amount !== "") return base;
+      if (touched || amount !== "") return base;
       const v = isUsd ? Math.round((Math.max(0, suggestedUzs) / rateVal) * 100) / 100 : Math.round(Math.max(0, suggestedUzs));
       return { ...base, amount: String(v), value: v, uzs: isUsd ? v * rateVal : v };
     },
@@ -73,7 +79,7 @@ function MoneyFields({ m, label = "Summa" }: { m: MoneyState; label?: string }) 
         <Input type="date" value={m.date} onChange={(e) => m.setDate(e.target.value)} />
       </Field>
       <Field label={`${label} (${m.isUsd ? "USD" : "so'm"})`} hint={m.isUsd ? `≈ ${fmtMoney(m.uzs)}` : undefined}>
-        <Input type="number" min={0} value={m.amount} onChange={(e) => m.setAmount(e.target.value)} placeholder="0" />
+        <AmountInput value={m.amount} onValue={m.setAmount} placeholder="0" />
       </Field>
       {m.isUsd && (
         <Field label="Kurs (1 USD = so'm)">
@@ -138,7 +144,7 @@ export function TxModal({ dir, onClose }: { dir: "in" | "out"; onClose: () => vo
       title={dir === "in" ? "Yangi kirim" : "Yangi chiqim"}
       footer={<Footer onClose={onClose} onSave={save} label="Saqlash" disabled={!m.value || (needsProject && !projectId)} />}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Modda" className="sm:col-span-2">
           <Select value={articleId} onChange={(e) => setArticleId(e.target.value)} options={articles.map((a) => ({ value: a.id, label: a.name }))} />
         </Field>
@@ -186,7 +192,7 @@ export function TransferModal({ onClose }: { onClose: () => void }) {
       title="Hisoblar o'rtasida o'tkazma"
       footer={<Footer onClose={onClose} onSave={save} label="O'tkazish" disabled={!a || from === to} />}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Qayerdan">
           <Select value={from} onChange={(e) => setFrom(e.target.value)} options={accounts} />
         </Field>
@@ -194,17 +200,16 @@ export function TransferModal({ onClose }: { onClose: () => void }) {
           <Select value={to} onChange={(e) => setTo(e.target.value)} options={accounts} />
         </Field>
         <Field label={`Summa (${cf})`} hint={cf !== ct ? `Tushadi: ${amountTo} ${ct}` : undefined}>
-          <Input type="number" value={amountFrom} onChange={(e) => setAmountFrom(e.target.value)} />
+          <AmountInput value={amountFrom} onValue={setAmountFrom} />
         </Field>
-        {cf !== ct ? (
+        {cf !== ct && (
           <Field label="Kurs (1 USD = so'm)">
             <Input type="number" value={rate} onChange={(e) => setRate(e.target.value)} />
           </Field>
-        ) : (
-          <Field label="Sana">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
         )}
+        <Field label="Sana">
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </Field>
         <Field label="Izoh" className="sm:col-span-2">
           <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Masalan: kassaga naqd yechish" />
         </Field>
@@ -241,7 +246,7 @@ export function InvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClos
         Faktura: <b className="text-label">{fmtMoney(invoice.amount)}</b> · qolgan: <b className="text-label">{fmtMoney(left)}</b>. Qisman to'lov ham qayd
         etiladi.
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <MoneyFields m={m} />
         <Field label="Izoh" className="sm:col-span-2">
           <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bank o'tkazmasi / naqd / karta" />
@@ -268,7 +273,7 @@ export function ExtraInvoiceModal({ onClose }: { onClose: () => void }) {
       title="Qo'shimcha xizmat uchun faktura"
       footer={<Footer onClose={onClose} onSave={save} label="Chiqarish" disabled={!Number(amount)} />}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Loyiha" className="sm:col-span-2">
           <Select value={projectId} onChange={(e) => setProjectId(e.target.value)} options={state.projects.map((p) => ({ value: p.id, label: p.name }))} />
         </Field>
@@ -276,7 +281,7 @@ export function ExtraInvoiceModal({ onClose }: { onClose: () => void }) {
           <Input value={note} onChange={(e) => setNote(e.target.value)} />
         </Field>
         <Field label="Summa (so'm)">
-          <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <AmountInput value={amount} onValue={setAmount} />
         </Field>
         <Field label="Chiqarilgan sana">
           <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
@@ -304,7 +309,7 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
     const n = note || (kind === "advance" ? "Avans" : "Ish haqi");
     if (
       run(
-        (c) => act.payEmployee(c, { userId: uid, amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note: n }),
+        (c) => act.payEmployee(c, { userId: uid, amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note: n, advance: kind === "advance" }),
         "To'lov qayd etildi — xodimga xabar ketdi",
       )
     )
@@ -312,7 +317,7 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
   };
   return (
     <Modal open onClose={onClose} title="Xodimga to'lov" footer={<Footer onClose={onClose} onSave={save} label="To'lash" disabled={!value} />}>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Xodim">
           <Select
             value={uid}
@@ -362,7 +367,7 @@ export function ManualAccrualModal({ userId, onClose }: { userId?: string; onClo
       title="Bonus, jarima yoki qo'shimcha hisoblash"
       footer={<Footer onClose={onClose} onSave={save} label="Qo'shish" disabled={!Number(amount) || !title.trim()} />}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Xodim">
           <Select value={uid} onChange={(e) => setUid(e.target.value)} options={userOptions(staff)} />
         </Field>
@@ -378,7 +383,7 @@ export function ManualAccrualModal({ userId, onClose }: { userId?: string; onClo
           />
         </Field>
         <Field label="Summa (so'm)">
-          <Input type="number" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <AmountInput value={amount} onValue={setAmount} />
         </Field>
         <Field label="Sana">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -426,7 +431,7 @@ export function BillModal({ onClose }: { onClose: () => void }) {
       title="Ta'minotchidan xarajat hujjati"
       footer={<Footer onClose={onClose} onSave={save} label="Qo'shish" disabled={!Number(amount)} />}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Ta'minotchi">
           <Select value={vendorId} onChange={(e) => setVendorId(e.target.value)} options={state.vendors.map((v) => ({ value: v.id, label: v.name }))} />
         </Field>
@@ -434,7 +439,7 @@ export function BillModal({ onClose }: { onClose: () => void }) {
           <Select value={articleId} onChange={(e) => setArticleId(e.target.value)} options={articles.map((a) => ({ value: a.id, label: a.name }))} />
         </Field>
         <Field label="Summa (so'm)">
-          <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <AmountInput value={amount} onValue={setAmount} />
         </Field>
         <Field label="Loyiha (ixtiyoriy)">
           <Select
@@ -474,7 +479,7 @@ export function PayBillModal({ bill, onClose }: { bill: Bill; onClose: () => voi
       <p className="mb-3 text-[14px] text-label2">
         {bill.note} · qolgan: <b className="text-label">{fmtMoney(left)}</b>
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <MoneyFields m={m} />
       </div>
     </Modal>

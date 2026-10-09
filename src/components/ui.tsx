@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Tone } from "../lib/labels";
 import { Icon, IconChip, type ChipColor, type IconName } from "./icons";
@@ -334,6 +334,42 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} ${props.className ?? ""}`} />;
 }
 
+/** «1 600 000» ko'rinishida; vergul ham kasr ajratgich sifatida qabul qilinadi. */
+export const fmtAmountInput = (raw: string) => {
+  const [int = "", dec] = raw.split(".");
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return dec !== undefined ? `${grouped},${dec}` : grouped;
+};
+
+/**
+ * Summa maydoni: minglik ajratgich bilan ko'rsatadi, qiymatni oddiy son-satr ko'rinishida beradi ("1600000.5").
+ * Klaviatura — raqamli; ortiqcha belgilar tashlab yuboriladi.
+ */
+export function AmountInput({
+  value,
+  onValue,
+  ...props
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type"> & { value: string; onValue: (v: string) => void }) {
+  return (
+    <input
+      {...props}
+      type="text"
+      inputMode="decimal"
+      autoComplete="off"
+      value={fmtAmountInput(value)}
+      onChange={(e) => {
+        const cleaned = e.target.value
+          .replace(/\s/g, "")
+          .replace(",", ".")
+          .replace(/[^\d.]/g, "");
+        const [i = "", ...rest] = cleaned.split(".");
+        onValue(rest.length ? `${i}.${rest.join("").slice(0, 2)}` : i);
+      }}
+      className={`${inputCls} tabular ${props.className ?? ""}`}
+    />
+  );
+}
+
 export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea rows={3} {...props} className={`${inputCls} resize-y ${props.className ?? ""}`} />;
 }
@@ -357,6 +393,9 @@ export function Select({ options, ...props }: React.SelectHTMLAttributes<HTMLSel
 const SELECT_ARROW =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 9.5l5 5 5-5'/%3E%3C/svg%3E\")";
 
+let modalSeq = 0;
+const modalStack: number[] = [];
+
 /** iOS "sheet": telefonda pastdan chiqadi, kompyuterda markazda. */
 export function Modal({
   open,
@@ -373,13 +412,20 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  const id = useRef(0);
   useEffect(() => {
     if (!open) return;
-    const on = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    // Ichma-ich oynalar: Escape faqat eng yuqoridagi oynani yopadi
+    const me = (id.current = ++modalSeq);
+    modalStack.push(me);
+    const on = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && modalStack[modalStack.length - 1] === me) onClose();
+    };
     window.addEventListener("keydown", on);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
+      modalStack.splice(modalStack.indexOf(me), 1);
       window.removeEventListener("keydown", on);
       document.body.style.overflow = prev;
     };

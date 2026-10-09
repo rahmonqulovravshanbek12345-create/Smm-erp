@@ -199,7 +199,7 @@ export function FinDashboard() {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader
             icon={{ name: "sparkle", color: "blue" }}
@@ -300,7 +300,7 @@ export function FinDashboard() {
               </A>
             }
           />
-          <div className="grid gap-3 px-5 pb-5 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 px-5 pb-5 sm:grid-cols-4">
             {[
               {
                 l: "Kutilayotgan kirim",

@@ -3,9 +3,10 @@ import { BarList, ColumnsChart, VIZ, fmtShort } from "../components/charts";
 import { Icon } from "../components/icons";
 import { A, Badge, Button, Card, Empty, Ring, Select, navigate } from "../components/ui";
 import { fmtDate, fmtDateShort, fmtMoney, fmtNum } from "../lib/dates";
-import { FORMAT_LABELS, PLATFORM_LABELS } from "../lib/labels";
+import { FORMAT_LABELS, PLATFORM_LABELS, platformsText } from "../lib/labels";
 import { clientReport, delta, periodProgress, reportPeriods } from "../lib/report";
 import { useErp, useLookup } from "../lib/store";
+import { visibleProjects } from "../lib/permissions";
 
 function Delta({ cur, prev, goodUp = true }: { cur: number; prev?: number; goodUp?: boolean }) {
   const d = delta(cur, prev);
@@ -21,14 +22,17 @@ function Delta({ cur, prev, goodUp = true }: { cur: number; prev?: number; goodU
 
 /** Mijozga yuboriladigan oylik hisobot — ERP ma'lumotlaridan avtomatik tuziladi. */
 export function ClientReport({ projectId, periodIndex }: { projectId: string; periodIndex?: number }) {
-  const { state, today, showToast } = useErp();
+  const { state, me, today, showToast } = useErp();
   const look = useLookup();
-  const project = look.project(projectId);
+  // Faqat o'ziga ko'rinadigan loyiha hisobotlari
+  const project = visibleProjects(state, me).some((p) => p.id === projectId) ? look.project(projectId) : undefined;
   const periods = project ? reportPeriods(project, today) : [];
+  // Havoladagi davr raqami noto'g'ri bo'lsa (matn, manfiy, mavjud bo'lmagan) — hisobot ko'rsatilmaydi
+  const badIndex = periodIndex !== undefined && !periods.some((p) => p.index === periodIndex);
   const idx = periodIndex ?? periods.find((p) => p.end <= today)?.index ?? periods[0]?.index ?? 0;
   const r = useMemo(() => clientReport(state, projectId, idx, today), [state, projectId, idx, today]);
 
-  if (!project || !r) return <Empty>Hisobot uchun ma'lumot yo'q</Empty>;
+  if (!project || !r || badIndex) return <Empty>Hisobot uchun ma'lumot yo'q</Empty>;
   if (!project.periodStart) return <Empty>Loyiha hisob davri hali boshlanmagan — birinchi reklamadan keyin hisobot tuziladi</Empty>;
 
   const prog = periodProgress(r.period, today);
@@ -134,7 +138,7 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
         {/* Kontent */}
         <Card className="p-5">
           <h2 className="text-[19px] font-bold tracking-tight text-label">Kontent rejasi bajarilishi</h2>
-          <div className="mt-4 grid gap-6 md:grid-cols-[auto_1fr_1fr]">
+          <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-[auto_1fr_1fr]">
             <div className="flex items-center gap-4">
               <Ring value={pubN} max={Math.max(1, planned)} size={104} stroke={11}>
                 <div className="text-center">
@@ -147,6 +151,11 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
                   <b>{planned}</b> ta rejadan <b>{pubN}</b> tasi joylandi
                 </div>
                 <div className="mt-1 text-label2">O'z vaqtida: {onTimePct.toFixed(0)}%</div>
+                {r.published.some((x) => !x.platforms.length) && (
+                  <div className="mt-1 text-label2">
+                    shundan {r.published.filter((x) => !x.platforms.length).length} tasi — reklama uchun video (targetga topshirildi)
+                  </div>
+                )}
               </div>
             </div>
             <div>
@@ -179,7 +188,7 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
                     <td className="whitespace-nowrap py-1.5 pr-2 text-label2">{fmtDateShort(p.date)}</td>
                     <td className="py-1.5 pr-2 text-label">{p.topic}</td>
                     <td className="py-1.5 pr-2 text-label2">{FORMAT_LABELS[p.format]}</td>
-                    <td className="py-1.5 pr-2 text-label2">{p.platforms.map((x) => PLATFORM_LABELS[x]).join(", ")}</td>
+                    <td className="py-1.5 pr-2 text-label2">{platformsText(p.platforms)}</td>
                     <td className="py-1.5">
                       {p.status === "published" ? (
                         <Badge tone="green">Joylandi {p.publishedAt && p.publishedAt > p.date ? "(+1 kun)" : ""}</Badge>
@@ -227,7 +236,7 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
         )}
 
         {/* Xulosa va keyingi oy */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Card className="p-5">
             <h2 className="text-[19px] font-bold tracking-tight text-label">SMM menejer xulosasi</h2>
             {r.organic ? (

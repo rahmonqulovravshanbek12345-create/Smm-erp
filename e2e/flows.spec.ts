@@ -32,7 +32,7 @@ test("Lid → tijorat taklifi → qabul → shartnoma → oldindan to'lov → is
 
   await page.evaluate((h) => (location.hash = h), "/moliya/fakturalar");
   await page.locator("tr", { hasText: prepay.number }).getByRole("button", { name: "To'lov" }).click();
-  await dialog(page).locator("input[type=number]").fill(String(prepay.amount));
+  await dialog(page).getByLabel(/Summa/).fill(String(prepay.amount));
   await dialog(page).getByRole("button", { name: "Qabul qilish" }).click();
   // Standart filtr «To'lanmaganlar» — to'langan faktura ro'yxatdan chiqadi
   await expect(page.locator("tr", { hasText: prepay.number })).toHaveCount(0);
@@ -52,7 +52,7 @@ test("Kontent: ichki tasdiq → marketolog tasdig'i → mijoz tasdig'i → joyla
   const post = s.posts.find((x: { projectId: string; status: string }) => mine.has(x.projectId) && x.status === "design");
   expect(post, "demo'da dizayn bosqichidagi post bo'lishi kerak").toBeTruthy();
 
-  await page.getByText(post.topic).first().click();
+  await page.getByText(post.topic).filter({ visible: true }).first().click();
   await dialog(page)
     .getByRole("button", { name: /Ichki tasdiqqa yuborish/ })
     .click();
@@ -63,7 +63,7 @@ test("Kontent: ichki tasdiq → marketolog tasdig'i → mijoz tasdig'i → joyla
     .last();
   await card.getByRole("button", { name: "✓ Tasdiqlash" }).click();
   await openAs(page, "u_smm1", "/kontent");
-  await page.getByText(post.topic).first().click();
+  await page.getByText(post.topic).filter({ visible: true }).first().click();
   // Oyna ochiq qoladi — keyingi qadam shu yerning o'zida
   await dialog(page)
     .getByRole("button", { name: /Mijoz tasdiqladi/ })

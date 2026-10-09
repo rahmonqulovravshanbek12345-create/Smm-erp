@@ -74,7 +74,7 @@ export function Integrations() {
         hech kimga ko'rinmaydi.
       </Banner>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader
             icon={{ name: "target", color: "blue" }}
@@ -82,7 +82,7 @@ export function Integrations() {
             sub="Har bir loyihaning kunlik sarfi, ko'rishlar, kliklar va lidlar target hisobotiga o'zi tushadi"
             right={demo ? <Badge tone="gray">Demo rejim</Badge> : <Badge tone="green">Token kiritilgan</Badge>}
           />
-          <div className="grid gap-3 px-5 pb-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 px-5 pb-4 sm:grid-cols-2">
             <Field label="Kirish tokeni (Marketing API)" hint="Bo'sh — demo rejim: namunaviy raqamlar">
               <Input
                 type="password"

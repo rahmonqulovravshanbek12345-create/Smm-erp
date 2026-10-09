@@ -5,6 +5,7 @@ import { nowISO, todayISO } from "./dates";
 import { linkFor } from "./routes";
 import { syncAll } from "./store-sync";
 import { buildSeed, SEED_VERSION } from "./seed";
+import { normalizeState } from "./normalize";
 import { sendTelegram, telegramText } from "./telegram";
 import type { ErpState, User } from "./types";
 
@@ -39,24 +40,47 @@ interface Store {
   reset: () => void;
   toast: string | null;
   showToast: (t: string) => void;
+  /** Brauzerga saqlab bo'lmadi (joy tugagan) — o'zgarishlar sahifa yopilsa yo'qoladi. */
+  saveError: boolean;
 }
 
 const StoreContext = createContext<Store | null>(null);
 
+/** Ishga tushganda foydalanuvchiga aytiladigan xabar (masalan, demo yangilandi). */
+let bootNotice: string | null = null;
+
+/** Eski ma'lumotdan zaxira nusxa: o'chirishdan oldin har doim saqlanadi (qo'lda tiklash mumkin bo'lsin). */
+function backup(raw: string) {
+  try {
+    window.localStorage.setItem(`${STORAGE_KEY}-backup`, raw);
+  } catch {
+    // joy yetmasa — zaxirasiz davom etamiz
+  }
+}
+
 function load(): ErpState {
+  const seed = buildSeed(todayISO());
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as ErpState;
-      if (parsed.version === SEED_VERSION) return parsed;
-      const fresh = buildSeed(todayISO());
-      keepTelegram(parsed, fresh);
-      return fresh;
+      if (parsed?.version === SEED_VERSION) {
+        const ok = normalizeState(parsed, seed);
+        if (ok) return ok;
+        backup(raw);
+        bootNotice = "⚠ Saqlangan ma'lumot buzilgan edi — zaxiraga olindi, demo qayta ochildi";
+        return seed;
+      }
+      // Demo ma'lumotlarning yangi versiyasi: eski holat zaxiraga olinadi (haqiqiy tizimda bu server migratsiyasi bo'ladi)
+      backup(raw);
+      keepTelegram(parsed, seed);
+      bootNotice = "Demo yangi versiyaga yangilandi — oldingi ma'lumot zaxiraga olindi";
+      return seed;
     }
   } catch {
-    // saqlangan ma'lumot o'qilmadi — yangi demo ma'lumot bilan boshlaymiz
+    bootNotice = "⚠ Saqlangan ma'lumot o'qilmadi — demo qayta ochildi";
   }
-  return buildSeed(todayISO());
+  return seed;
 }
 
 /** Demo qayta tiklanganda yoki yangilanganda tokenlar, chat ID'lar va ulangan reklama kabinetlari saqlanib qoladi. */
@@ -81,22 +105,55 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return s;
   });
   const [toast, setToast] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState(false);
   const toastTimer = useRef<number>();
   const today = todayISO();
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // saqlash imkoni bo'lmasa (yashirin rejim), demo xotirada ishlashda davom etadi
-    }
-  }, [state]);
+  // Boshqa oynadan kelgan holat qayta yozilmasligi uchun
+  const lastRaw = useRef<string | null>(null);
 
   const showToast = useCallback((t: string) => {
     setToast(t);
     window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 2600);
+    toastTimer.current = window.setTimeout(() => setToast(null), t.startsWith("⚠") ? 5000 : 2600);
   }, []);
+
+  useEffect(() => {
+    const raw = JSON.stringify(state);
+    if (raw === lastRaw.current) return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, raw);
+      lastRaw.current = raw;
+      setSaveError(false);
+    } catch {
+      // Joy tugagan yoki yashirin rejim: o'zgarishlar faqat shu oynada qoladi — foydalanuvchi bilishi kerak
+      setSaveError(true);
+    }
+  }, [state]);
+
+  useEffect(() => {
+    if (bootNotice) {
+      showToast(bootNotice);
+      bootNotice = null;
+    }
+    // Ikkinchi oynada o'zgartirilsa — shu oyna ham yangi holatni oladi (eski holat ustidan yozib yubormaydi)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY || !e.newValue) return;
+      try {
+        const next = normalizeState(JSON.parse(e.newValue), buildSeed(todayISO()));
+        if (!next || next.version !== SEED_VERSION) return;
+        lastRaw.current = e.newValue;
+        // Joriy foydalanuvchi har oynada o'ziniki bo'lib qoladi
+        next.currentUserId = stateRef.current.currentUserId;
+        stateRef.current = next;
+        setState(next);
+        showToast("Ma'lumot boshqa oynada yangilandi");
+      } catch {
+        // o'qib bo'lmadi — e'tiborsiz qoldiramiz
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [showToast]);
 
   const deliver = useCallback((token: string, outbox: Outgoing[]) => {
     for (const o of outbox) {
@@ -128,6 +185,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const uniq = new Set(userIds.filter((x): x is string => Boolean(x) && x !== me.id));
           for (const uid of uniq) {
             const to = s.users.find((u) => u.id === uid);
+            // Arxivdagi xodimga bildirishnoma va Telegram yuborilmaydi
+            if (!to?.active) continue;
             const chatId = to?.telegramChatId?.trim();
             const live = Boolean(tg.enabled && token && chatId);
             const id = newId("ntf");
@@ -176,7 +235,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const me = state.users.find((u) => u.id === state.currentUserId) ?? state.users[0]!;
 
-  const value = useMemo(() => ({ state, me, today, run, reset, toast, showToast }), [state, me, today, run, reset, toast, showToast]);
+  const value = useMemo(() => ({ state, me, today, run, reset, toast, showToast, saveError }), [state, me, today, run, reset, toast, showToast, saveError]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

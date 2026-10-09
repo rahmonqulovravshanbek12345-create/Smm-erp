@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { horizontalOverflow, openAs, watch } from "./helpers";
+import { horizontalOverflow, openAs, settle, watch } from "./helpers";
 
 const PAGES = [
   "/",
@@ -36,6 +36,7 @@ for (const size of SIZES) {
     for (const path of PAGES) {
       await page.evaluate((h) => (location.hash = h), path);
       await expect(page.locator("main h1").first()).toBeVisible();
+      await settle(page);
       const over = await horizontalOverflow(page);
       if (over > 1) bad.push(`${path}: +${over}px`);
       const shot = await page.screenshot({ fullPage: true });
@@ -61,6 +62,7 @@ for (const path of ["/", "/crm", "/takliflar", "/taklif/tk_kids", "/moliya", "/m
     await watch(page);
     await openAs(page, path === "/admin" ? "u_admin" : "u_boss", path);
     await expect(page.locator("main h1").first()).toBeVisible();
+    await settle(page);
     const res = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
     const serious = res.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
     const summary = serious.map((v) => `${v.id} (${v.impact}): ${v.nodes.length} ta — ${v.nodes[0]?.target.join(" ")}`);
@@ -82,6 +84,7 @@ test.describe("qorong'i rejim", () => {
       await watch(page);
       await openAs(page, "u_boss", path);
       await expect(page.locator("main h1").first()).toBeVisible();
+      await settle(page);
       const res = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
       const serious = res.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
       const summary = serious.map(

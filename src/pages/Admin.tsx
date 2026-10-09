@@ -8,7 +8,7 @@ import { alertsFor } from "../lib/rules";
 import { userLoad } from "../lib/staff";
 import { newId, useErp } from "../lib/store";
 import { sendTelegram, telegramText } from "../lib/telegram";
-import type { Role } from "../lib/types";
+import type { Role, User } from "../lib/types";
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 
@@ -63,7 +63,7 @@ export function Admin() {
   return (
     <>
       <PageHeader title="Admin" sub="Foydalanuvchilar, huquqlar va tizim sozlamalari" />
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card className="xl:col-span-2">
           <CardHeader title="Foydalanuvchilar" sub="Telegram chat ID — xodim botga /start bosgandan keyin @userinfobot orqali olinadi" />
           <div className="overflow-x-auto">
@@ -89,6 +89,8 @@ export function Admin() {
                         onChange={(e) =>
                           run((c) => {
                             const x = c.s.users.find((y) => y.id === u.id);
+                            if (x?.role === "rahbar" && e.target.value !== "rahbar" && c.s.users.filter((y) => y.role === "rahbar" && y.active).length <= 1)
+                              throw new Error("Oxirgi faol rahbarning rolini o'zgartirib bo'lmaydi");
                             if (x) x.role = e.target.value as Role;
                             c.log(`${u.name}: rol → ${ROLE_LABELS[e.target.value as Role]}`, "/admin");
                           }, "Rol o'zgartirildi")
@@ -153,7 +155,7 @@ export function Admin() {
               disabled={!nu.name.trim()}
               onClick={() =>
                 run((c) => {
-                  c.s.users.push({ id: newId("u"), name: nu.name.trim(), role: nu.role, active: true });
+                  c.s.users.push({ id: newId("u"), name: nu.name.trim(), role: nu.role, active: true, hiredAt: c.today });
                   c.log(`Yangi xodim: ${nu.name.trim()} (${ROLE_LABELS[nu.role]})`, "/admin");
                 }, "Xodim qo'shildi") && setNu({ ...nu, name: "" })
               }
@@ -235,7 +237,7 @@ export function Admin() {
                 }
               />
             </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(
                 [
                   ["address", "Yuridik manzil"],
@@ -261,7 +263,7 @@ export function Admin() {
               ))}
             </div>
             <p className="text-[12px] text-label3">Rekvizitlar shartnoma, hisob-faktura, dalolatnoma va akt-sverkaga avtomatik tushadi.</p>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Field label="USD kursi (so'm)" hint="Yangi tranzaksiyalar uchun taklif">
                 <Input
                   type="number"
@@ -371,13 +373,21 @@ export function Admin() {
 
 /** Arxivlashdan oldin: xodimga nima bog'langanini ko'rsatadi va tasdiq so'raydi. */
 function ArchiveModal({ userId, onClose }: { userId: string | null; onClose: () => void }) {
-  const { state, today, run } = useErp();
+  const { state } = useErp();
   const u = state.users.find((x) => x.id === userId);
-  if (!u) return null;
+  return u ? <ArchiveBody u={u} onClose={onClose} /> : null;
+}
+
+function ArchiveBody({ u, onClose }: { u: User; onClose: () => void }) {
+  const { state, today, run } = useErp();
   const load = userLoad(state, u.id, today);
   const warn = load.balance > 0.5 || load.projects.length > 0 || load.openTasks.length > 0;
+  const peers = state.users.filter((x) => x.active && x.role === u.role && x.id !== u.id);
+  const [rep, setRep] = useState(peers[0]?.id ?? "");
+  const hasWork = load.projects.length > 0 || load.openTasks.length > 0;
   const save = () => {
-    if (run((c) => act.archiveUser(c, u.id), `${u.name} arxivlandi`)) onClose();
+    const to = peers.find((x) => x.id === rep);
+    if (run((c) => act.archiveUser(c, u.id, rep || undefined), to ? `${u.name} arxivlandi — ishlari ${to.name}ga o'tdi` : `${u.name} arxivlandi`)) onClose();
   };
   return (
     <Modal
@@ -404,10 +414,20 @@ function ArchiveModal({ userId, onClose }: { userId: string | null; onClose: () 
           </Banner>
         )}
         {load.balance < -0.5 && <Banner tone="amber">Xodimga {fmtMoney(-load.balance)} avans berilgan, hisobga olinmagan.</Banner>}
-        {load.projects.length > 0 && (
-          <Banner tone="amber">Hali mas'ul bo'lgan loyihalar: {load.projects.map((p) => p.name).join(", ")}. Ularga boshqa xodim tayinlang.</Banner>
-        )}
+        {load.projects.length > 0 && <Banner tone="amber">Hali mas'ul bo'lgan loyihalar: {load.projects.map((p) => p.name).join(", ")}.</Banner>}
         {load.openTasks.length > 0 && <Banner tone="amber">Qabul qilinmagan vazifalar: {load.openTasks.length} ta.</Banner>}
+        {hasWork && (
+          <Field label="Loyiha va ochiq ishlarni kimga o'tkazish">
+            <Select
+              value={rep}
+              onChange={(e) => setRep(e.target.value)}
+              options={[
+                ...peers.map((x) => ({ value: x.id, label: `${x.name} (${ROLE_LABELS[x.role]})` })),
+                { value: "", label: "Hech kimga — keyin qo'lda tayinlayman" },
+              ]}
+            />
+          </Field>
+        )}
         {!warn && <Banner tone="green">Bog'langan ish, qarz yoki loyiha yo'q.</Banner>}
       </div>
     </Modal>

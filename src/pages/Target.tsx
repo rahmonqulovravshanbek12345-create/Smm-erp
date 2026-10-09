@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { TaskBadge } from "../components/bits";
 import { TaskModal } from "../components/forms";
-import { A, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, LinkOut, PageHeader, Select } from "../components/ui";
+import { A, AmountInput, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, LinkOut, PageHeader, Select } from "../components/ui";
 import * as act from "../lib/actions";
 import { addDays, fmtDate, fmtMoney, fmtNum } from "../lib/dates";
 import { access, canEdit, visibleProjects } from "../lib/permissions";
@@ -97,7 +97,7 @@ export function Target() {
         </Banner>
       ))}
 
-      <div className="grid gap-4 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <Card className="xl:col-span-2">
           <CardHeader title="Target materiallari" sub="Reklama yoqilgan birinchi sana — hisob davrining boshi" />
           {tasks.length === 0 ? (
@@ -126,11 +126,11 @@ export function Target() {
                       <div className="mt-2 flex gap-2">
                         <Input
                           type="date"
-                          value={launch[t.id] ?? today}
+                          value={launch[t.id] || today}
                           onChange={(e) => setLaunch({ ...launch, [t.id]: e.target.value })}
                           className="!w-40 !py-1.5 !text-xs"
                         />
-                        <Button size="sm" variant="primary" onClick={() => run((c) => act.launchTarget(c, t.id, launch[t.id] ?? today), "Reklama yoqildi")}>
+                        <Button size="sm" variant="primary" onClick={() => run((c) => act.launchTarget(c, t.id, launch[t.id] || today), "Reklama yoqildi")}>
                           Reklamani yoqdim
                         </Button>
                       </div>
@@ -172,7 +172,7 @@ export function Target() {
                     </Field>
                   )}
                   <Field label="Sarflangan summa (so'm)">
-                    <Input type="number" value={f.spend} onChange={(e) => setF({ ...f, spend: e.target.value })} />
+                    <AmountInput value={f.spend} onValue={(v) => setF({ ...f, spend: v })} />
                   </Field>
                   <Field label="Ko'rishlar">
                     <Input type="number" value={f.views} onChange={(e) => setF({ ...f, views: e.target.value })} />

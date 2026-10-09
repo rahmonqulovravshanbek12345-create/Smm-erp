@@ -54,7 +54,7 @@ export function PayCalendar() {
         <Stat icon="alert" color={cal.min < 0 ? "red" : "teal"} label="Eng past qoldiq" value={fmtShort(cal.min)} tone={cal.min < 0 ? "red" : undefined} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-3">
           <CardHeader title="Prognoz qoldiq" sub={`Bugundan ${fmtDate(cal.end)} gacha · mijozlarning tranzit puli chiqarib tashlangan`} />
           <div className="px-3 pb-4">

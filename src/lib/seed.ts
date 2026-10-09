@@ -4,7 +4,7 @@ import { addDays, addMonths, diffDays, monthKey } from "./dates";
 import { addFinanceHistory } from "./seed-finance";
 import { addOperationsHistory } from "./seed-history";
 import { addSalesHistory } from "./seed-sales";
-import { DEFAULT_CONTENT_TYPES } from "./content";
+import { AD_VIDEO, DEFAULT_CONTENT_TYPES } from "./content";
 import { recurringFee, servicesSummary, stagesFor } from "./services";
 import { DEFAULT_TARIFFS, SERVICE_TARIFFS } from "./tariffs";
 import type {
@@ -27,7 +27,7 @@ import type {
   User,
 } from "./types";
 
-export const SEED_VERSION = 8;
+export const SEED_VERSION = 9;
 
 export function buildSeed(today: string): ErpState {
   const d = (n: number) => addDays(today, n);
@@ -585,6 +585,14 @@ export function buildSeed(today: string): ErpState {
     },
   ];
 
+  // Target uchun alohida reklama videolari (organik joylanmaydi)
+  const adPost = (projectId: string, date: string, topic: string, status: PostStatus) =>
+    addPost(projectId, date, "video", topic, status, { platforms: [], typeId: AD_VIDEO, forTarget: true, publishedOn: undefined });
+  const adM1 = adPost(P1, d(-6), "Reklama: kuzgi aksiya −15% (15 soniya)", "published");
+  adPost(P1, d(3), "Reklama: yotoqxona to'plami — narx va bo'lib to'lash", "editing");
+  const adG1 = adPost(P2, d(-3), "Reklama: birinchi mashg'ulot bepul", "published");
+  adPost(P2, d(6), "Reklama: yangi filial ochildi", "plan");
+
   // ---------- Vazifalar ----------
   const tasks: Task[] = [];
   const addTask = (t: Omit<Task, "id" | "createdAt" | "createdBy"> & { createdBy?: string }) =>
@@ -700,6 +708,30 @@ export function buildSeed(today: string): ErpState {
     deadline: d(-36),
     status: "progress",
     launchedAt: p2Start,
+    createdBy: "u_smm2",
+  });
+  addTask({
+    projectId: P1,
+    postId: adM1.id,
+    kind: "target",
+    assigneeId: "u_tg",
+    title: `Reklama videosi: ${adM1.topic}`,
+    brief: "Tayyor reklama videosi — kampaniyaga qo'ying va natijani hisobotda belgilang",
+    deadline: d(-5),
+    deadlineTime: "18:00",
+    status: "progress",
+    launchedAt: d(-5),
+  });
+  addTask({
+    projectId: P2,
+    postId: adG1.id,
+    kind: "target",
+    assigneeId: "u_tg",
+    title: `Reklama videosi: ${adG1.topic}`,
+    brief: "Tayyor reklama videosi — kampaniyaga qo'ying va natijani hisobotda belgilang",
+    deadline: d(-2),
+    deadlineTime: "18:00",
+    status: "new",
     createdBy: "u_smm2",
   });
 
@@ -946,24 +978,24 @@ export function buildSeed(today: string): ErpState {
       id: "q_mebel",
       projectId: P1,
       month,
-      counts: { ct_video: 8, ct_design: 6, ct_text: 4, ct_stories: 10, shoot: 2 },
+      counts: { ct_video: 8, ct_design: 6, ct_text: 4, ct_stories: 10, ct_target_video: 4, shoot: 2 },
       note: "Kuzgi aksiya oyi — video ko'proq",
       updatedAt: at(-4),
       updatedBy: "u_mk",
       history: [
         { at: at(-4), userId: "u_mk", text: "O'zgardi: Video 6 → 8 (Kuzgi aksiya oyi — video ko'proq)" },
-        { at: at(-20), userId: "u_mk", text: "Topshiriq berildi: 6 video, 6 dizayn, 4 matn, 10 stories, 2 syomka kuni" },
+        { at: at(-20), userId: "u_mk", text: "Topshiriq berildi: 6 video, 6 dizayn, 4 matn, 10 stories, 4 target video, 2 syomka kuni" },
       ],
     },
     {
       id: "q_gym",
       projectId: P2,
       month,
-      counts: { ct_video: 6, ct_design: 4, ct_text: 2, ct_stories: 20, shoot: 2 },
+      counts: { ct_video: 6, ct_design: 4, ct_text: 2, ct_stories: 20, ct_target_video: 4, shoot: 2 },
       note: "",
       updatedAt: at(-20),
       updatedBy: "u_mk",
-      history: [{ at: at(-20), userId: "u_mk", text: "Topshiriq berildi: 6 video, 4 dizayn, 2 matn, 20 stories, 2 syomka kuni" }],
+      history: [{ at: at(-20), userId: "u_mk", text: "Topshiriq berildi: 6 video, 4 dizayn, 2 matn, 20 stories, 4 target video, 2 syomka kuni" }],
     },
   ];
   state.quotas = quotas;

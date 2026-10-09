@@ -73,7 +73,7 @@ export function MyAccount() {
         <CardHeader title="Hisoblashlar" sub="Har bir ish, loyiha va holati" />
         <AccrualTable userId={me.id} month={month} />
       </Card>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <>
           <Card>
             <CardHeader title="Loyihalar bo'yicha" sub={fmtMonth(month)} />

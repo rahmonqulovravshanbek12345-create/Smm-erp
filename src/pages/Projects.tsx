@@ -37,7 +37,7 @@ export function Projects() {
           )
         }
       />
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {projects.map((p) => {
           const debt = projectDebt(state, p.id, today);
           const { per, posts } = periodPosts(state, p, today);
@@ -200,7 +200,7 @@ function Info({ p }: { p: Project }) {
     </div>
   );
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card className="p-4">
         <h2 className="mb-2 text-sm font-semibold text-label">Mijoz</h2>
         {row("Kontakt", p.contactName)}
@@ -260,18 +260,20 @@ function Info({ p }: { p: Project }) {
                 className="!w-48"
               />
             </Field>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={p.pauseWork}
-                onChange={(e) => run((c) => act.updateProject(c, p.id, { pauseWork: e.target.checked }), "Saqlandi")}
-                className="mt-1"
-              />
-              <span>
-                <span className="text-label">Ishni to'xtatish</span>
-                <span className="block text-xs text-label2">Belgilansa, bu loyiha uchun yangi post, syomka va TZ ochilmaydi (qo'lda boshqariladi)</span>
-              </span>
-            </label>
+            {p.status !== "closed" && (
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={p.pauseWork}
+                  onChange={(e) => run((c) => act.updateProject(c, p.id, { pauseWork: e.target.checked }), "Saqlandi")}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="text-label">Ishni to'xtatish</span>
+                  <span className="block text-xs text-label2">Belgilansa, bu loyiha uchun yangi post, syomka va TZ ochilmaydi (qo'lda boshqariladi)</span>
+                </span>
+              </label>
+            )}
             <CloseProject p={p} />
           </div>
         )}
@@ -332,7 +334,7 @@ function Marketing({ p }: { p: Project }) {
           </Button>
         )}
       </Card>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {DOC_BLOCKS.map((b) => {
           const doc = p.docs[b.id];
           const changed = drafts[b.id] !== doc.content;
@@ -381,7 +383,7 @@ function ProjectTasks({ p }: { p: Project }) {
   const shoots = state.shoots.filter((s) => s.projectId === p.id);
   const late = state.posts.filter((x) => x.projectId === p.id && isPostLate(x, today));
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-2">
         <CardHeader title="TZ va vazifalar" sub={`${tasks.length} ta`} />
         <ul className="divide-y divide-sep">
@@ -444,11 +446,11 @@ function Reports({ p }: { p: Project }) {
   const done = posts.filter((x) => x.status === "published").length;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {canSubmit && (
         <Card>
           <CardHeader title="Oylik hisobot topshirish" sub="Raqamlar ERP'da saqlanadi va hisobot fayli (Google Drive) biriktiriladi" />
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
             <Field label="Davr">
               <Input type="number" min={1} value={f.periodIndex + 1} onChange={(e) => setF({ ...f, periodIndex: Math.max(0, Number(e.target.value) - 1) })} />
             </Field>

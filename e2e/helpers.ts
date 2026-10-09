@@ -72,3 +72,14 @@ export const state = (page: Page) => page.evaluate((key) => JSON.parse(localStor
 export async function horizontalOverflow(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 }
+
+/** Sahifa animatsiyalari (kartalarning paydo bo'lishi) tugashini kutadi — o'lchashlar barqaror bo'lishi uchun. */
+export async function settle(page: Page) {
+  await page.waitForFunction(
+    () => document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getComputedTiming().iterations === Infinity),
+    null,
+    {
+      timeout: 5000,
+    },
+  );
+}

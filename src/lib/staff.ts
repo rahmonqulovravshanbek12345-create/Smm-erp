@@ -1,5 +1,6 @@
 // Xodimni arxivlash: nimalar bog'langanini ko'rsatadi (arxivlashdan oldin ogohlantirish uchun).
 import { employeeBalance } from "./finance";
+import { isTaskOpen } from "./rules";
 import type { ErpState, Project, Task } from "./types";
 
 export interface UserLoad {
@@ -20,6 +21,6 @@ export function userLoad(s: ErpState, userId: string, today: string): UserLoad {
         p.targetologId === userId ||
         p.services?.some((x) => x.status === "active" && x.assigneeId === userId)),
   );
-  const openTasks = s.tasks.filter((t) => t.assigneeId === userId && t.status !== "accepted");
+  const openTasks = s.tasks.filter((t) => t.assigneeId === userId && isTaskOpen(t));
   return { balance: employeeBalance(s, userId, today), projects, openTasks };
 }

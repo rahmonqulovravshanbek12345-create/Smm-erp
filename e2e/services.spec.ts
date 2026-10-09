@@ -6,7 +6,7 @@ const dialog = (page: Page) => page.locator("[role=dialog]");
 test("Post bir nechta platformada: har biri alohida joylanadi, rejada 1 ta post", async ({ page }) => {
   const p = await watch(page);
   await openAs(page, "u_smm1", "/kontent");
-  await page.getByRole("button", { name: "Ro'yxat" }).click();
+  await page.getByRole("button", { name: "Ro'yxat", exact: true }).click();
   await page.getByText("Yotoqxona to'plami obzori").first().click();
   const rows = dialog(page).locator("li", { hasText: "Telegram" });
   await rows.getByRole("button", { name: "Joylandi" }).click();
@@ -241,5 +241,77 @@ test("SMM menejer montajyorga TZ beradi: deadline soati bilan", async ({ page })
   expect(task.deadlineTime).toBe("14:30");
   await openAs(page, "u_mt1", "/montaj");
   await expect(page.getByText(/, 14:30/).first()).toBeVisible();
+  expect(p.errors).toEqual([]);
+});
+
+test("Target video: SMM rejaga qo'shadi (platformasiz) → tasdiqdan keyin targetologga beradi → targetolog TZ oladi", async ({ page }) => {
+  const p = await watch(page);
+  await openAs(page, "u_smm2", "/kontent");
+  await page.getByRole("button", { name: "+ Post" }).click();
+  await dialog(page).getByLabel("Loyiha").selectOption({ label: "FitLife Gym" });
+  await dialog(page).getByLabel("Turi").selectOption({ label: "Target video (reklama uchun)" });
+  await expect(dialog(page).getByText(/platformalarga joylanmaydi/)).toBeVisible();
+  await expect(dialog(page).getByRole("button", { name: /Instagram/ })).toHaveCount(0);
+  await dialog(page).getByPlaceholder("Masalan: Yangi kolleksiya obzori").fill("E2E reklama videosi");
+  await dialog(page).getByRole("button", { name: "Saqlash" }).click();
+  let s = await state(page);
+  const post = s.posts.find((x: { topic: string }) => x.topic === "E2E reklama videosi");
+  expect(post.platforms).toEqual([]);
+  expect(post.typeId).toBe("ct_target_video");
+
+  await page.getByRole("button", { name: "Ro'yxat", exact: true }).click();
+  await page.getByText("E2E reklama videosi").first().click();
+  await expect(dialog(page).getByRole("button", { name: "→ Targetologga berish" })).toHaveCount(0);
+  // Tasdiq zinasi: ichki tasdiq → marketolog → mijoz tasdig'i
+  await dialog(page).getByRole("button", { name: "Ichki tasdiqqa yuborish →" }).click();
+  await openAs(page, "u_mk", "/kontent");
+  await page.getByRole("button", { name: "Ro'yxat", exact: true }).click();
+  await page.getByText("E2E reklama videosi").first().click();
+  await dialog(page).getByRole("button", { name: "✓ Tasdiqlash" }).click();
+  await openAs(page, "u_smm2", "/kontent");
+  await page.getByRole("button", { name: "Ro'yxat", exact: true }).click();
+  await page.getByText("E2E reklama videosi").first().click();
+  await dialog(page).getByRole("button", { name: "✓ Mijoz tasdiqladi" }).click();
+  await dialog(page).getByRole("button", { name: "→ Targetologga berish" }).click();
+  s = await state(page);
+  expect(s.posts.find((x: { id: string }) => x.id === post.id).status).toBe("published");
+  const task = s.tasks.find((t: { postId?: string; kind: string }) => t.postId === post.id && t.kind === "target");
+  expect(task.assigneeId).toBe("u_tg");
+
+  await openAs(page, "u_tg", "/target");
+  await expect(page.getByText("Reklama videosi: E2E reklama videosi").first()).toBeVisible();
+  expect(p.errors).toEqual([]);
+});
+
+test("Moliya: to'lanmagan fakturani sabab bilan bekor qiladi — qarzdan chiqadi, ro'yxatda «Bekor qilingan»", async ({ page }) => {
+  const p = await watch(page);
+  await openAs(page, "u_mol", "/moliya/fakturalar");
+  const s0 = await state(page);
+  const inv = s0.invoices.find(
+    (i: { id: string; voidedAt?: string }) => !i.voidedAt && !s0.transactions.some((t: { invoiceId?: string }) => t.invoiceId === i.id),
+  );
+  await page.getByRole("button", { name: `${inv.number}: bekor qilish` }).click();
+  await expect(dialog(page).getByRole("button", { name: "Bekor qilish" })).toBeDisabled();
+  await dialog(page).getByLabel("Sabab").fill("Xato chiqarilgan");
+  await dialog(page).getByRole("button", { name: "Bekor qilish" }).click();
+  const s = await state(page);
+  expect(s.invoices.find((i: { id: string }) => i.id === inv.id).voidedAt).toBeTruthy();
+  await expect(page.locator("tr", { hasText: inv.number })).toHaveCount(0); // «To'lanmaganlar» filtrida yo'q
+  await page.getByLabel("Holat bo'yicha filtr").selectOption("void");
+  await expect(page.locator("tr", { hasText: inv.number }).getByText("Bekor qilingan")).toBeVisible();
+  expect(p.errors).toEqual([]);
+});
+
+test("Admin: xodimni arxivlashda ishlari tanlangan xodimga o'tadi", async ({ page }) => {
+  const p = await watch(page);
+  await openAs(page, "u_admin", "/admin");
+  const s0 = await state(page);
+  const name = s0.users.find((u: { id: string }) => u.id === "u_smm1").name;
+  await page.getByRole("button", { name: `${name}: arxivlash` }).click();
+  await dialog(page).getByLabel("Loyiha va ochiq ishlarni kimga o'tkazish").selectOption("u_smm2");
+  await dialog(page).getByRole("button", { name: "Arxivlash" }).click();
+  const s = await state(page);
+  expect(s.projects.filter((x: { smmId: string; status: string }) => x.smmId === "u_smm1" && x.status !== "closed")).toEqual([]);
+  expect(s.users.find((u: { id: string }) => u.id === "u_smm1").archivedAt).toBeTruthy();
   expect(p.errors).toEqual([]);
 });

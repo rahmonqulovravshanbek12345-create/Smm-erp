@@ -6,7 +6,7 @@ import type { Platform, Post, Task } from "../lib/types";
 import { Badge } from "./ui";
 
 export function PostBadge({ post, today }: { post: Post; today: string }) {
-  const m = postStatusMeta(post.status);
+  const m = postStatusMeta(post.status, !post.platforms.length);
   return (
     <span className="inline-flex flex-wrap gap-1">
       {isPostLate(post, today) && <Badge tone={LATE.tone}>{LATE.label}</Badge>}
@@ -61,6 +61,17 @@ export const PLATFORM_BG: Record<Platform, string> = {
 export function PlatformIcons({ platforms, published, size = 18 }: { platforms: Platform[]; published?: Partial<Record<Platform, string>>; size?: number }) {
   return (
     <span className="inline-flex gap-[3px] align-middle">
+      {!platforms.length && (
+        <span
+          role="img"
+          aria-label="Reklama uchun (target)"
+          title="Reklama uchun (target)"
+          className="inline-flex shrink-0 items-center justify-center rounded-[5px] bg-pink px-1 font-bold text-white"
+          style={{ height: size, fontSize: Math.round(size * 0.45) }}
+        >
+          AD
+        </span>
+      )}
       {platforms.map((pl) => {
         const done = !published || Boolean(published[pl]);
         return (
