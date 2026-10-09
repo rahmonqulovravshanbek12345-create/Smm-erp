@@ -163,7 +163,7 @@ function TaskCard({ task: t }: { task: Task }) {
       {isReviewer && t.status === "review" && (
         <div className="mt-3 space-y-1.5">
           <Input placeholder="Qaytarish sababi" value={note} onChange={(e) => setNote(e.target.value)} className="!py-1.5 !text-xs" />
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             <Button size="sm" variant="danger" className="flex-1" onClick={() => run((c) => act.returnTask(c, t.id, note), "Qaytarildi")}>
               Qaytarish
             </Button>

@@ -123,8 +123,19 @@ const SIZES = [
   { name: "telefon 390", width: 390, height: 844 },
 ];
 
-for (const size of SIZES) {
+// Turli kompyuterlarda shrift turlicha: keng shrift (DejaVu Sans) bilan ham tekshiriladi
+for (const size of [
+  ...SIZES.map((x) => ({ ...x, wide: false })),
+  { name: "noutbuk 1280, keng shrift", width: 1280, height: 720, wide: true },
+  { name: "telefon 390, keng shrift", width: 390, height: 844, wide: true },
+]) {
   test(`yozuvlar ustma-ust tushmaydi: ${size.name}`, async ({ page }) => {
+    if (size.wide)
+      await page.addInitScript(() => {
+        const st = document.createElement("style");
+        st.textContent = "*{font-family:'DejaVu Sans',sans-serif!important;letter-spacing:0.06em!important}";
+        document.addEventListener("DOMContentLoaded", () => document.head.appendChild(st));
+      });
     test.setTimeout(240_000);
     await page.setViewportSize({ width: size.width, height: size.height });
     await page.emulateMedia({ colorScheme: "dark" });
