@@ -216,3 +216,49 @@ describe("Eski / buzilgan ma'lumot", () => {
     expect(invoiceOutstanding(n, ni)).toBe(ni.amount);
   });
 });
+
+describe("Mustaqil tekshiruv topgan holatlar", () => {
+  it("50/50: oldindan + qoldiq dollarda aynan narxga teng (bir sent ortiqcha emas)", () => {
+    for (const [priceUsd, rate] of [
+      [100.01, 12_600],
+      [250.05, 12_000],
+      [999.99, 12_800],
+      [12.35, 12_500],
+    ] as const) {
+      const s = demoState();
+      s.settings.usdRate = rate;
+      const id = act.createProject(ctx(s, "u_mk"), input({ prepayType: 50, services: [{ kind: "smm", title: "B", price: 0, priceUsd }] }));
+      const invs = s.invoices.filter((i) => i.projectId === id);
+      expect(invs).toHaveLength(2);
+      expect(Math.round((invs[0]!.usd! + invs[1]!.usd!) * 100)).toBe(Math.round(priceUsd * 100));
+      for (const i of invs) expect(Math.round(i.lines!.reduce((a, l) => a + l.usd!, 0) * 100)).toBe(Math.round(i.usd! * 100));
+    }
+  });
+
+  it("to'liq to'langan dollardagi fakturaga yana to'lov qabul qilinmaydi", () => {
+    const { s, invs } = setup();
+    act.recordClientPayment(ctx(s), invs[0]!.id, { amount: 1000, date: TODAY, accountId: "acc_usd", rate: 12_500, note: "" });
+    expect(() => act.recordClientPayment(ctx(s), invs[0]!.id, { amount: 1, date: TODAY, accountId: "acc_usd", rate: 12_500, note: "" })).toThrow(/to'liq/);
+    expect(() => act.recordClientPayment(ctx(s), invs[0]!.id, { amount: 12_000, date: TODAY, accountId: "acc_bank", fxRate: 12_500, note: "" })).toThrow(
+      /to'liq/,
+    );
+  });
+
+  it("kunlarga bo'lingan faktura va performance foizi: kurs o'zgarmasa soxta kurs farqi yo'q", () => {
+    const { s, p } = setup({ adBudgetUsd: 333 });
+    act.updateProject(ctx(s, "u_mk"), p.id, { periodStart: addDays(TODAY, -29) });
+    act.addService(ctx(s, "u_mk"), p.id, { kind: "target", title: "T", price: 0, priceUsd: 15 }, { prorate: true });
+    act.addService(ctx(s, "u_mk"), p.id, { kind: "performance", title: "P", price: 0, priceUsd: 100, adPct: 10 }, { prorate: true });
+    const extra = s.invoices.filter((i) => i.projectId === p.id && i.kind === "extra");
+    expect(extra.length).toBeGreaterThan(0);
+    for (const i of [...extra, ...s.invoices.filter((x) => x.projectId === p.id)]) {
+      if (!i.usd) continue;
+      expect(Math.abs(i.amount - i.usd * 12_500)).toBeLessThanOrEqual(1);
+      const left = invoiceOutstandingUsd(s, i);
+      if (left > 0) act.recordClientPayment(ctx(s), i.id, { amount: left, date: TODAY, accountId: "acc_usd", rate: 12_500, note: "" });
+    }
+    const fx = pnl(s, [TODAY.slice(0, 7)], TODAY, p.id).lines.find((l) => l.key === "rev_fx");
+    expect(Math.abs(fx?.total ?? 0)).toBeLessThanOrEqual(extra.length + 5);
+    expect(check(s, TODAY)).toEqual([]);
+  });
+});

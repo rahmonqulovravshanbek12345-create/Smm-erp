@@ -262,14 +262,19 @@ function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue
   if (fee <= 0) return;
   const prepay = Math.round((fee * p.prepayType) / 100);
   const base = { projectId: p.id, periodIndex: 0, issueDate };
+  const preLines = scaleLines(lines, prepay);
+  // Qoldiq: dollarda «to'liq − oldindan» (ikkalasini alohida yaxlitlash bir sent ortiqcha chiqarardi)
+  const restLines = scaleLines(lines, fee - prepay).map((l, i) =>
+    l.usd !== undefined && lines[i]!.usd !== undefined ? { ...l, usd: round2(lines[i]!.usd! - preLines[i]!.usd!) } : l,
+  );
   c.s.invoices.push({
     ...base,
     id: newId("inv"),
     number: nextInvoiceNumber(c.s),
     kind: "prepay",
     amount: prepay,
-    lines: scaleLines(lines, prepay),
-    usd: linesUsd(scaleLines(lines, prepay)),
+    lines: preLines,
+    usd: linesUsd(preLines),
     dueDate: prepayDue || issueDate,
     note: only ? `1-davr: qo'shilgan xizmat — oldindan to'lov (${p.prepayType}%)` : `Oldindan to'lov (${p.prepayType}%)`,
   });
@@ -280,8 +285,8 @@ function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue
       number: nextInvoiceNumber(c.s),
       kind: "remainder",
       amount: fee - prepay,
-      lines: scaleLines(lines, fee - prepay),
-      usd: linesUsd(scaleLines(lines, fee - prepay)),
+      lines: restLines,
+      usd: linesUsd(restLines),
       dueDate: remainderDue,
       note: "Qoldiq to'lov (50%)",
     });
@@ -425,8 +430,9 @@ export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { 
     const total = diffDays(curPer.end, curPer.start);
     const fee = recurringFee({ ...p, services: [svc] }, c.s.settings.usdRate);
     const feeUsd = linesUsd(recurringLines({ ...p, services: [svc] }, c.s.settings.usdRate));
-    prorated = Math.round((fee * left) / total / 1000) * 1000;
     const proUsd = feeUsd !== undefined ? round2((feeUsd * left) / total) : undefined;
+    // Dollardagi: so'mdagi qiymati aynan bugungi kurs bo'yicha (1000 ga yaxlitlash soxta kurs farqi berardi)
+    prorated = proUsd !== undefined ? Math.round(proUsd * c.s.settings.usdRate) : Math.round((fee * left) / total / 1000) * 1000;
     if (prorated > 0) {
       c.s.invoices.push({
         id: newId("inv"),
@@ -1288,6 +1294,7 @@ export function recordClientPayment(
       if (!(markupPct >= 0 && markupPct <= 20)) throw new Error("Ustama 0–20% oralig'ida bo'lsin");
       usdPart = { invoiceUsd: round2(o.amount / (fxRate * (1 + markupPct / 100))), fxRate, markupPct };
     }
+    if (left <= 0) throw new Error("Faktura to'liq to'langan");
     if (usdPart.invoiceUsd > left * 1.05 + 1)
       throw new Error(`To'lov ($${usdPart.invoiceUsd.toFixed(2)}) qolgan qarzdan ($${left.toFixed(2)}) ancha oshib ketdi — summani va valyutani tekshiring`);
     // Sentlik yaxlitlash farqi qarz bo'lib qolmasin

@@ -182,13 +182,16 @@ export function recurringLines(p: Project, usdRate: number, at?: string): Invoic
       ...(usd !== undefined ? { usd } : {}),
     });
     const pct = adPctAmount(svc, p, usdRate);
-    if (pct)
+    if (pct) {
+      const pctUsd = isUsd(p) ? round2(((p.adBudgetUsd ?? 0) * (svc.adPct ?? 0)) / 100) : undefined;
       out.push({
         kind: svc.kind,
         title: `Performance: reklama byudjetidan ${svc.adPct}%`,
-        amount: pct,
-        ...(isUsd(p) ? { usd: Math.round((((p.adBudgetUsd ?? 0) * (svc.adPct ?? 0)) / 100) * 100) / 100 } : {}),
+        // Dollardagi: so'mdagi qiymati aynan kurs bo'yicha (1000 ga yaxlitlanmaydi)
+        amount: pctUsd !== undefined ? Math.round(pctUsd * usdRate) : pct,
+        ...(pctUsd !== undefined ? { usd: pctUsd } : {}),
       });
+    }
   }
   return out;
 }

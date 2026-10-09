@@ -279,7 +279,7 @@ function UsdInvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClose: (
       open
       onClose={onClose}
       title={`To'lov: ${invoice.number} — ${look.projectName(invoice.projectId)}`}
-      footer={<Footer onClose={onClose} onSave={save} label="Qabul qilish" disabled={!(value > 0) || !(fx > 0)} />}
+      footer={<Footer onClose={onClose} onSave={save} label="Qabul qilish" disabled={!(value > 0) || !(fx > 0) || markup === ""} />}
     >
       <p className="mb-3 text-[14px] text-label2">
         Shartnoma dollarda. Faktura: <b className="text-label">${fmtUsd(invoice.usd!)}</b> · qolgan: <b className="text-label">${fmtUsd(leftUsd)}</b>. Qisman
