@@ -13,7 +13,7 @@ import type { Role, User } from "../lib/types";
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 
 export function Admin() {
-  const { state, me, today, run, reset, showToast } = useErp();
+  const { state, me, today, now, run, reset, showToast } = useErp();
   const [nu, setNu] = useState({ name: "", role: "smm" as Role });
   const [testing, setTesting] = useState(false);
   const [sharedChat, setSharedChat] = useState(() => me.telegramChatId ?? "");
@@ -50,7 +50,7 @@ export function Admin() {
     for (const u of state.users) {
       const chatId = u.telegramChatId?.trim();
       if (!u.active || !chatId) continue;
-      const alerts = alertsFor(state, u, today);
+      const alerts = alertsFor(state, u, today, now);
       if (alerts.length === 0) continue;
       const lines = alerts.slice(0, 12).map((a) => `${a.tone === "red" ? "🔴" : "🟡"} ${a.text}`);
       if (alerts.length > 12) lines.push(`… yana ${alerts.length - 12} ta`);

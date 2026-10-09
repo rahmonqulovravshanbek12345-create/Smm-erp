@@ -31,9 +31,26 @@ export function isTaskDone(t: Task): boolean {
   return t.status === "review" || t.status === "accepted";
 }
 
-/** Deadline o'tgan va status "Tayyor" emas — avtomatik Kechikdi. */
-export function isTaskLate(t: Task, today: string): boolean {
-  return !isTaskDone(t) && t.deadline < today;
+/**
+ * Deadline o'tgan va status "Tayyor" emas — avtomatik Kechikdi.
+ * Deadline soati berilgan bo'lsa, deadline kuni shu soatdan keyin ham kechikkan hisoblanadi (now — «HH:MM»).
+ */
+export function isTaskLate(t: Task, today: string, now?: string): boolean {
+  if (isTaskDone(t)) return false;
+  if (t.deadline < today) return true;
+  return Boolean(now && t.deadlineTime && t.deadline === today && now > t.deadlineTime);
+}
+
+/** Topshirish deadline'dan qancha kechikdi: kun bo'yicha yoki (shu kunning o'zida) soat bo'yicha. Kechikmagan — null. */
+export function lateness(deadline: string, deadlineTime: string | undefined, doneDate: string, doneTime?: string): string | null {
+  if (doneDate > deadline) return `${diffDays(doneDate, deadline)} kun kechikdi`;
+  if (doneDate === deadline && deadlineTime && doneTime && doneTime > deadlineTime) {
+    const [h1, m1] = deadlineTime.split(":").map(Number);
+    const [h2, m2] = doneTime.split(":").map(Number);
+    const mins = h2! * 60 + m2! - (h1! * 60 + m1!);
+    return `${mins >= 60 ? `${Math.floor(mins / 60)} soat ` : ""}${mins % 60 ? `${mins % 60} daqiqa ` : ""}kechikdi`;
+  }
+  return null;
 }
 
 export function isTaskOpen(t: Task): boolean {
@@ -79,7 +96,7 @@ export interface Alert {
 }
 
 /** Joriy foydalanuvchi uchun hisoblanadigan eslatmalar (saqlanmaydi, har safar qayta hisoblanadi). */
-export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
+export function alertsFor(s: ErpState, me: User, today: string, now?: string): Alert[] {
   const out: Alert[] = [];
   const name = (id: string) => s.projects.find((p) => p.id === id)?.name ?? "—";
   const boss = me.role === "marketolog" || me.role === "admin" || me.role === "rahbar";
@@ -97,7 +114,7 @@ export function alertsFor(s: ErpState, me: User, today: string): Alert[] {
     const mine = t.assigneeId === me.id;
     const owner = project?.smmId === me.id;
     const href = t.kind === "montaj" ? "/montaj" : t.kind === "dizayn" ? "/dizayn" : "/target";
-    if (isTaskLate(t, today) && (mine || owner || boss)) {
+    if (isTaskLate(t, today, now) && (mine || owner || boss)) {
       out.push({ id: `tl-${t.id}`, text: `Deadline o'tdi: ${t.title} (${name(t.projectId)})`, href, tone: "red" });
     } else if (!isTaskDone(t) && diffDays(t.deadline, today) === 1 && (mine || owner)) {
       out.push({ id: `t1-${t.id}`, text: `Deadline ertaga: ${t.title} (${name(t.projectId)})`, href, tone: "amber" });

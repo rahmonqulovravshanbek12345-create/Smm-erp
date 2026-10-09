@@ -12,9 +12,9 @@ const TG = {
 };
 
 export function Notifications() {
-  const { state, me, run, today } = useErp();
+  const { state, me, run, today, now } = useErp();
   const mine = state.notifications.filter((n) => n.userId === me.id);
-  const alerts = alertsFor(state, me, today);
+  const alerts = alertsFor(state, me, today, now);
   const unread = mine.filter((n) => !n.read).length;
 
   return (

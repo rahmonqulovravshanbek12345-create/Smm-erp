@@ -12,7 +12,7 @@ import { useErp, useLookup } from "../lib/store";
 import type { Task } from "../lib/types";
 
 export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
-  const { state, me, today } = useErp();
+  const { state, me, today, now } = useErp();
   const look = useLookup();
   const [creating, setCreating] = useState(false);
   const own = access(me.role, kind) === "own";
@@ -28,7 +28,7 @@ export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
   const myMonth = state.accruals.filter((a) => a.userId === me.id && monthKey(a.date) === month);
   const accepted = myMonth.filter((a) => a.workType === "montaj" || a.workType === "dizayn_post" || a.workType === "dizayn_cover").length;
   const earned = myMonth.reduce((x, a) => x + a.amount, 0);
-  const late = tasks.filter((t) => isTaskLate(t, today)).length;
+  const late = tasks.filter((t) => isTaskLate(t, today, now)).length;
 
   return (
     <>
@@ -84,7 +84,7 @@ export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
 }
 
 function TaskCard({ task: t }: { task: Task }) {
-  const { me, run, today } = useErp();
+  const { me, run, today, now } = useErp();
   const look = useLookup();
   const [link, setLink] = useState(t.resultLink ?? "");
   const [note, setNote] = useState("");
@@ -92,7 +92,7 @@ function TaskCard({ task: t }: { task: Task }) {
   const isAssignee = t.assigneeId === me.id || me.role === "admin";
   // Tekshiruvchi: loyiha SMM menejeri; u bo'lmasa yoki arxivlansa ham ish to'xtamasin — marketolog va rahbar ham qabul qila oladi
   const isReviewer = ["admin", "rahbar", "marketolog"].includes(me.role) || (me.role === "smm" && look.project(t.projectId)?.smmId === me.id);
-  const late = isTaskLate(t, today);
+  const late = isTaskLate(t, today, now);
 
   return (
     <Card className={`p-3 ${late ? "border-red/40" : ""}`}>

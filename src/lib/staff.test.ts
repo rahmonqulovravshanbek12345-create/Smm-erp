@@ -72,3 +72,42 @@ describe("TZ deadline soati", () => {
     expect(ctx.notes.some((n) => n.to.includes("u_mt1") && n.text.includes("10.10.2026, 15:30"))).toBe(true);
   });
 });
+
+describe("Deadline soati bo'yicha kechikish", () => {
+  it("deadline kuni soat o'tgach «Kechikdi»; soatsiz TZ — kun oxirigacha", async () => {
+    const { isTaskLate } = await import("./rules");
+    const t = { kind: "montaj", status: "progress", deadline: "2026-10-10", deadlineTime: "15:00" } as never;
+    expect(isTaskLate(t, "2026-10-10", "14:59")).toBe(false);
+    expect(isTaskLate(t, "2026-10-10", "15:01")).toBe(true);
+    expect(isTaskLate(t, "2026-10-11")).toBe(true);
+    const noTime = { kind: "montaj", status: "progress", deadline: "2026-10-10" } as never;
+    expect(isTaskLate(noTime, "2026-10-10", "23:50")).toBe(false);
+  });
+
+  it("jarima: deadline kuni soatdan keyin topshirilsa — soat bilan; vaqtida topshirilsa — yo'q", () => {
+    for (const [at, late] of [
+      ["14:30", false],
+      ["17:45", true],
+    ] as const) {
+      const s = demoState();
+      s.settings.latePenaltyPct = 10;
+      act.createTask(makeCtx(s, "u_smm1").c, {
+        kind: "montaj",
+        projectId: "p_mebel",
+        assigneeId: "u_mt1",
+        title: `Soat ${at}`,
+        brief: "",
+        deadline: TODAY,
+        deadlineTime: "15:00",
+      });
+      const t = s.tasks.find((x) => x.title === `Soat ${at}`)!;
+      const mt = { ...makeCtx(s, "u_mt1").c, now: at };
+      act.startTask(mt, t.id);
+      act.submitTask(mt, t.id, "https://drive.google.com/x");
+      act.acceptTask(makeCtx(s, "u_smm1").c, t.id);
+      const pen = s.accruals.find((a) => a.sourceId === `late:${t.id}`);
+      expect(Boolean(pen)).toBe(late);
+      if (late) expect(pen!.title).toContain("2 soat 45 daqiqa kechikdi");
+    }
+  });
+});

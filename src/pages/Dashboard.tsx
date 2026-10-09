@@ -10,7 +10,7 @@ import { useErp, useLookup } from "../lib/store";
 import type { Role } from "../lib/types";
 
 export function Dashboard() {
-  const { state, today } = useErp();
+  const { state, today, now } = useErp();
   const look = useLookup();
   const [openPost, setOpenPost] = useState<string | null>(null);
   const [roleFilter, setRoleFilter] = useState<"" | Role>("");
@@ -18,7 +18,7 @@ export function Dashboard() {
   const d = useMemo(() => {
     const todayPosts = state.posts.filter((p) => p.date === today && p.status !== "published");
     const latePosts = state.posts.filter((p) => isPostLate(p, today)).sort((a, b) => a.date.localeCompare(b.date));
-    const lateTasks = state.tasks.filter((t) => isTaskLate(t, today)).sort((a, b) => a.deadline.localeCompare(b.deadline));
+    const lateTasks = state.tasks.filter((t) => isTaskLate(t, today, now)).sort((a, b) => a.deadline.localeCompare(b.deadline));
     const internal = state.posts.filter((p) => p.status === "internal");
     const atClient = state.posts.filter((p) => p.status === "client");
     const review = state.tasks.filter((t) => t.status === "review");
@@ -29,7 +29,7 @@ export function Dashboard() {
       .filter((x) => x.debt.amount > 0)
       .sort((a, b) => b.debt.days - a.debt.days);
     return { todayPosts, latePosts, lateTasks, internal, atClient, review, warnings, noReport, debtors };
-  }, [state, today]);
+  }, [state, today, now]);
 
   // Kimda nechta vazifa turibdi va kim kechiktirmoqda
   const workload = useMemo(() => {
@@ -43,14 +43,14 @@ export function Dashboard() {
         // Bir martalik ishlar (sayt, branding, video) ham ijrochining yuklamasi
         const once = state.projects.flatMap((p) => oneTimeServices(p)).filter((x) => x.assigneeId === u.id && x.status === "active");
         const late =
-          tasks.filter((t) => isTaskLate(t, today)).length +
+          tasks.filter((t) => isTaskLate(t, today, now)).length +
           posts.filter((p) => isPostLate(p, today)).length +
           shoots.filter((s) => s.date < today).length +
           once.filter((x) => x.deadline && x.deadline < today).length;
         return { u, open: tasks.length + posts.length + shoots.length + once.length, late };
       });
     return rows.sort((a, b) => b.late - a.late || b.open - a.open);
-  }, [state, today, roleFilter]);
+  }, [state, today, now, roleFilter]);
 
   const lateCount = d.latePosts.length + d.lateTasks.length;
 
