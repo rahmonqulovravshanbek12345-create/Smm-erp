@@ -8,7 +8,7 @@ import { Badge } from "./ui";
 export function PostBadge({ post, today }: { post: Post; today: string }) {
   const m = postStatusMeta(post.status, !post.platforms.length);
   return (
-    <span className="inline-flex flex-wrap gap-1">
+    <span className="inline-flex max-w-full flex-wrap gap-1">
       {isPostLate(post, today) && <Badge tone={LATE.tone}>{LATE.label}</Badge>}
       <Badge tone={m.tone}>{m.label}</Badge>
     </span>
@@ -19,7 +19,7 @@ export function TaskBadge({ task, today }: { task: Task; today: string }) {
   const late = isTaskLate(task, today);
   if (task.kind === "target") {
     return (
-      <span className="inline-flex flex-wrap gap-1">
+      <span className="inline-flex max-w-full flex-wrap gap-1">
         {late && <Badge tone={LATE.tone}>{LATE.label}</Badge>}
         {task.launchedAt ? <Badge tone="green">Reklama yoqildi</Badge> : <Badge tone="blue">Yangi</Badge>}
       </span>
@@ -27,7 +27,7 @@ export function TaskBadge({ task, today }: { task: Task; today: string }) {
   }
   const m = taskStatusMeta(task.status);
   return (
-    <span className="inline-flex flex-wrap gap-1">
+    <span className="inline-flex max-w-full flex-wrap gap-1">
       {late && <Badge tone={LATE.tone}>{LATE.label}</Badge>}
       <Badge tone={m.tone}>{m.label}</Badge>
     </span>

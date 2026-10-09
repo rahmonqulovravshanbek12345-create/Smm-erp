@@ -495,7 +495,7 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
           />
         </Field>
         <Field label="Deadline (sana va soat)">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input type="date" value={f.deadline} onChange={(e) => set("deadline", e.target.value)} aria-label="Deadline sanasi" />
             <Input type="time" value={f.deadlineTime} onChange={(e) => set("deadlineTime", e.target.value)} aria-label="Deadline soati" className="!w-32" />
           </div>
