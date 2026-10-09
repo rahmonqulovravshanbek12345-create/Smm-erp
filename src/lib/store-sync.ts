@@ -1,6 +1,6 @@
 // Vaqtga bog'liq avtomatik yozuvlar: oylik fakturalar va davriy ish haqi hisoblashlari.
 import { syncAccruals, syncInvoices } from "./finance";
-import { recurringFee } from "./services";
+import { recurringFee, refreshUsdPrices } from "./services";
 import type { ErpState } from "./types";
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 10)}`;
@@ -8,6 +8,8 @@ const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 10)}`;
 export function syncAll(s: ErpState, today: string): void {
   // Oylik summa USD kursiga bog'liq (performance foizi) — har safar yangilanadi
   for (const p of s.projects) {
+    // Dollardagi shartnoma: xizmatlarning so'mdagi qiymati joriy kurs bo'yicha
+    refreshUsdPrices(p, s.settings.usdRate);
     const fee = recurringFee(p, s.settings.usdRate);
     if (p.monthlyFee !== fee) p.monthlyFee = fee;
   }

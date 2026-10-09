@@ -18,6 +18,7 @@ export function Integrations() {
   const demo = isMetaDemo(state);
   const [busy, setBusy] = useState<"" | "test" | "sync" | "cbu">("");
   const [manualRate, setManualRate] = useState("");
+  const [markup, setMarkup] = useState(String(state.settings.usdMarkupPct ?? 2));
   const projects = state.projects.filter((p) => p.status === "active" && p.targetologId && hasAds(p));
   const tg = state.settings.telegram;
   const tgUsers = state.users.filter((u) => u.active && u.telegramChatId).length;
@@ -221,6 +222,30 @@ export function Integrations() {
                     />
                     Har kuni avtomatik yangilash
                   </label>
+                  <div className="mt-3 border-t border-sep pt-3">
+                    <label htmlFor="usd-markup" className="text-[13px] font-medium text-label2">
+                      Dollardagi shartnoma: so'mda pul o'tkazishda ustama (%)
+                    </label>
+                    <div className="mt-1.5 flex gap-2">
+                      <Input
+                        id="usd-markup"
+                        type="number"
+                        min={0}
+                        max={20}
+                        step={0.5}
+                        value={markup}
+                        onChange={(e) => setMarkup(e.target.value)}
+                        className="!py-1.5"
+                      />
+                      <Button
+                        onClick={() => run((c) => act.setUsdMarkup(c, Number(markup)), "Ustama saqlandi")}
+                        disabled={markup === "" || Number(markup) === (state.settings.usdMarkupPct ?? 2)}
+                      >
+                        Saqlash
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-[12px] text-label3">Naqd to'lovda ustama qo'yilmaydi. Har to'lovda alohida o'zgartirish mumkin.</p>
+                  </div>
                 </>
               )}
             </div>

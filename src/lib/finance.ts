@@ -5,10 +5,10 @@
 //    ish haqi hisoblangan sanada, ta'minotchi xarajati hujjat sanasida tan olinadi.
 //  • Cash Flow — faqat tranzaksiyalar (haqiqiy pul harakati).
 //  • Tranzit (mijoz reklama byudjeti) P&L'ga kirmaydi, Cash Flow'da alohida ko'rsatiladi.
-import { addDays, addMonths, diffDays, fmtMonth, monthKey, shiftMonthKey } from "./dates";
+import { addDays, addMonths, diffDays, fmtMonth, fmtUsd, monthKey, shiftMonthKey } from "./dates";
 import { currentPeriod, periodAt, type Period } from "./period";
 import { isSettled, outstandingOf } from "./money";
-import { hasAds, hasContent, invoiceLines, recurringFee, recurringLines, serviceLabel, serviceOf } from "./services";
+import { hasAds, hasContent, invoiceLines, linesUsd, recurringFee, recurringLines, round2, serviceLabel, serviceOf } from "./services";
 import type { Accrual, Article, ArticleGroup, Bill, ErpState, Invoice, PayProfile, Project, Task, Transaction, User, WorkType } from "./types";
 
 // ---------- Moddalar ----------
@@ -105,13 +105,47 @@ export function totalCashUZS(s: ErpState, upTo?: string): number {
 
 export type PayStatus = "pending" | "paid" | "partial" | "overdue" | "void";
 
+/** Dollardagi faktura: hisob kursi (chiqarilgan kundagi) — 1 USD necha so'm. */
+export const bookRate = (inv: Invoice) => (inv.usd ? inv.amount / inv.usd : 1);
+
+/** To'lov dollardagi fakturaning necha dollarini qoplagan (eski yozuvlarda — hisob kursi bo'yicha). */
+export const FX_LINE = "Kurs farqi va to'lov ustamasi";
+/** To'lovning fakturani yopgan qismi so'mda (faktura chiqarilgan kundagi kurs bo'yicha). */
+export const txBookUZS = (s: ErpState, t: Transaction, inv: Invoice) =>
+  inv.usd ? (t.dir === "in" ? 1 : -1) * Math.abs(txInvoiceUsd(s, t, inv)) * bookRate(inv) : signedUZS(s, t);
+/** Kurs va ustama farqi: kelgan pul − fakturani yopgan qismi (so'm). */
+export const txFxDiff = (s: ErpState, t: Transaction, inv: Invoice) => Math.round(signedUZS(s, t) - txBookUZS(s, t, inv));
+export const txInvoiceUsd = (s: ErpState, t: Transaction, inv: Invoice) => t.invoiceUsd ?? signedUZS(s, t) / bookRate(inv);
+
+/** Dollardagi faktura bo'yicha to'langan USD. */
+export function invoicePaidUsd(s: ErpState, inv: Invoice, upTo?: string): number {
+  let sum = 0;
+  for (const t of s.transactions) if (t.invoiceId === inv.id && (!upTo || t.date <= upTo)) sum += (t.dir === "in" ? 1 : -1) * Math.abs(txInvoiceUsd(s, t, inv));
+  return sum;
+}
+
+/**
+ * Faktura bo'yicha to'langan (so'mda, hisob qiymatida). Dollardagi fakturada — qoplangan USD × hisob kursi:
+ * kurs farqi va ustama fakturani emas, alohida «kurs farqi» qatorini o'zgartiradi.
+ */
 export function invoicePaid(s: ErpState, inv: Invoice, upTo?: string): number {
+  if (inv.usd) return invoicePaidUsd(s, inv, upTo) * bookRate(inv);
   let sum = 0;
   for (const t of s.transactions) if (t.invoiceId === inv.id && (!upTo || t.date <= upTo)) sum += signedUZS(s, t);
   return sum;
 }
 
-export const invoiceOutstanding = (s: ErpState, inv: Invoice) => (inv.voidedAt ? 0 : outstandingOf(inv.amount, invoicePaid(s, inv)));
+/** Faktura to'liq to'langanmi (dollardagisi — sentgacha). */
+export function invoiceSettled(s: ErpState, inv: Invoice): boolean {
+  if (inv.usd) return inv.usd - invoicePaidUsd(s, inv) <= 0.005;
+  return isSettled(inv.amount, invoicePaid(s, inv));
+}
+
+export const invoiceOutstanding = (s: ErpState, inv: Invoice) =>
+  inv.voidedAt || invoiceSettled(s, inv) ? 0 : inv.usd ? (inv.usd - invoicePaidUsd(s, inv)) * bookRate(inv) : outstandingOf(inv.amount, invoicePaid(s, inv));
+
+/** Dollardagi faktura qoldig'i USD da. */
+export const invoiceOutstandingUsd = (s: ErpState, inv: Invoice) => (inv.usd && !inv.voidedAt ? Math.max(0, round2(inv.usd - invoicePaidUsd(s, inv))) : 0);
 
 /** Bekor qilinmagan fakturalar. */
 export const liveInvoices = (s: ErpState) => s.invoices.filter((i) => !i.voidedAt);
@@ -119,7 +153,7 @@ export const liveInvoices = (s: ErpState) => s.invoices.filter((i) => !i.voidedA
 export function invoiceStatus(s: ErpState, inv: Invoice, today: string): PayStatus {
   if (inv.voidedAt) return "void";
   const paid = invoicePaid(s, inv);
-  if (isSettled(inv.amount, paid)) return "paid";
+  if (invoiceSettled(s, inv)) return "paid";
   if (inv.dueDate && inv.dueDate < today) return "overdue";
   if (paid > 0) return "partial";
   return "pending";
@@ -146,7 +180,7 @@ export function projectDebt(s: ErpState, projectId: string, today: string): Debt
 export function prepayPaid(s: ErpState, projectId: string): boolean {
   // Bekor qilinganlar hisobga olinmaydi (masalan, SMM o'rniga target tanlansa — eski oldindan to'lov fakturasi bekor)
   const pre = s.invoices.find((i) => i.projectId === projectId && i.kind === "prepay" && !i.serviceId && !i.voidedAt);
-  return !pre || isSettled(pre.amount, invoicePaid(s, pre));
+  return !pre || invoiceSettled(s, pre);
 }
 
 export function nextInvoiceNumber(s: ErpState): string {
@@ -194,6 +228,7 @@ export function syncInvoices(s: ErpState, today: string, newId: () => string): v
         periodIndex: i,
         amount,
         lines,
+        ...(linesUsd(lines) !== undefined ? { usd: linesUsd(lines) } : {}),
         issueDate: addDays(due, -3) > today ? today : addDays(due, -3),
         dueDate: due,
         note: `${i + 1}-davr uchun abonent to'lovi`,
@@ -560,6 +595,14 @@ export function pnl(s: ErpState, months: string[], today: string, projectId?: st
     }
   }
 
+  // Dollardagi shartnomalar: to'lov kunidagi kurs va ustama farqi (faktura so'mdagi qiymatidan farqi)
+  for (const t of s.transactions) {
+    if (!t.invoiceId || (projectId && t.projectId !== projectId)) continue;
+    const inv = s.invoices.find((i) => i.id === t.invoiceId);
+    if (!inv?.usd) continue;
+    add("rev_fx", FX_LINE, "revenue", monthKey(t.date), txFxDiff(s, t, inv));
+  }
+
   for (const a of s.accruals) {
     if (projectId && a.projectId !== projectId) continue;
     const l = a.kind === "manual" && a.projectId ? ACCRUAL_LINE.piece : ACCRUAL_LINE[a.kind];
@@ -849,7 +892,7 @@ export function receivables(s: ErpState, today: string): ReceivableRow[] {
         const paid = invoicePaid(s, inv);
         row.invoiced += inv.amount;
         row.paid += paid;
-        const out = outstandingOf(inv.amount, paid);
+        const out = invoiceOutstanding(s, inv);
         if (out > 0) {
           const late = inv.dueDate ? diffDays(today, inv.dueDate) : 0;
           if (late <= 0) row.notDue += out;
@@ -913,7 +956,14 @@ export function reconClient(s: ErpState, projectId: string, from: string, to: st
   for (const t of s.transactions) {
     if (t.projectId !== projectId || !t.invoiceId || t.date > to) continue;
     const inv = s.invoices.find((i) => i.id === t.invoiceId);
-    rows.push({ date: t.date, doc: `To'lov (${inv?.number ?? "—"})${t.note ? ` — ${t.note}` : ""}`, debit: 0, credit: signedUZS(s, t), before: t.date < from });
+    const usd = inv?.usd ? ` — $${fmtUsd(Math.abs(txInvoiceUsd(s, t, inv)))}` : "";
+    rows.push({
+      date: t.date,
+      doc: `To'lov (${inv?.number ?? "—"})${usd}${t.note ? ` — ${t.note}` : ""}`,
+      debit: 0,
+      credit: inv ? txBookUZS(s, t, inv) : signedUZS(s, t),
+      before: t.date < from,
+    });
   }
   return finishRecon(rows);
 }

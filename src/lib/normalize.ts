@@ -31,6 +31,20 @@ export function normalizeState(raw: unknown, seed: ErpState): ErpState | null {
     if (!Array.isArray(p.platforms)) p.platforms = legacy ? [legacy] : ["instagram"];
   }
   for (const p of st.projects) if (!Array.isArray(p.services)) p.services = [];
+  // Dollar maydonlari: noto'g'ri qiymat bo'lsa — olib tashlanadi (hisob so'mda davom etadi)
+  const badUsd = (v: unknown) => v !== undefined && !(typeof v === "number" && Number.isFinite(v) && v >= 0);
+  for (const p of st.projects) {
+    if (p.currency !== undefined && p.currency !== "USD" && p.currency !== "UZS") delete p.currency;
+    for (const x of p.services) if (badUsd(x.priceUsd)) delete x.priceUsd;
+  }
+  for (const inv of st.invoices) {
+    if (badUsd(inv.usd) || inv.usd === 0) delete inv.usd;
+    for (const l of Array.isArray(inv.lines) ? inv.lines : []) if (badUsd(l.usd)) delete l.usd;
+  }
+  for (const t of st.transactions) {
+    if (badUsd(t.invoiceUsd)) delete t.invoiceUsd;
+    if (t.fxRate !== undefined && !(Number(t.fxRate) > 0)) delete t.fxRate;
+  }
   for (const sh of st.shoots) if (!Array.isArray(sh.postIds)) sh.postIds = [];
   for (const q of st.quotas) {
     if (!isObj(q.counts)) q.counts = {};

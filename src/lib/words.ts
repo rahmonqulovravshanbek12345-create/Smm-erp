@@ -35,3 +35,10 @@ export function moneyWords(value: number): string {
   const s = `${numberToWords(whole)} so'm ${String(cents % 100).padStart(2, "0")} tiyin`;
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/** "Bir ming besh yuz AQSH dollari 00 sent". */
+export function usdWords(value: number): string {
+  const cents = Math.round(Math.abs(value) * 100);
+  const s = `${numberToWords(Math.floor(cents / 100))} AQSH dollari ${String(cents % 100).padStart(2, "0")} sent`;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

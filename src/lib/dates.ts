@@ -102,6 +102,15 @@ export function fmtNum(n: number): string {
   return String(Math.round(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
+/** Dollar: butun bo'lsa sentsiz, aks holda 2 xona ("1 500", "1 500,50"). */
+export function fmtUsd(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const r = Math.round(n * 100) / 100;
+  const [i, f] = Math.abs(r).toFixed(2).split(".");
+  const int = i!.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${r < 0 ? "-" : ""}${int}${f === "00" ? "" : `,${f}`}`;
+}
+
 const MONTHS_SHORT = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
 
 /** "2026-10" → "Okt" */

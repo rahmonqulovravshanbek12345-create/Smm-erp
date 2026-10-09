@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Icon } from "../components/icons";
 import { A, Badge, Button, Card, CardHeader, Empty, PageHeader } from "../components/ui";
-import { fmtDate, fmtMoney } from "../lib/dates";
+import { fmtDate, fmtMoney, fmtUsd } from "../lib/dates";
 import { invoicePeriod, invoiceStatus } from "../lib/finance";
 import { FORMAT_LABELS, PAYMENT_KIND_LABELS, PAYMENT_STATUS } from "../lib/labels";
 import { canView, visibleProjects } from "../lib/permissions";
@@ -9,7 +9,7 @@ import { reportPeriods } from "../lib/report";
 import { invoiceLines } from "../lib/services";
 import { useErp } from "../lib/store";
 import type { ErpState, Project } from "../lib/types";
-import { moneyWords } from "../lib/words";
+import { moneyWords, usdWords } from "../lib/words";
 import { Contract } from "./Contract";
 
 // ---------- Hujjatlar markazi ----------
@@ -129,10 +129,11 @@ export function DocumentView({ kind, id, index }: { kind: string; id: string; in
           ? "oldindan to'lov"
           : "topshirildi — qoldiq to'lov"
         : `${per ? `${fmtDate(per.start)} – ${fmtDate(per.end)}` : "birinchi xizmat davri"} · ${PAYMENT_KIND_LABELS[inv.kind].toLowerCase()}`;
+      const usd = inv.usd !== undefined;
       const rows =
-        inv.kind === "extra"
+        inv.kind === "extra" && !usd
           ? [{ name: inv.note, unit: "xizmat", qty: 1, price: inv.amount }]
-          : invoiceLines(state, inv).map((l) => ({ name: `${l.title} — ${when}`, unit: "xizmat", qty: 1, price: l.amount }));
+          : invoiceLines(state, inv).map((l) => ({ name: `${l.title} — ${when}`, unit: "xizmat", qty: 1, price: usd ? (l.usd ?? 0) : l.amount }));
       body = (
         <Paper>
           {inv.voidedAt && (
@@ -143,7 +144,14 @@ export function DocumentView({ kind, id, index }: { kind: string; id: string; in
           )}
           <DocHead title={`HISOB-FAKTURA № ${inv.number}`} sub={`${fmtDate(inv.issueDate)} · shartnoma № ${p.contractNo} (${fmtDate(p.contractDate)})`} />
           <Parties s={state} p={p} left="Xizmat ko'rsatuvchi" right="Buyurtmachi" />
-          <ServiceTable rows={rows} />
+          <ServiceTable rows={rows} usd={usd} />
+          {usd && (
+            <p className="mt-2 text-[13px]">
+              To'lov: dollarda yoki to'lov kunidagi O'zbekiston Respublikasi Markaziy banki kursi bo'yicha so'mda; pul o'tkazish yo'li bilan so'mda to'lansa
+              {` +${state.settings.usdMarkupPct ?? 2}%`} ustama. Bugungi kurs bo'yicha:{" "}
+              <b>≈ {fmtMoney(Math.round(inv.usd! * state.settings.usdRate * (1 + (state.settings.usdMarkupPct ?? 2) / 100)))}</b> (pul o'tkazishda).
+            </p>
+          )}
           <p className="mt-3 text-[13px]">
             To'lov muddati: <b>{inv.dueDate ? fmtDate(inv.dueDate) : "kelishiladi"}</b> · Holat:{" "}
             {PAYMENT_STATUS[invoiceStatus(state, inv, today)].label.toLowerCase()}
@@ -167,9 +175,9 @@ export function DocumentView({ kind, id, index }: { kind: string; id: string; in
         const byFmt = Object.entries(posts.reduce<Record<string, number>>((a, x) => ((a[x.format] = (a[x.format] ?? 0) + 1), a), {}))
           .map(([k, v]) => `${FORMAT_LABELS[k as keyof typeof FORMAT_LABELS].toLowerCase()} — ${v} ta`)
           .join(", ");
-        const amount = state.invoices
-          .filter((i) => i.projectId === p.id && i.periodIndex === index && i.kind !== "extra" && !i.serviceId && !i.voidedAt)
-          .reduce((a, i) => a + i.amount, 0);
+        const perInvs = state.invoices.filter((i) => i.projectId === p.id && i.periodIndex === index && i.kind !== "extra" && !i.serviceId && !i.voidedAt);
+        const usd = perInvs.length > 0 && perInvs.every((i) => i.usd !== undefined);
+        const amount = perInvs.reduce((a, i) => a + (usd ? i.usd! : i.amount), 0);
         const ad = state.targetReports.filter((r) => r.projectId === p.id && r.date >= per.start && r.date < per.end);
         const rows = [
           {
@@ -197,7 +205,7 @@ export function DocumentView({ kind, id, index }: { kind: string; id: string; in
               sub={`${fmtDate(per.end)} · shartnoma № ${p.contractNo} · xizmat davri ${fmtDate(per.start)} – ${fmtDate(per.end)}`}
             />
             <Parties s={state} p={p} left="Ijrochi" right="Buyurtmachi" />
-            <ServiceTable rows={rows} />
+            <ServiceTable rows={rows} usd={usd} />
             <p className="mt-4 text-[14px]">
               Yuqorida ko'rsatilgan xizmatlar to'liq hajmda va belgilangan muddatlarda ko'rsatildi. Buyurtmachining xizmatlar hajmi, sifati va muddatlari
               bo'yicha e'tirozlari yo'q.
@@ -273,8 +281,9 @@ function Parties({ s, p, left, right }: { s: ErpState; p: Project; left: string;
   );
 }
 
-function ServiceTable({ rows }: { rows: { name: string; unit: string; qty: number; price: number }[] }) {
+function ServiceTable({ rows, usd }: { rows: { name: string; unit: string; qty: number; price: number }[]; usd?: boolean }) {
   const total = rows.reduce((a, r) => a + r.qty * r.price, 0);
+  const money = (n: number) => (usd ? `$${fmtUsd(n)}` : fmtMoney(n));
   return (
     <>
       <div className="mt-5 overflow-x-auto">
@@ -296,21 +305,21 @@ function ServiceTable({ rows }: { rows: { name: string; unit: string; qty: numbe
                 <td className="border border-black/15 px-2 py-1.5">{r.name}</td>
                 <td className="border border-black/15 px-2 py-1.5">{r.unit}</td>
                 <td className="border border-black/15 px-2 py-1.5 text-right">{r.qty}</td>
-                <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">{r.price ? fmtMoney(r.price) : "narxga kiritilgan"}</td>
-                <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">{r.price ? fmtMoney(r.qty * r.price) : "—"}</td>
+                <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">{r.price ? money(r.price) : "narxga kiritilgan"}</td>
+                <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">{r.price ? money(r.qty * r.price) : "—"}</td>
               </tr>
             ))}
             <tr className="font-bold">
               <td className="border border-black/15 px-2 py-1.5" colSpan={5}>
                 Jami
               </td>
-              <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">{fmtMoney(total)}</td>
+              <td className="whitespace-nowrap border border-black/15 px-2 py-1.5 text-right">{money(total)}</td>
             </tr>
           </tbody>
         </table>
       </div>
       <p className="mt-2 text-[13px]">
-        Jami summa: <b>{moneyWords(total)}</b>
+        Jami summa: <b>{usd ? usdWords(total) : moneyWords(total)}</b>
       </p>
     </>
   );

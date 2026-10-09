@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { AmountInput, Banner, Button, Field, Input, Modal, Select, userOptions } from "../../components/ui";
 import * as act from "../../lib/actions";
-import { fmtMoney } from "../../lib/dates";
-import { WORK_LABELS, accountOf, billPaid, employeeBalance, invoiceOutstanding, payrollStaff } from "../../lib/finance";
+import { fmtMoney, fmtUsd } from "../../lib/dates";
+import { WORK_LABELS, accountOf, billPaid, employeeBalance, invoiceOutstanding, invoiceOutstandingUsd, payrollStaff } from "../../lib/finance";
 import { useErp, useLookup } from "../../lib/store";
 import type { Bill, Invoice } from "../../lib/types";
 import { useAccountOptions } from "./common";
@@ -221,6 +221,101 @@ export function TransferModal({ onClose }: { onClose: () => void }) {
 // ---------- Mijoz to'lovi ----------
 
 export function InvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
+  if (invoice.usd) return <UsdInvoicePayModal invoice={invoice} onClose={onClose} />;
+  return <UzsInvoicePayModal invoice={invoice} onClose={onClose} />;
+}
+
+/**
+ * Dollardagi shartnoma fakturasi: dollar hisobga — dollarda; so'm hisobga — to'lov kunidagi kurs bo'yicha,
+ * bank/karta orqali bo'lsa ustama bilan (naqdda ustama yo'q).
+ */
+function UsdInvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
+  const { state, run, today } = useErp();
+  const look = useLookup();
+  const accounts = useAccountOptions();
+  const leftUsd = invoiceOutstandingUsd(state, invoice);
+  const [accountId, setAccountId] = useState(state.accounts.some((a) => a.id === "acc_bank") ? "acc_bank" : (state.accounts[0]?.id ?? ""));
+  const [date, setDate] = useState(today);
+  const [rate, setRate] = useState(String(state.settings.usdRate));
+  const [markup, setMarkup] = useState<string | null>(null);
+  const [amount, setAmount] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const acc = accountOf(state, accountId);
+  const usdAcc = acc?.currency === "USD";
+  const fx = Number(rate) || 0;
+  const defMarkup = acc?.kind === "cash" ? 0 : (state.settings.usdMarkupPct ?? 2);
+  const mk = markup === null ? defMarkup : Number(markup) || 0;
+  const k = fx * (1 + mk / 100);
+  const suggested = usdAcc ? String(leftUsd) : String(Math.round(leftUsd * k));
+  const amt = amount ?? suggested;
+  const value = Number(amt) || 0;
+  const closesUsd = usdAcc ? value : k > 0 ? Math.round((value / k) * 100) / 100 : 0;
+  const changeAccount = (id: string) => {
+    setAccountId(id);
+    // Valyuta yoki hisob turi o'zgarsa — summa va ustama qayta taklif qilinadi
+    setAmount(null);
+    setMarkup(null);
+  };
+  const save = () => {
+    if (
+      run(
+        (c) =>
+          act.recordClientPayment(c, invoice.id, {
+            amount: value,
+            date,
+            accountId,
+            rate: usdAcc ? fx : undefined,
+            fxRate: usdAcc ? undefined : fx,
+            markupPct: usdAcc ? undefined : mk,
+            note,
+          }),
+        "To'lov qabul qilindi",
+      )
+    )
+      onClose();
+  };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`To'lov: ${invoice.number} — ${look.projectName(invoice.projectId)}`}
+      footer={<Footer onClose={onClose} onSave={save} label="Qabul qilish" disabled={!(value > 0) || !(fx > 0) || markup === ""} />}
+    >
+      <p className="mb-3 text-[14px] text-label2">
+        Shartnoma dollarda. Faktura: <b className="text-label">${fmtUsd(invoice.usd!)}</b> · qolgan: <b className="text-label">${fmtUsd(leftUsd)}</b>. Qisman
+        to'lov ham qayd etiladi.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Hisob (kassa)">
+          <Select value={accountId} onChange={(e) => changeAccount(e.target.value)} options={accounts} />
+        </Field>
+        <Field label="Sana">
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </Field>
+        <Field label={usdAcc ? "Kurs (1 USD = so'm)" : "To'lov kunidagi kurs (1 $ = so'm)"} hint="Markaziy bank kursi; kerak bo'lsa o'zgartiring">
+          <Input type="number" value={rate} onChange={(e) => setRate(e.target.value)} />
+        </Field>
+        {!usdAcc && (
+          <Field label="Ustama (%)" hint={acc?.kind === "cash" ? "Naqd to'lovda ustama yo'q" : "Bank/karta orqali so'mda to'lovda"}>
+            <Input type="number" min={0} max={20} step={0.5} value={markup ?? String(defMarkup)} onChange={(e) => setMarkup(e.target.value)} />
+          </Field>
+        )}
+        <Field
+          label={usdAcc ? "Kelgan summa (USD)" : "Kelgan summa (so'm)"}
+          className="sm:col-span-2"
+          hint={usdAcc ? `≈ ${fmtMoney(value * fx)}` : `Fakturadan yopiladi: $${fmtUsd(closesUsd)}${mk ? ` (kurs ${fmtMoney(fx)} + ${mk}% ustama)` : ""}`}
+        >
+          <AmountInput value={amt} onValue={setAmount} placeholder="0" />
+        </Field>
+        <Field label="Izoh" className="sm:col-span-2">
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bank o'tkazmasi / naqd / karta" />
+        </Field>
+      </div>
+    </Modal>
+  );
+}
+
+function UzsInvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
   const { state, run } = useErp();
   const look = useLookup();
   const left = invoiceOutstanding(state, invoice);

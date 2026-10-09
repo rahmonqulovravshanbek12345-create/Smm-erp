@@ -72,6 +72,8 @@ export interface ServiceStage {
 export interface ProjectService {
   id: string;
   kind: ServiceKind;
+  /** Dollardagi shartnoma: narx USD da (price — joriy kurs bo'yicha so'mdagi qiymati, avtomatik yangilanadi). */
+  priceUsd?: number;
   /** Katalogdagi paket (bo'sh — individual shartlar). */
   tariffId?: string;
   /** Paket nomi yoki ish tavsifi. */
@@ -108,6 +110,8 @@ export interface ProjectService {
 export interface Project {
   id: string;
   name: string;
+  /** Shartnoma valyutasi: USD bo'lsa — xizmat narxlari va fakturalar dollarda (to'lov kunidagi kurs bilan so'mga). */
+  currency?: "UZS" | "USD";
   leadId?: string;
   contactName: string;
   phone: string;
@@ -368,6 +372,11 @@ export interface Transaction {
   invoiceId?: string;
   billId?: string;
   transferId?: string;
+  /** Dollardagi fakturaga to'lov: shu to'lov qoplagan USD summa. */
+  invoiceUsd?: number;
+  /** So'mda to'langanda: to'lov kunidagi kurs va ustama (%). */
+  fxRate?: number;
+  markupPct?: number;
   note: string;
   createdBy: string;
 }
@@ -376,6 +385,8 @@ export interface InvoiceLine {
   kind: ServiceKind;
   title: string;
   amount: number;
+  /** Dollardagi shartnoma: qator summasi USD da. */
+  usd?: number;
 }
 
 export interface Invoice {
@@ -394,6 +405,8 @@ export interface Invoice {
   /** Bo'sh — sana hali kelishilmagan (qoldiq to'lov uchun). */
   dueDate: string;
   note: string;
+  /** Dollardagi shartnoma: faktura summasi USD da (amount — chiqarilgan kundagi kurs bo'yicha so'mdagi hisob qiymati). */
+  usd?: number;
   /** Bekor qilingan (to'lanmagan faktura: xizmat to'xtatildi, loyiha yopildi va h.k.) — qarz va daromadga kirmaydi. */
   voidedAt?: string;
   voidReason?: string;
@@ -508,6 +521,8 @@ export interface Settings {
   requisites: Requisites;
   /** Joriy USD kursi (yangi tranzaksiyalar uchun taklif). */
   usdRate: number;
+  /** Dollardagi shartnoma bo'yicha so'mda bank o'tkazmasi bilan to'langanda kursga ustama (%), standart 2. */
+  usdMarkupPct?: number;
   /** Ish haqi to'lanadigan kun (oyning nechanchi kuni). */
   payday: number;
   /** Kechikkan ish uchun jarima foizi (0 — o'chirilgan). */

@@ -3,7 +3,7 @@ import { DebtBadge, TaskBadge } from "../components/bits";
 import { ProjectFormModal } from "../components/ProjectForm";
 import { A, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, LinkOut, PageHeader, Progress, Tabs, Textarea, navigate } from "../components/ui";
 import * as act from "../lib/actions";
-import { fmtDate, fmtDateTime, fmtMoney, fmtNum } from "../lib/dates";
+import { fmtDate, fmtDateTime, fmtMoney, fmtNum, fmtUsd } from "../lib/dates";
 import { DOC_BLOCKS, TASK_KIND_LABELS } from "../lib/labels";
 import { canEdit, canEditFinance, canView, visibleProjects } from "../lib/permissions";
 import { currentPeriod, isPostLate, periodLabel, periodPosts, projectDebt, workBlockedReason } from "../lib/rules";
@@ -14,7 +14,7 @@ import { ProjectJourney } from "../components/ProjectJourney";
 import { QuotaTab } from "../components/Quota";
 import { ServicesPanel } from "../components/Services";
 import { quotaFor } from "../lib/content";
-import { hasAds, hasContent, hasRecurring, isRecurring, serviceMeta, servicesOf, stageIndex } from "../lib/services";
+import { hasAds, hasContent, hasRecurring, isRecurring, isUsd, monthlyFeeUsd, serviceMeta, servicesOf, stageIndex } from "../lib/services";
 import { Invoices } from "./finance/Invoices";
 import { ProjectFinance } from "./finance/ProjectFinance";
 
@@ -53,7 +53,7 @@ export function Projects() {
                     <div className="text-xs text-label2">{p.industry}</div>
                   </div>
                   <span className="text-right text-sm text-label/80">
-                    {p.monthlyFee > 0 && <span className="block">{fmtMoney(p.monthlyFee)}/oy</span>}
+                    {p.monthlyFee > 0 && <span className="block">{isUsd(p) ? `$${fmtUsd(monthlyFeeUsd(p))}` : fmtMoney(p.monthlyFee)}/oy</span>}
                     {servicesOf(p).some((x) => !isRecurring(x.kind) && x.status === "active") && (
                       <span className="block text-xs text-label2">
                         +{" "}
@@ -238,7 +238,8 @@ function Info({ p }: { p: Project }) {
         )}
         {row("Yuridik nomi", p.legalName ?? "—")}
         {row("Xizmatlar", p.tariff)}
-        {p.monthlyFee > 0 && row("Oylik summa", fmtMoney(p.monthlyFee))}
+        {p.monthlyFee > 0 && row("Oylik summa", isUsd(p) ? `$${fmtUsd(monthlyFeeUsd(p))} (≈ ${fmtMoney(p.monthlyFee)})` : fmtMoney(p.monthlyFee))}
+        {isUsd(p) && row("Valyuta", "AQSH dollari — to'lov kunidagi kurs bo'yicha")}
         {p.monthlyFee > 0 && row("Oldindan to'lov", `${p.prepayType}%`)}
         {hasRecurring(p) &&
           row(

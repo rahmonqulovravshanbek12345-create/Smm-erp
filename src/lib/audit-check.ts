@@ -29,9 +29,11 @@ import { outstandingOf } from "./money";
 import { currentPeriod } from "./period";
 import { invoiceLines, isRecurring, recurringFee, serviceOf } from "./services";
 import { nonFinite } from "./test-utils";
-import type { ErpState } from "./types";
+import type { ErpState, Invoice, Transaction } from "./types";
 
 const near = (a: number, b: number, tol = 1) => Math.abs(a - b) <= tol;
+/** To'lov fakturadan qancha dollar yopgan (eski yozuvda — faktura kursi bo'yicha). */
+const usdOf = (t: Transaction, inv: Invoice) => t.invoiceUsd ?? (t.amount * (t.rate ?? 1)) / (inv.amount / inv.usd!);
 
 // ---------- Invariantlar ----------
 
@@ -112,6 +114,20 @@ export function check(s: ErpState, today: string): string[] {
     const sum = invoiceLines(s, i).reduce((a, l) => a + l.amount, 0);
     if (sum !== i.amount) fail(`${i.number}: qatorlar yig'indisi ${sum} ≠ ${i.amount}`);
     if (!(i.amount > 0)) fail(`${i.number}: summa ${i.amount}`);
+    if (i.usd !== undefined) {
+      const lines = invoiceLines(s, i);
+      if (lines.some((l) => l.usd === undefined)) fail(`${i.number}: dollardagi fakturada dollarsiz qator`);
+      else if (
+        !near(
+          lines.reduce((a, l) => a + l.usd!, 0),
+          i.usd,
+          0.011,
+        )
+      )
+        fail(`${i.number}: qatorlar dollar yig'indisi ≠ $${i.usd}`);
+      const paidUsd = s.transactions.filter((t) => t.invoiceId === i.id).reduce((a, t) => a + (t.dir === "in" ? 1 : -1) * Math.abs(usdOf(t, i)), 0);
+      if (paidUsd > i.usd * 1.05 + 1) fail(`${i.number}: dollarda ortiqcha to'lov ($${paidUsd} > $${i.usd})`);
+    }
   }
   for (const t of s.transactions) {
     if (!accountOf(s, t.accountId)) fail(`tx ${t.id}: hisob yo'q`);
@@ -131,7 +147,15 @@ export function check(s: ErpState, today: string): string[] {
   for (const p of s.projects)
     for (const x of p.services) {
       if (isRecurring(x.kind) || x.status === "cancelled") continue;
-      const sum = s.invoices.filter((i) => i.serviceId === x.id && !i.voidedAt).reduce((a, i) => a + i.amount, 0);
+      const own = s.invoices.filter((i) => i.serviceId === x.id && !i.voidedAt);
+      if (p.currency === "USD" && x.priceUsd !== undefined) {
+        // Dollardagi shartnoma: fakturalar dollarda narxga teng (so'mdagi qiymati kursga qarab farq qiladi)
+        const usd = own.reduce((a, i) => a + (i.usd ?? NaN), 0);
+        if (x.deliveredAt && !near(usd, x.priceUsd, 0.011)) fail(`${p.name}/${x.kind}: topshirilgan, fakturalar $${usd} ≠ narx $${x.priceUsd}`);
+        if (!x.deliveredAt && usd > x.priceUsd + 0.011) fail(`${p.name}/${x.kind}: fakturalar narxdan oshib ketgan ($)`);
+        continue;
+      }
+      const sum = own.reduce((a, i) => a + i.amount, 0);
       if (x.deliveredAt && sum !== x.price) fail(`${p.name}/${x.kind}: topshirilgan, fakturalar ${sum} ≠ narx ${x.price}`);
       if (!x.deliveredAt && sum > x.price) fail(`${p.name}/${x.kind}: fakturalar narxdan oshib ketgan`);
     }
@@ -177,6 +201,13 @@ export function check(s: ErpState, today: string): string[] {
   }
   let otherRevenue = 0;
   for (const t of s.transactions) if (!t.invoiceId && !t.billId && articleOf(s, t.articleId)?.group === "revenue") otherRevenue += signedUZS(s, t);
+  // Dollardagi shartnoma: kelgan so'm − fakturani yopgan dollarning faktura kursidagi qiymati = kurs farqi va ustama (to'lov oyida)
+  const monthSet = new Set(months);
+  for (const t of s.transactions) {
+    const inv = t.invoiceId ? s.invoices.find((i) => i.id === t.invoiceId) : undefined;
+    if (!inv?.usd || !monthSet.has(monthKey(t.date))) continue;
+    otherRevenue += Math.round(signedUZS(s, t) - (t.dir === "in" ? 1 : -1) * Math.abs(usdOf(t, inv)) * (inv.amount / inv.usd));
+  }
   if (!near(P.sum.revenue, expectRevenue + otherRevenue, 1))
     fail(`P&L daromadi ${Math.round(P.sum.revenue)} ≠ mustaqil hisob ${Math.round(expectRevenue + otherRevenue)}`);
   // «tan olinmagan qism» funksiyasi bilan ham mos
@@ -278,7 +309,11 @@ export function check(s: ErpState, today: string): string[] {
     const issued = s.invoices.filter((i) => i.projectId === r.project.id && i.issueDate <= today && !i.voidedAt);
     const inv = issued.reduce((a, i) => a + i.amount, 0);
     const paid = issued.reduce((a, i) => a + invoicePaid(s, i), 0);
-    const out = issued.reduce((a, i) => a + outstandingOf(i.amount, invoicePaid(s, i)), 0);
+    const out = issued.reduce((a, i) => {
+      if (!i.usd) return a + outstandingOf(i.amount, invoicePaid(s, i));
+      const paidUsd = s.transactions.filter((t) => t.invoiceId === i.id).reduce((x, t) => x + (t.dir === "in" ? 1 : -1) * Math.abs(usdOf(t, i)), 0);
+      return a + (i.usd - paidUsd <= 0.005 ? 0 : (i.usd - paidUsd) * (i.amount / i.usd));
+    }, 0);
     if (!near(r.invoiced, inv, 0.01) || !near(r.paid, paid, 0.01)) fail(`${r.project.name}: debitorlik hisob-faktura/to'lov`);
     if (!near(r.notDue + r.d30 + r.d60 + r.d60plus, out, 0.01))
       fail(`${r.project.name}: qarz muddatlari yig'indisi ${Math.round(r.notDue + r.d30 + r.d60 + r.d60plus)} ≠ ${Math.round(out)}`);

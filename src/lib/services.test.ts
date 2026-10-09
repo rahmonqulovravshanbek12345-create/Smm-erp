@@ -3,7 +3,7 @@ import * as act from "./actions";
 import { quotaFor, quotaProgress, quotaShortage } from "./content";
 import { alertsFor } from "./rules";
 import { addDays, monthKey } from "./dates";
-import { invoicePaid, mrr, pnl, prepayPaid, receivables, syncInvoices, unrecognizedRevenue } from "./finance";
+import { invoicePaid, invoiceSettled, mrr, pnl, prepayPaid, receivables, syncInvoices, unrecognizedRevenue } from "./finance";
 import { invoiceLines, recurringFee, recurringLines, servicePrepayPaid, stageIndex } from "./services";
 import { TODAY, demoState, makeCtx, nonFinite } from "./test-utils";
 import type { ErpState, Post } from "./types";
@@ -54,7 +54,7 @@ describe("Xizmatlar: bitta mijoz — bir nechta xizmat", () => {
     // Sayt oldindan to'lovi SMM ishini to'xtatmaydi va aksincha
     pay(s, invs[0]!.id);
     expect(prepayPaid(s, id)).toBe(true);
-    expect(servicePrepayPaid(s, p.services[1]!.id, (inv) => invoicePaid(s, inv))).toBe(false);
+    expect(servicePrepayPaid(s, p.services[1]!.id, (inv) => invoiceSettled(s, inv))).toBe(false);
   });
 
   it("faqat branding: oylik faktura va hisob davri yo'q, SMM menejer shart emas", () => {

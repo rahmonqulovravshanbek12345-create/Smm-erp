@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as act from "../lib/actions";
-import { diffDays, fmtDate, fmtMoney, fmtNum } from "../lib/dates";
-import { invoicePaid, invoiceStatus } from "../lib/finance";
+import { diffDays, fmtDate, fmtMoney, fmtNum, fmtUsd } from "../lib/dates";
+import { invoiceSettled, invoiceStatus } from "../lib/finance";
 import { canEdit } from "../lib/permissions";
 import { currentPeriod } from "../lib/rules";
 import {
@@ -9,20 +9,28 @@ import {
   SERVICE_META,
   adPctAmount,
   isRecurring,
+  isUsd,
+  monthlyFeeUsd,
+  priceText,
+  round2,
   serviceLabel,
   serviceMeta,
   serviceOwner,
   servicePrepayPaid,
   servicesOf,
   stageIndex,
+  usdFromUzs,
   type ServiceInput,
 } from "../lib/services";
 import { useErp, useLookup } from "../lib/store";
 import type { Project, ProjectService, Role } from "../lib/types";
 import { PayBadge } from "./bits";
 import { Icon } from "./icons";
-import { defaultService, ServiceFields } from "./ProjectForm";
+import { defaultService, ServiceFields, UsdInput, withUsd } from "./ProjectForm";
 import { AmountInput, Badge, Banner, Button, Card, CardHeader, Field, Input, Modal, Select, userOptions } from "./ui";
+
+/** Xizmat narxi matni (dollardagi shartnomada — dollarda). */
+const svcPrice = (p: Project, svc: ProjectService, approx = true) => priceText(svc.price, isUsd(p) ? svc.priceUsd : undefined, fmtMoney, fmtUsd, approx);
 
 const canManage = (role: Role) => role === "admin" || role === "rahbar" || role === "marketolog";
 
@@ -97,7 +105,7 @@ export function ServicesPanel({ project: p }: { project: Project }) {
               </div>
               <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
                 <span className="tabular text-label">
-                  {fmtMoney(svc.price)}
+                  {svcPrice(p, svc)}
                   {isRecurring(svc.kind) ? "/oy" : ""}
                 </span>
                 {statusOf(svc)}
@@ -132,8 +140,9 @@ export function ServicesPanel({ project: p }: { project: Project }) {
                       <Badge tone={isRecurring(svc.kind) ? "blue" : "violet"}>{isRecurring(svc.kind) ? "Oylik" : "Bir martalik"}</Badge>
                     </td>
                     <td className="tabular whitespace-nowrap px-4 py-2.5 text-right text-label">
-                      {fmtMoney(svc.price)}
+                      {svcPrice(p, svc, false)}
                       {isRecurring(svc.kind) ? "/oy" : ""}
+                      {isUsd(p) && svc.priceUsd !== undefined && <span className="block text-xs text-label2">≈ {fmtMoney(svc.price)}</span>}
                       {pct > 0 && (
                         <span className="block text-xs text-label2">
                           + {svc.adPct}% byudjetdan ≈ {fmtMoney(pct)}
@@ -151,7 +160,8 @@ export function ServicesPanel({ project: p }: { project: Project }) {
         </div>
         {p.monthlyFee > 0 && (
           <div className="border-t border-sep px-4 py-2.5 text-sm text-label2">
-            Oylik jami: <b className="text-label">{fmtMoney(p.monthlyFee)}</b> · oldindan to'lov {p.prepayType}%
+            Oylik jami: <b className="text-label">{isUsd(p) ? `$${fmtUsd(monthlyFeeUsd(p))} (≈ ${fmtMoney(p.monthlyFee)})` : fmtMoney(p.monthlyFee)}</b> ·
+            oldindan to'lov {p.prepayType}%{isUsd(p) && " · to'lov kunidagi kurs bo'yicha"}
           </div>
         )}
       </Card>
@@ -178,12 +188,14 @@ export function OneTimeService({ project: p, svc, compact }: { project: Project;
   const stages = svc.stages ?? [];
   const i = stageIndex(svc);
   const invs = state.invoices.filter((x) => x.serviceId === svc.id);
-  const paidPre = servicePrepayPaid(state, svc.id, (inv) => invoicePaid(state, inv));
+  const paidPre = servicePrepayPaid(state, svc.id, (inv) => invoiceSettled(state, inv));
   const can = svc.status === "active" && (canManage(me.role) || svc.assigneeId === me.id);
   const last = i === stages.length - 1;
   const late = svc.status === "active" && svc.deadline && svc.deadline < today;
   const blocked = i >= 1 && !paidPre;
   const pre = Math.round((svc.price * (svc.prepayPct ?? 50)) / 100);
+  const usdSvc = isUsd(p) && svc.priceUsd !== undefined;
+  const preUsd = usdSvc ? round2((svc.priceUsd! * (svc.prepayPct ?? 50)) / 100) : 0;
 
   return (
     <Card className="mb-4">
@@ -243,19 +255,19 @@ export function OneTimeService({ project: p, svc, compact }: { project: Project;
         {!compact && (
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-[14px] bg-fill p-3">
-              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-label2">To'lov · {fmtMoney(svc.price)}</div>
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-label2">To'lov · {svcPrice(p, svc, false)}</div>
               <ul className="space-y-1.5 text-sm">
                 {invs.map((inv) => (
                   <li key={inv.id} className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-label">
-                      {inv.kind === "prepay" ? `${svc.prepayPct ?? 50}% oldindan` : "Topshirishda"} · {fmtMoney(inv.amount)}
+                      {inv.kind === "prepay" ? `${svc.prepayPct ?? 50}% oldindan` : "Topshirishda"} · {inv.usd ? `$${fmtUsd(inv.usd)}` : fmtMoney(inv.amount)}
                     </span>
                     <PayBadge status={invoiceStatus(state, inv, today)} />
                   </li>
                 ))}
                 {!svc.deliveredAt && svc.price > pre && (
                   <li className="flex flex-wrap items-center justify-between gap-2 text-label2">
-                    <span>Topshirishda · {fmtMoney(svc.price - pre)}</span>
+                    <span>Topshirishda · {usdSvc ? `$${fmtUsd(round2(svc.priceUsd! - preUsd))}` : fmtMoney(svc.price - pre)}</span>
                     <Badge tone="gray">Topshirilganda faktura chiqadi</Badge>
                   </li>
                 )}
@@ -351,14 +363,20 @@ function AddServiceModal({ project: p, onClose }: { project: Project; onClose: (
       .map((x) => x.kind),
   );
   const options = SERVICE_META.filter((m) => !taken.has(m.id));
-  const [svc, setSvc] = useState<ServiceInput>(() => defaultService(state, options[0]?.id ?? "web", state.users));
+  const usd = isUsd(p);
+  const rate = state.settings.usdRate;
+  const fresh = (k: ServiceInput["kind"]) => {
+    const d = defaultService(state, k, state.users);
+    return usd ? withUsd(d, d.price ? usdFromUzs(d.price, rate) : undefined, rate) : d;
+  };
+  const [svc, setSvc] = useState<ServiceInput>(() => fresh(options[0]?.id ?? "web"));
   const [due, setDue] = useState(today);
   const [prorate, setProrate] = useState(true);
   const per = p.periodStart ? currentPeriod(p, today) : null;
   const left = per ? diffDays(per.end, today) : 0;
   const total = per ? diffDays(per.end, per.start) : 1;
   const proAmount = Math.round(((svc.price || 0) * left) / total / 1000) * 1000;
-  const valid = svc.price > 0 && (isRecurring(svc.kind) || svc.assigneeId) && (svc.tariffId || svc.title.trim());
+  const valid = svc.price > 0 && (!usd || (svc.priceUsd ?? 0) > 0) && (isRecurring(svc.kind) || svc.assigneeId) && (svc.tariffId || svc.title.trim());
   return (
     <Modal
       open
@@ -389,14 +407,14 @@ function AddServiceModal({ project: p, onClose }: { project: Project; onClose: (
             key={m.id}
             type="button"
             aria-pressed={svc.kind === m.id}
-            onClick={() => setSvc(defaultService(state, m.id, state.users))}
+            onClick={() => setSvc(fresh(m.id))}
             className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${svc.kind === m.id ? "bg-accent text-white" : "bg-fill text-label2"}`}
           >
             {m.label}
           </button>
         ))}
       </div>
-      <ServiceFields value={svc} onChange={setSvc} usdRate={state.settings.usdRate} adBudgetUsd={p.adBudgetUsd} />
+      <ServiceFields value={svc} onChange={setSvc} usd={usd} usdRate={rate} adBudgetUsd={p.adBudgetUsd} />
       {(!isRecurring(svc.kind) || !p.monthlyFee) && (
         <Field label="Oldindan to'lov sanasi" className="mt-3 max-w-xs">
           <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
@@ -424,14 +442,17 @@ function AddServiceModal({ project: p, onClose }: { project: Project; onClose: (
 function EditServiceModal({ project: p, svc, onClose }: { project: Project; svc: ProjectService; onClose: () => void }) {
   const { state, run } = useErp();
   const once = !isRecurring(svc.kind);
+  const usd = isUsd(p) && svc.priceUsd !== undefined;
+  const rate = state.settings.usdRate;
   const [price, setPrice] = useState(String(svc.price));
+  const [priceUsd, setPriceUsd] = useState<number | undefined>(svc.priceUsd);
   const [assigneeId, setAssigneeId] = useState(svc.assigneeId ?? "");
   const [deadline, setDeadline] = useState(svc.deadline ?? "");
   const [fee, setFee] = useState(svc.assigneeFee ? String(svc.assigneeFee) : "");
   const [adPct, setAdPct] = useState(String(svc.adPct ?? ""));
   const people = state.users.filter((u) => u.active && serviceMeta(svc.kind).assigneeRoles.includes(u.role));
   const save = () => {
-    const patch: Partial<ServiceInput> = { price: Number(price) || 0 };
+    const patch: Partial<ServiceInput> = usd ? { priceUsd: priceUsd ?? 0, price: Math.round((priceUsd ?? 0) * rate) } : { price: Number(price) || 0 };
     if (once) Object.assign(patch, { assigneeId, deadline: deadline || undefined, assigneeFee: Number(fee) || undefined });
     if (svc.kind === "performance") patch.adPct = Math.max(0, Math.min(50, Number(adPct) || 0));
     if (run((c) => act.updateService(c, p.id, svc.id, patch), "Xizmat shartlari yangilandi")) onClose();
@@ -446,16 +467,25 @@ function EditServiceModal({ project: p, svc, onClose }: { project: Project; svc:
           <Button variant="ghost" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button variant="primary" onClick={save} disabled={!(Number(price) > 0) || (once && !assigneeId)}>
+          <Button variant="primary" onClick={save} disabled={!(usd ? (priceUsd ?? 0) > 0 : Number(price) > 0) || (once && !assigneeId)}>
             Saqlash
           </Button>
         </>
       }
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label={once ? "Narx (so'm)" : "Oylik narx (so'm)"} hint={once ? undefined : "Keyingi davr fakturasidan boshlab"}>
-          <AmountInput value={price} onValue={setPrice} />
-        </Field>
+        {usd ? (
+          <Field
+            label={once ? "Narx (USD)" : "Oylik narx (USD)"}
+            hint={`${priceUsd ? `≈ ${fmtMoney(Math.round(priceUsd * rate))} bugungi kursda. ` : ""}${once ? "" : "Keyingi davr fakturasidan boshlab"}`}
+          >
+            <UsdInput value={priceUsd} onValue={setPriceUsd} />
+          </Field>
+        ) : (
+          <Field label={once ? "Narx (so'm)" : "Oylik narx (so'm)"} hint={once ? undefined : "Keyingi davr fakturasidan boshlab"}>
+            <AmountInput value={price} onValue={setPrice} />
+          </Field>
+        )}
         {svc.kind === "performance" && (
           <Field label="Reklama byudjetidan foiz (%)">
             <Input type="number" min={0} max={50} value={adPct} onChange={(e) => setAdPct(e.target.value)} />
