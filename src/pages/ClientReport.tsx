@@ -271,9 +271,7 @@ export function ClientReport({ projectId, periodIndex }: { projectId: string; pe
           </Card>
         </div>
 
-        <p className="pb-2 text-center text-[12px] text-label3">
-          {state.settings.companyName} · {state.settings.requisites.phone} · Hisobot ERP ma'lumotlaridan avtomatik tuzildi
-        </p>
+        <p className="pb-2 text-center text-[12px] text-label3">{[state.settings.companyName, state.settings.requisites.phone].filter(Boolean).join(" · ")}</p>
       </div>
     </>
   );
