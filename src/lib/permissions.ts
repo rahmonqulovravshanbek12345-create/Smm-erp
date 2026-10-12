@@ -100,6 +100,9 @@ export const canEdit = (role: Role, mod: Module) => {
   return a === "edit" || a === "full";
 };
 
+/** Lidning mas'ul operatorini almashtirish (operator lid orqali loyiha va fakturalarni ko'radi — o'zi o'zgartira olmaydi). */
+export const canReassignLead = (role: Role) => role === "admin" || role === "rahbar" || role === "marketolog";
+
 /** Moliya loyiha kartasining moliya qismini to'liq tahrirlaydi. */
 export const canEditFinance = (role: Role) => role === "admin" || role === "moliya" || role === "rahbar";
 

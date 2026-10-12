@@ -40,7 +40,7 @@ import { audit, type Db } from "./db";
 import type { Integrations } from "./integrations";
 import type { Notifier } from "./notifier";
 import { parseArgs } from "./schemas";
-import { UserError, type StateStore } from "./store";
+import { QuotaError, UserError, type StateStore } from "./store";
 
 export interface Deps {
   cfg: Config;
@@ -401,6 +401,7 @@ export async function buildApp(d: Deps) {
       const r = await store.run(name, parsed.args, a.user.id, {
         ids: body.data.ids,
         check: (me, s) => denyReason(name, me, s, parsed.args),
+        quotaBytes: a.user.role === "admin" ? undefined : cfg.USER_DAILY_WRITE_MB * 1024 * 1024,
       });
       await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "action", action: name, ok: true, version: r.version, detail: auditArgs(name, parsed.args) });
       d.notifier.deliver(r.outbox);
@@ -411,7 +412,7 @@ export async function buildApp(d: Deps) {
     } catch (e) {
       if (!(e instanceof UserError)) throw e;
       await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "action", action: name, ok: false, detail: { error: e.message } });
-      const code = e.message === "Bu amal uchun ruxsatingiz yo'q" || e.message.startsWith("Bu amal serverli") ? 403 : 422;
+      const code = e instanceof QuotaError ? 429 : e.message === "Bu amal uchun ruxsatingiz yo'q" || e.message.startsWith("Bu amal serverli") ? 403 : 422;
       return httpError(reply, code, e.message);
     }
   });

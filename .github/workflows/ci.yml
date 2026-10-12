@@ -19,6 +19,8 @@ jobs:
       - run: npm ci
       - name: Type-check, lint, format, unit testlar
         run: npm run check
+      - name: Serverdagi Node.js xavfsizlik relizlaridan orqada emasmi
+        run: node scripts/check-node.mjs
       - run: npm run build
       - name: Playwright brauzeri
         run: npx playwright install --with-deps chromium

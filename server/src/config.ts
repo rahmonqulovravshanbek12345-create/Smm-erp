@@ -27,6 +27,8 @@ const Env = z.object({
     ),
   /** Nginx ortida: haqiqiy IP X-Forwarded-For dan olinadi (faqat shu manzildagi proksiga ishoniladi). */
   TRUST_PROXY: z.string().default("127.0.0.1"),
+  /** Bitta xodim bir kunda qo'sha oladigan ma'lumot hajmi (MB) — tizimni ataylab to'ldirib tashlashga qarshi. Admin uchun cheklov yo'q. */
+  USER_DAILY_WRITE_MB: z.coerce.number().positive().max(1000).default(5),
   /** So'rov cheklovlari (parolni taxmin qilishga qarshi). Faqat avtomatik brauzer testlarida o'chiriladi. */
   RATE_LIMITS: bool.default(true),
   /** Jadval bo'yicha ishlar (kurs, Meta, eslatmalar). Testlarda o'chiriladi. */

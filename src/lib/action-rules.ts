@@ -1,6 +1,6 @@
 // Kim qaysi amalni bajara oladi — serverda har bir so'rovda tekshiriladi (sahifadagi tugmalar bilan bir xil qoidalar).
 // Brauzerdagi cheklov qulaylik uchun; haqiqiy himoya — shu yer: tugmasi yo'q amalni so'rov yuborib ham bajarib bo'lmaydi.
-import { access, canEdit, canEditFinance } from "./permissions";
+import { access, canEdit, canEditFinance, canReassignLead } from "./permissions";
 import { DEMO_ONLY, type ActionArgs, type ActionName } from "./registry";
 import type { ErpState, Project, Role, User } from "./types";
 
@@ -45,7 +45,8 @@ const targetologOn = (me: User, p: Project | undefined) => Boolean(p) && (me.rol
 
 const RULES: { [N in ActionName]: Rule<N> } = {
   // CRM
-  saveLead: crm,
+  // Mavjud lidning mas'ul operatorini faqat rahbariyat almashtiradi
+  saveLead: (me, s, [d]) => crm(me) && (!d.id || canReassignLead(me.role) || s.leads.find((l) => l.id === d.id)?.operatorId === d.operatorId),
   addContact: crm,
   moveLead: crm,
   createProposal: crm,

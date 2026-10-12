@@ -18,7 +18,8 @@ const PASS = "Sinov-parol-2026";
 async function main() {
   const cfg = loadConfig();
   const db = createPool(cfg.DATABASE_URL);
-  const store = new StateStore(db);
+  const sealer = makeSealer(cfg.SECRET_KEY);
+  const store = new StateStore(db, { sealer });
   const sent: { chatId: string; text: string }[] = [];
   const passHash = await hashPassword(PASS);
 
@@ -55,7 +56,7 @@ async function main() {
       return res.map((r) => ({ ...r, demo: false }));
     },
   });
-  const app = await buildApp({ cfg, db, store, sealer: makeSealer(cfg.SECRET_KEY), notifier, integrations });
+  const app = await buildApp({ cfg, db, store, sealer, notifier, integrations });
   app.post("/__test/reset", async () => {
     await reset();
     return { ok: true };

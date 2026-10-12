@@ -33,10 +33,13 @@ ln -sfn "$DEST" "$APP/current"
 install -m 644 "$DEST/deploy/smm-erp.service" /etc/systemd/system/smm-erp.service
 install -m 644 "$DEST/deploy/smm-erp-backup.service" /etc/systemd/system/smm-erp-backup.service
 install -m 644 "$DEST/deploy/smm-erp-backup.timer" /etc/systemd/system/smm-erp-backup.timer
+install -m 644 "$DEST/deploy/smm-erp-node-update.service" /etc/systemd/system/smm-erp-node-update.service
+install -m 644 "$DEST/deploy/smm-erp-node-update.timer" /etc/systemd/system/smm-erp-node-update.timer
 install -m 755 "$DEST/deploy/smm-erp" /usr/local/bin/smm-erp
 install -m 644 "$DEST/deploy/nginx-limits.conf" /etc/nginx/conf.d/smm-erp-limits.conf
 install -m 644 "$DEST/deploy/nginx-proxy.conf" /etc/nginx/smm-erp-proxy.conf
 systemctl daemon-reload
+systemctl enable --now smm-erp-node-update.timer >/dev/null
 nginx -t >/dev/null 2>&1 && systemctl reload nginx
 systemctl restart smm-erp
 
