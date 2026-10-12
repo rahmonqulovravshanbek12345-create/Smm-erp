@@ -141,6 +141,15 @@ export function ServerStoreProvider({
     [adopt, fail, refresh, showToast],
   );
 
+  const flush = useCallback(
+    () =>
+      queue.current.then(
+        () => undefined,
+        () => undefined,
+      ),
+    [],
+  );
+
   const logout = useCallback(async () => {
     await api("/api/auth/logout", {}).catch(() => undefined);
     onSignedOut();
@@ -159,8 +168,9 @@ export function ServerStoreProvider({
       offline,
       refresh: () => refresh(true),
       adopt,
+      flush,
     }),
-    [meInfo, logout, offline, refresh, adopt],
+    [meInfo, logout, offline, refresh, adopt, flush],
   );
   const value: Store = useMemo(
     () => ({

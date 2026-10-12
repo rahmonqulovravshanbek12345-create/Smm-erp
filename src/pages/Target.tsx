@@ -46,6 +46,7 @@ export function Target() {
     setSyncing(true);
     if (SERVER_MODE) {
       try {
+        await session?.flush();
         const r = await api<StateResponse & { count: number; errors: string[] }>("/api/integrations/meta/sync", { projectId, days: [f.date] });
         session?.adopt(r);
         showToast(r.errors.length ? `⚠ ${r.errors.join("; ")}` : r.count ? "Meta Ads'dan olindi" : "Meta'da bu kun uchun ma'lumot yo'q");
