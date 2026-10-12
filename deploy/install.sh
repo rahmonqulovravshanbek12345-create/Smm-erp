@@ -108,7 +108,7 @@ STATIC_DIR=$APP/current/public
 HOST=127.0.0.1
 PORT=3000
 COOKIE_SECURE=1
-REQUIRE_2FA_ROLES=admin,rahbar,moliya,marketolog
+REQUIRE_2FA_ROLES=all
 LOG_LEVEL=info
 X
   umask 022
@@ -126,6 +126,10 @@ install -m 644 "$APP/current/deploy/smm-erp-backup.timer" /etc/systemd/system/sm
 install -m 644 "$APP/current/deploy/smm-erp-node-update.service" /etc/systemd/system/smm-erp-node-update.service
 install -m 644 "$APP/current/deploy/smm-erp-node-update.timer" /etc/systemd/system/smm-erp-node-update.timer
 install -m 755 "$APP/current/deploy/smm-erp" /usr/local/bin/smm-erp
+install -d /etc/fail2ban/filter.d /etc/fail2ban/jail.d /var/log/nginx
+touch /var/log/nginx/access.log
+install -m 644 "$APP/current/deploy/fail2ban-filter.conf" /etc/fail2ban/filter.d/smm-erp-login.conf
+install -m 644 "$APP/current/deploy/fail2ban-jail.conf" /etc/fail2ban/jail.d/smm-erp.conf
 systemctl daemon-reload
 systemctl enable --now smm-erp-backup.timer >/dev/null
 systemctl enable --now smm-erp-node-update.timer >/dev/null
@@ -157,6 +161,7 @@ ufw allow "${SSH_PORT:-22}/tcp" >/dev/null
 ufw allow 'Nginx Full' >/dev/null 2>&1 || { ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null; }
 ufw --force enable >/dev/null
 systemctl enable --now fail2ban >/dev/null 2>&1 || true
+systemctl reload fail2ban >/dev/null 2>&1 || systemctl restart fail2ban >/dev/null 2>&1 || true
 ok "faqat SSH, HTTP va HTTPS ochiq"
 
 say "9/9 HTTPS sertifikat"

@@ -61,7 +61,8 @@ interface InsightRow {
 async function getJson(url: string): Promise<{ data?: InsightRow[]; paging?: { next?: string }; name?: string; error?: { message: string } }> {
   let res: Response;
   try {
-    res = await fetch(url);
+    // Javob kelmasa — 20 soniyadan keyin to'xtatiladi (osilib qolgan so'rov boshqa ishlarni ushlab turmasin)
+    res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
   } catch {
     throw new Error("Meta serveriga ulanib bo'lmadi (internet yoki brauzer cheklovi)");
   }
@@ -148,7 +149,7 @@ export async function syncMeta(s: ErpState, today: string, only?: { projectId: s
 export async function fetchCbuRate(date?: string): Promise<{ rate: number; date: string }> {
   let res: Response;
   try {
-    res = await fetch(`https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/${date ? `${date}/` : ""}`);
+    res = await fetch(`https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/${date ? `${date}/` : ""}`, { signal: AbortSignal.timeout(20_000) });
   } catch {
     throw new Error("Markaziy bank saytiga ulanib bo'lmadi");
   }

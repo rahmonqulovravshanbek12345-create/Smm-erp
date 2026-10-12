@@ -17,7 +17,11 @@ case "${1:-help}" in
     ;;
   logs) journalctl -u smm-erp -n "${2:-100}" --no-pager ;;
   restart) systemctl restart smm-erp && echo "Qayta ishga tushirildi" ;;
-  update) exec "$APP/current/deploy/update.sh" ;;
+  update) exec "$APP/current/deploy/update.sh" "${@:2}" ;;
+  node-update) exec "$APP/current/deploy/node-update.sh" ;;
+  harden-ssh) exec "$APP/current/deploy/harden-ssh.sh" "${@:2}" ;;
+  offsite-setup) exec "$APP/current/deploy/offsite.sh" setup ;;
+  offsite-list) exec "$APP/current/deploy/offsite.sh" list ;;
   backup) "$APP/current/deploy/backup.sh" qolda ;;
   backups) ls -lh /var/backups/smm-erp/ ;;
   restore)
@@ -56,8 +60,12 @@ SMM ERP boshqaruvi (sudo smm-erp <buyruq>):
   status                 — ishlayaptimi
   logs [N]               — oxirgi N ta yozuv
   restart                — qayta ishga tushirish
-  update                 — eng yangi versiyani o'rnatish (oldin zaxira oladi)
+  update <versiya> <sha256> — yangi versiyani o'rnatish (xesh mos kelsagina; oldin zaxira oladi)
+  node-update            — Node.js xavfsizlik yangilanishi (har kuni avtomatik ham ishlaydi)
+  harden-ssh             — SSH'ga faqat kalit bilan kirish (parol bilan kirishni o'chiradi)
   backup | backups       — hozir zaxira olish | zaxiralar ro'yxati
+  offsite-setup          — shifrlangan zaxirani bulutga yuborishni sozlash
+  offsite-list           — bulutdagi zaxiralar
   restore <fayl>         — zaxiradan tiklash
   https [email]          — HTTPS sertifikatini olish (domen serverga ulangandan keyin)
   reset-password <login> — xodimga yangi vaqtinchalik parol

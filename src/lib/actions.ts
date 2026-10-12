@@ -1230,6 +1230,7 @@ export function saveMetaSettings(c: Ctx, patch: Partial<Omit<Integrations["meta"
 }
 
 export function setMetaAccount(c: Ctx, projectId: string, account: string) {
+  if (!c.s.projects.some((p) => p.id === projectId)) throw new Error("Loyiha topilmadi");
   const v = account.trim();
   if (v && !/^(act_)?\d{5,20}$/.test(v)) throw new Error("Reklama kabineti ID raqamlardan iborat bo'ladi, masalan act_1234567890");
   const acc = c.s.settings.integrations.meta.accounts;

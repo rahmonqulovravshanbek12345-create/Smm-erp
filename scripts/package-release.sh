@@ -8,7 +8,11 @@ VER=${1:-$(date -u +%Y.%m.%d-%H%M)-$(git rev-parse --short HEAD)}
 [ -f server/dist/server.mjs ] || { echo "server/dist yo'q: (cd server && node build.mjs)" >&2; exit 1; }
 rm -rf release && mkdir -p release/smm-erp/public release/smm-erp/deploy
 cp server/dist/server.mjs server/dist/server.mjs.LEGAL.txt release/smm-erp/
-cp dist-server/index.html dist-server/apple-touch-icon.png dist-server/og.jpg release/smm-erp/public/
+# Server beradigan barcha fayllar (server/src/app.ts dagi ro'yxat bilan bir xil) — biri yetishmasa, paket yig'ilmaydi
+for f in index.html apple-touch-icon.png fd-touch-icon.png og.jpg; do
+  [ -f "dist-server/$f" ] || { echo "dist-server/$f yo'q" >&2; exit 1; }
+  cp "dist-server/$f" release/smm-erp/public/
+done
 cp deploy/* release/smm-erp/deploy/
 echo "$VER" > release/smm-erp/VERSION
 tar -C release -czf release/smm-erp.tar.gz smm-erp

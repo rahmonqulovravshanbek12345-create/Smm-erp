@@ -5,7 +5,7 @@ import { addDays, nowISO, todayISO } from "../../src/lib/dates";
 import { syncAll } from "../../src/lib/store-sync";
 import type { ErpState } from "../../src/lib/types";
 import { pruneSessions } from "./auth";
-import type { Db } from "./db";
+import { pruneAudit, type Db } from "./db";
 import type { Integrations } from "./integrations";
 import type { Notifier } from "./notifier";
 import { MAX_STATE_BYTES, type StateStore } from "./store";
@@ -53,6 +53,7 @@ export function startJobs(o: { store: StateStore; db: Db; integrations: Integrat
           trimHistory(s, today);
         });
         await pruneSessions(o.db);
+        await pruneAudit(o.db);
         await warnStateSize(store, notifier, today);
       }),
     ),

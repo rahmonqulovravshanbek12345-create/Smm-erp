@@ -16,12 +16,6 @@ if (SERVER_MODE) {
   document.querySelector<HTMLLinkElement>("link[rel=apple-touch-icon]")?.setAttribute("href", "fd-touch-icon.png");
 }
 
-// Inter shrifti sahifa chizilgandan keyin ulanadi (bloklamaydi)
-const font = document.createElement("link");
-font.rel = "stylesheet";
-font.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
-document.head.appendChild(font);
-
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>

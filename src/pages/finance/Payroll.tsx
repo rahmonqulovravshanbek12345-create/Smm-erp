@@ -4,7 +4,7 @@ import { A, Avatar, Badge, Button, Card, CardHeader, Empty, Input, PageHeader, S
 import { fmtDate, fmtMoney, fmtMonth, monthKey, shiftMonthKey } from "../../lib/dates";
 import { ACCRUAL_KIND_LABELS, WORK_LABELS, employeeBalance, employeeLedger, payrollSheet, payrollStaff, profileOf, txUZS } from "../../lib/finance";
 import { ROLE_LABELS } from "../../lib/labels";
-import { canEditFinance } from "../../lib/permissions";
+import { canEditFinance, canPayUser } from "../../lib/permissions";
 import { useErp, useLookup } from "../../lib/store";
 import type { Accrual, PayProfile, WorkType } from "../../lib/types";
 import { FinNav, Money, MonthSelect, Note, TableWrap, td, tdr, th, thr } from "./common";
@@ -174,7 +174,7 @@ export function AccrualTable({
   editable?: boolean;
   selectable?: boolean;
 }) {
-  const { state, run } = useErp();
+  const { state, run, me } = useErp();
   const look = useLookup();
   const [sel, setSel] = useState<string[]>([]);
   const rows = useMemo(() => {
@@ -184,7 +184,8 @@ export function AccrualTable({
       .filter((a) => (!month || monthKey(a.date) === month) && (!kind || a.kind === kind))
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [state, userId, month, kind]);
-  const pending = rows.filter((r) => !r.approved).map((r) => r.id);
+  // O'z hisoblashini moliya xodimi tasdiqlamaydi (rahbar tasdiqlaydi)
+  const pending = rows.filter((r) => !r.approved && canPayUser(me, r.userId)).map((r) => r.id);
   const total = rows.reduce((a, r) => a + r.amount, 0);
 
   if (rows.length === 0) return <Empty>Bu davrda hisoblash yo'q</Empty>;
@@ -221,13 +222,13 @@ export function AccrualTable({
               key={a.id}
               a={a}
               showUser={!userId}
-              selectable={Boolean(selectable && editable)}
+              selectable={Boolean(selectable && editable && canPayUser(me, a.userId))}
               checked={sel.includes(a.id)}
               onCheck={(v) => setSel(v ? [...sel, a.id] : sel.filter((x) => x !== a.id))}
               projectName={look.projectName(a.projectId)}
               userName={look.userName(a.userId)}
               onDelete={
-                editable && (a.createdBy !== "system" || a.kind === "piece" || a.kind === "bonus")
+                editable && canPayUser(me, a.userId) && (a.createdBy !== "system" || a.kind === "piece" || a.kind === "bonus")
                   ? () => run("deleteAccrual", [a.id], "Hisoblash o'chirildi")
                   : undefined
               }
@@ -504,8 +505,8 @@ function Sheet() {
 
 const RATE_KEYS: WorkType[] = ["montaj", "dizayn_post", "dizayn_cover", "syomka", "shartnoma"];
 
-function Rates({ editable }: { editable: boolean }) {
-  const { state, run } = useErp();
+function Rates({ editable: canEditAll }: { editable: boolean }) {
+  const { state, run, me } = useErp();
   const staff = state.users.filter((u) => u.role !== "admin" && u.active);
   const [drafts, setDrafts] = useState<Record<string, PayProfile>>({});
   const get = (uid: string) => drafts[uid] ?? profileOf(state, uid);
@@ -524,13 +525,14 @@ function Rates({ editable }: { editable: boolean }) {
                 {WORK_LABELS[k]}
               </th>
             ))}
-            {editable && <th className={th} />}
+            {canEditAll && <th className={th} />}
           </tr>
         </thead>
         <tbody className="divide-y divide-sep">
           {staff.map((u) => {
             const p = get(u.id);
             const dirty = Boolean(drafts[u.id]);
+            const editable = canEditAll && canPayUser(me, u.id);
             const num = (v: number, on: (n: number) => void) =>
               editable ? (
                 <Input
@@ -560,20 +562,26 @@ function Rates({ editable }: { editable: boolean }) {
                     {num(p.rates[k] ?? 0, (n) => set(u.id, { ...p, rates: { ...p.rates, [k]: n } }))}
                   </td>
                 ))}
-                {editable && (
+                {canEditAll && (
                   <td className={tdr}>
-                    {dirty && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => {
-                          if (run("savePayProfile", [{ ...p, userId: u.id }], "Stavkalar saqlandi")) {
-                            setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== u.id)));
-                          }
-                        }}
-                      >
-                        Saqlash
-                      </Button>
+                    {!editable ? (
+                      <span className="text-[12px] text-label3" title="O'z stavkangizni rahbar yoki admin o'zgartiradi">
+                        rahbar o'zgartiradi
+                      </span>
+                    ) : (
+                      dirty && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => {
+                            if (run("savePayProfile", [{ ...p, userId: u.id }], "Stavkalar saqlandi")) {
+                              setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== u.id)));
+                            }
+                          }}
+                        >
+                          Saqlash
+                        </Button>
+                      )
                     )}
                   </td>
                 )}

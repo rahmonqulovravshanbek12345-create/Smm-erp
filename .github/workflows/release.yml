@@ -59,6 +59,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VER=$(cat release/smm-erp/VERSION)
+          SUM=$(cut -d' ' -f1 release/smm-erp.tar.gz.sha256)
           gh release create "v$VER" release/smm-erp.tar.gz release/smm-erp.tar.gz.sha256 release/install.sh \
             --title "Versiya $VER" --latest \
-            --notes "Serverda yangilash: \`sudo smm-erp update\`. Birinchi o'rnatish: install.sh (README)."
+            --notes "Serverda yangilash: \`sudo smm-erp update $VER $SUM\`. Birinchi o'rnatish: install.sh (DEPLOY.md)."

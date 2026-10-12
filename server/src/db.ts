@@ -77,7 +77,42 @@ const MIGRATIONS: string[] = [
   END $$;
   CREATE TRIGGER audit_log_no_change BEFORE UPDATE OR DELETE ON audit_log FOR EACH ROW EXECUTE FUNCTION audit_log_readonly();
   `,
+  `
+  -- 2. Audit jurnali: TRUNCATE ham taqiqlanadi; 2 yildan eski yozuvlarni faqat saqlash muddati ishi o'chira oladi
+  CREATE OR REPLACE FUNCTION audit_log_readonly() RETURNS trigger LANGUAGE plpgsql AS $$
+  BEGIN
+    IF TG_OP = 'DELETE' AND current_setting('erp.audit_prune', true) = 'on' AND OLD.at < now() - interval '730 days' THEN
+      RETURN OLD;
+    END IF;
+    RAISE EXCEPTION 'audit_log faqat qo''shiladi';
+  END $$;
+  CREATE FUNCTION audit_log_no_truncate() RETURNS trigger LANGUAGE plpgsql AS $$
+  BEGIN
+    RAISE EXCEPTION 'audit_log faqat qo''shiladi';
+  END $$;
+  CREATE TRIGGER audit_log_no_truncate BEFORE TRUNCATE ON audit_log FOR EACH STATEMENT EXECUTE FUNCTION audit_log_no_truncate();
+
+  -- 3. Sessiya: harakatsizlik muddati rolga qarab (rahbariyat va moliya — qisqaroq)
+  ALTER TABLE sessions ADD COLUMN idle_minutes int NOT NULL DEFAULT 20160;
+  `,
 ];
+
+/** Audit jurnali 2 yil saqlanadi (eski yozuvlar disk to'lib qolmasligi uchun o'chiriladi). */
+export async function pruneAudit(db: Db): Promise<number> {
+  const c = await db.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SET LOCAL erp.audit_prune = 'on'");
+    const r = await c.query("DELETE FROM audit_log WHERE at < now() - interval '730 days'");
+    await c.query("COMMIT");
+    return r.rowCount ?? 0;
+  } catch (e) {
+    await c.query("ROLLBACK");
+    throw e;
+  } finally {
+    c.release();
+  }
+}
 
 export async function migrate(db: Db): Promise<number> {
   const client = await db.connect();

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AmountInput, Banner, Button, Field, Input, Modal, Select, userOptions } from "../../components/ui";
 import { fmtMoney, fmtUsd } from "../../lib/dates";
 import { WORK_LABELS, accountOf, billPaid, employeeBalance, invoiceOutstanding, invoiceOutstandingUsd, payrollStaff } from "../../lib/finance";
+import { canPayUser } from "../../lib/permissions";
 import { useErp, useLookup } from "../../lib/store";
 import type { Account, Bill, Invoice } from "../../lib/types";
 import { useAccountOptions } from "./common";
@@ -391,8 +392,8 @@ export function ExtraInvoiceModal({ onClose }: { onClose: () => void }) {
 // ---------- Xodimga to'lov ----------
 
 export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose: () => void }) {
-  const { state, run } = useErp();
-  const staff = payrollStaff(state);
+  const { state, run, me } = useErp();
+  const staff = payrollStaff(state).filter((u) => canPayUser(me, u.id));
   const [uid, setUid] = useState(userId ?? staff[0]?.id ?? "");
   const balance = employeeBalance(state, uid);
   const m = useMoneyFields("acc_bank").withDefault(Math.max(0, balance));
@@ -444,8 +445,8 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
 }
 
 export function ManualAccrualModal({ userId, onClose }: { userId?: string; onClose: () => void }) {
-  const { state, run, today } = useErp();
-  const staff = state.users.filter((u) => u.role !== "admin" && u.active);
+  const { state, run, today, me } = useErp();
+  const staff = state.users.filter((u) => u.role !== "admin" && u.active && canPayUser(me, u.id));
   const [uid, setUid] = useState(userId ?? staff[0]?.id ?? "");
   const [kind, setKind] = useState<"bonus" | "penalty" | "manual">("bonus");
   const [amount, setAmount] = useState("");

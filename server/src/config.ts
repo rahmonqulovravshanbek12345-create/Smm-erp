@@ -1,5 +1,6 @@
 // Server sozlamalari muhit o'zgaruvchilaridan (/etc/smm-erp/env). Noto'g'ri yoki yetishmayotgan bo'lsa — server ishga tushmaydi.
 import { z } from "zod";
+import { ROLE_LABELS } from "../../src/lib/labels";
 
 const bool = z.enum(["0", "1", "true", "false"]).transform((v) => v === "1" || v === "true");
 
@@ -15,15 +16,17 @@ const Env = z.object({
   STATIC_DIR: z.string().min(1),
   /** Cookie faqat HTTPS orqali (ishlab chiqarishda doim 1). */
   COOKIE_SECURE: bool.default(true),
-  /** Ikki bosqichli kirish majburiy bo'lgan rollar. */
+  /** Ikki bosqichli kirish majburiy bo'lgan rollar: «all» — hamma xodimlar (standart), yoki vergul bilan ro'yxat. */
   REQUIRE_2FA_ROLES: z
     .string()
-    .default("admin,rahbar,moliya,marketolog")
+    .default("all")
     .transform((v) =>
-      v
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean),
+      v.trim() === "all"
+        ? (Object.keys(ROLE_LABELS) as string[])
+        : v
+            .split(",")
+            .map((x) => x.trim())
+            .filter(Boolean),
     ),
   /** Nginx ortida: haqiqiy IP X-Forwarded-For dan olinadi (faqat shu manzildagi proksiga ishoniladi). */
   TRUST_PROXY: z.string().default("127.0.0.1"),
