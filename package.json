@@ -13,7 +13,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "e2e": "playwright test",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
+    "build:server": "tsc --noEmit && VITE_SERVER=1 vite build --outDir dist-server --emptyOutDir"
   },
   "dependencies": {
     "react": "^18.3.1",

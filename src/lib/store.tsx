@@ -17,7 +17,21 @@ export { newId, syncAll, type Ctx };
 /** Amalni bajaradi; qoida buzilsa false qaytaradi va xabar ko'rsatadi. Muvaffaqiyatda — amal natijasi. */
 export type Run = <N extends ActionName>(name: N, args: ActionArgs<N>, toast?: string) => { value: ActionResult<N> } | false;
 
-interface Store {
+/** Serverli tizimda: kirgan xodim va sessiya boshqaruvi (demo'da yo'q). */
+export interface Session {
+  login: string;
+  has2fa: boolean;
+  require2fa: boolean;
+  logout: () => Promise<void>;
+  /** Server bilan aloqa yo'q (o'zgarishlar saqlanmayapti). */
+  offline: boolean;
+  /** Serverdan yangi holatni darhol olish (masalan, integratsiyadan keyin). */
+  refresh: () => Promise<void>;
+  /** Server javobidagi holatni qo'llash. */
+  adopt: (r: { version: number; state: ErpState }) => void;
+}
+
+export interface Store {
   state: ErpState;
   me: User;
   today: string;
@@ -29,9 +43,10 @@ interface Store {
   showToast: (t: string) => void;
   /** Brauzerga saqlab bo'lmadi (joy tugagan) — o'zgarishlar sahifa yopilsa yo'qoladi. */
   saveError: boolean;
+  session?: Session;
 }
 
-const StoreContext = createContext<Store | null>(null);
+export const StoreContext = createContext<Store | null>(null);
 
 /** Ishga tushganda foydalanuvchiga aytiladigan xabar (masalan, demo yangilandi). */
 let bootNotice: string | null = null;

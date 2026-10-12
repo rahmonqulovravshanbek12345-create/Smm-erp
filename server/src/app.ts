@@ -5,7 +5,7 @@ import { join } from "node:path";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
+import Fastify, { LogController, type FastifyReply, type FastifyRequest } from "fastify";
 import { renderSVG } from "uqr";
 import { z } from "zod";
 import { denyReason } from "../../src/lib/action-rules";
@@ -89,7 +89,7 @@ export async function buildApp(d: Deps) {
     logger: cfg.LOG_LEVEL === "silent" ? false : { level: cfg.LOG_LEVEL, redact: ["req.headers.cookie", "req.headers.authorization"] },
     trustProxy: cfg.TRUST_PROXY,
     bodyLimit: 1024 * 1024,
-    disableRequestLogging: cfg.LOG_LEVEL !== "debug" && cfg.LOG_LEVEL !== "trace",
+    logController: new LogController({ disableRequestLogging: cfg.LOG_LEVEL !== "debug" && cfg.LOG_LEVEL !== "trace" }),
     return503OnClosing: true,
     connectionTimeout: 30_000,
     requestTimeout: 30_000,
@@ -276,6 +276,8 @@ export async function buildApp(d: Deps) {
   });
 
   app.get("/api/me", async (req, reply) => {
+    // Kirilmagan bo'lsa — xato emas, oddiy javob (brauzer konsolida «401» shovqini bo'lmasin)
+    if (store.ready && !(await getSession(db, req.cookies[SID]))) return { user: null };
     const a = await authenticate(req, reply, { allowBlocked: true });
     if (!a) return;
     return meInfo(a);
@@ -370,7 +372,11 @@ export async function buildApp(d: Deps) {
     const body = ActionBody.safeParse(req.body);
     if (!body.success || !Object.hasOwn(ACTIONS, body.data.name)) return httpError(reply, 400, "Noma'lum amal");
     const name = body.data.name as ActionName;
-    const parsed = parseArgs(name, body.data.args);
+    // JSON'da undefined → null bo'ladi: yuqori darajadagi null — «berilmagan» argument
+    const parsed = parseArgs(
+      name,
+      body.data.args.map((x) => (x === null ? undefined : x)),
+    );
     if (!parsed.ok) {
       await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "action", action: name, ok: false, detail: { error: parsed.error } });
       return httpError(reply, 400, parsed.error);

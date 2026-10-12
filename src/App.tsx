@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, IconChip, type ChipColor, type IconName } from "./components/icons";
-import { A, Avatar, IconButton, navigate, usePath } from "./components/ui";
+import { A, Avatar, IconButton, Modal, navigate, usePath } from "./components/ui";
+import { SERVER_MODE } from "./lib/api";
+import { PasswordForm, TwoFactorForm } from "./components/Security";
 import { ROLE_LABELS } from "./lib/labels";
 import { canView, homeFor, type Module } from "./lib/permissions";
 import { alertsFor } from "./lib/rules";
@@ -237,11 +239,12 @@ const todayLabel = () => {
 
 export function App() {
   const path = usePath();
-  const { state, me, run, today, now, toast, saveError } = useErp();
+  const { state, me, run, today, now, toast, saveError, session } = useErp();
   const [theme, setTheme] = useTheme();
   useAutoSync();
   const [more, setMore] = useState(false);
   const [account, setAccount] = useState(false);
+  const [security, setSecurity] = useState<"password" | "2fa" | null>(null);
   const { module, node } = route(path);
   const allowed = canView(me.role, module);
 
@@ -320,7 +323,15 @@ export function App() {
           <AccountButton me={me} onClick={() => setAccount((v) => !v)} open={account} />
           {account && (
             <div className="absolute bottom-[calc(100%+8px)] left-3 right-3 z-40">
-              <AccountMenu users={state.users} meId={me.id} onPick={switchUser} theme={theme} setTheme={setTheme} onClose={() => setAccount(false)} />
+              <AccountMenu
+                users={state.users}
+                meId={me.id}
+                onPick={switchUser}
+                theme={theme}
+                setTheme={setTheme}
+                onClose={() => setAccount(false)}
+                onSecurity={setSecurity}
+              />
             </div>
           )}
         </div>
@@ -382,11 +393,29 @@ export function App() {
       {account && (
         <div className="lg:hidden">
           <Sheet onClose={() => setAccount(false)} title="Akkaunt">
-            <AccountMenu users={state.users} meId={me.id} onPick={switchUser} theme={theme} setTheme={setTheme} onClose={() => setAccount(false)} flat />
+            <AccountMenu
+              users={state.users}
+              meId={me.id}
+              onPick={switchUser}
+              theme={theme}
+              setTheme={setTheme}
+              onClose={() => setAccount(false)}
+              onSecurity={setSecurity}
+              flat
+            />
           </Sheet>
         </div>
       )}
 
+      {session?.offline && (
+        <div
+          role="alert"
+          className="fixed inset-x-3 top-3 z-[60] mx-auto max-w-xl rounded-[14px] bg-red px-4 py-2.5 text-center text-[14px] font-semibold text-white shadow-float"
+        >
+          ⚠ Server bilan aloqa yo'q — oxirgi o'zgarishlar saqlanmagan bo'lishi mumkin. Internetni tekshiring.
+        </div>
+      )}
+      {security && <SecurityModal kind={security} onClose={() => setSecurity(null)} />}
       {saveError && (
         <div
           role="alert"
@@ -412,12 +441,14 @@ function Logo({ small }: { small?: boolean }) {
         <span className={`block font-bold tracking-tight text-label ${small ? "text-[16px]" : "text-[17px]"}`}>SMM Studio</span>
         <span className="flex items-center gap-1.5 text-[12px] font-medium text-label2">
           Agentlik ERP
-          <span
-            className="rounded-full bg-orange/15 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-orange"
-            title="Namunaviy ma'lumotlar bilan demo versiya"
-          >
-            demo
-          </span>
+          {!SERVER_MODE && (
+            <span
+              className="rounded-full bg-orange/15 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-orange"
+              title="Namunaviy ma'lumotlar bilan demo versiya"
+            >
+              demo
+            </span>
+          )}
         </span>
       </span>
     </A>
@@ -450,6 +481,7 @@ function AccountMenu({
   theme,
   setTheme,
   onClose,
+  onSecurity,
   flat,
 }: {
   users: User[];
@@ -458,9 +490,11 @@ function AccountMenu({
   theme: Theme;
   setTheme: (t: Theme) => void;
   onClose: () => void;
+  onSecurity: (k: "password" | "2fa") => void;
   flat?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const { session } = useErp();
   useEffect(() => {
     if (flat) return;
     const on = (e: MouseEvent) => {
@@ -493,25 +527,109 @@ function AccountMenu({
           </button>
         ))}
       </div>
-      <div className="px-2 pb-1 pt-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-label3">Demo: kim sifatida kirish</div>
-      <div className={`no-scrollbar flex flex-col overflow-y-auto ${flat ? "" : "max-h-[46vh]"}`}>
-        {sorted.map((u) => (
-          <button
-            key={u.id}
-            type="button"
-            onClick={() => onPick(u.id)}
-            className={`flex items-center gap-3 rounded-[12px] px-2 py-1.5 text-left transition ${u.id === meId ? "bg-accent/12" : "hover:bg-fill"}`}
-          >
-            <Avatar name={u.name} size={30} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[14px] font-semibold text-label">{u.name}</span>
-              <span className="block truncate text-[12px] text-label2">{ROLE_LABELS[u.role]}</span>
-            </span>
-            {u.id === meId && <Icon name="check" size={16} className="text-accent" strokeWidth={2.4} />}
-          </button>
-        ))}
+      {session ? (
+        <AccountSession users={users} meId={meId} onSecurity={onSecurity} onClose={onClose} />
+      ) : (
+        <>
+          <div className="px-2 pb-1 pt-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-label3">Demo: kim sifatida kirish</div>
+          <div className={`no-scrollbar flex flex-col overflow-y-auto ${flat ? "" : "max-h-[46vh]"}`}>
+            {sorted.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => onPick(u.id)}
+                className={`flex items-center gap-3 rounded-[12px] px-2 py-1.5 text-left transition ${u.id === meId ? "bg-accent/12" : "hover:bg-fill"}`}
+              >
+                <Avatar name={u.name} size={30} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-semibold text-label">{u.name}</span>
+                  <span className="block truncate text-[12px] text-label2">{ROLE_LABELS[u.role]}</span>
+                </span>
+                {u.id === meId && <Icon name="check" size={16} className="text-accent" strokeWidth={2.4} />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Serverli tizim: kirgan xodim, parol, 2FA va chiqish. */
+function AccountSession({
+  users,
+  meId,
+  onSecurity,
+  onClose,
+}: {
+  users: User[];
+  meId: string;
+  onSecurity: (k: "password" | "2fa") => void;
+  onClose: () => void;
+}) {
+  const { session } = useErp();
+  const me = users.find((u) => u.id === meId);
+  if (!session || !me) return null;
+  const item = (icon: IconName, label: string, onClick: () => void, danger = false) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 rounded-[12px] px-2 py-2 text-left text-[14px] font-semibold transition hover:bg-fill ${danger ? "text-red" : "text-label"}`}
+    >
+      <Icon name={icon} size={17} />
+      {label}
+    </button>
+  );
+  return (
+    <div className="pt-1">
+      <div className="flex items-center gap-3 rounded-[12px] px-2 py-1.5">
+        <Avatar name={me.name} size={34} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[14px] font-semibold text-label">{me.name}</span>
+          <span className="block truncate text-[12px] text-label2">
+            {ROLE_LABELS[me.role]} · {session.login}
+          </span>
+        </span>
+      </div>
+      <div className="mt-1 border-t border-sep pt-1">
+        {item("gear", "Parolni o'zgartirish", () => {
+          onClose();
+          onSecurity("password");
+        })}
+        {!session.has2fa &&
+          item("checkSeal", "Ikki bosqichli kirishni yoqish", () => {
+            onClose();
+            onSecurity("2fa");
+          })}
+        {session.has2fa && <div className="px-2 py-1.5 text-[13px] text-green">✓ Ikki bosqichli kirish yoqilgan</div>}
+        {item("logout", "Chiqish", () => void session.logout(), true)}
       </div>
     </div>
+  );
+}
+
+function SecurityModal({ kind, onClose }: { kind: "password" | "2fa"; onClose: () => void }) {
+  const { showToast } = useErp();
+  return (
+    <Modal open onClose={onClose} title={kind === "password" ? "Parolni o'zgartirish" : "Ikki bosqichli kirish"}>
+      {kind === "password" ? (
+        <PasswordForm
+          onDone={() => {
+            onClose();
+            showToast("Parol o'zgartirildi — boshqa qurilmalardagi sessiyalar yopildi");
+          }}
+        />
+      ) : (
+        <TwoFactorForm
+          onDone={() => {
+            onClose();
+            showToast("Ikki bosqichli kirish yoqildi");
+            // Akkaunt ma'lumoti (2FA holati) yangilanishi uchun
+            window.setTimeout(() => window.location.reload(), 1200);
+          }}
+        />
+      )}
+    </Modal>
   );
 }
 

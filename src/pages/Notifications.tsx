@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { A, Badge, Button, Card, CardHeader, Empty, PageHeader, Select, userOptions } from "../components/ui";
+import { SERVER_MODE } from "../lib/api";
 import { fmtDateTime } from "../lib/dates";
 import { alertsFor } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
 
 const TG = {
   sent: { label: "Telegram ✓", tone: "blue" as const },
-  demo: { label: "Telegram (demo)", tone: "gray" as const },
+  demo: { label: SERVER_MODE ? "Telegram ulanmagan" : "Telegram (demo)", tone: "gray" as const },
   failed: { label: "Telegram ✕", tone: "red" as const },
   off: { label: "faqat tizimda", tone: "gray" as const },
 };

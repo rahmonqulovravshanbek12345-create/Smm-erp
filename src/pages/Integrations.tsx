@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Icon, IconChip } from "../components/icons";
 import { A, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, PageHeader, Select } from "../components/ui";
+import { SERVER_MODE, api, type StateResponse } from "../lib/api";
 import { fmtDate, fmtDateTime, fmtNum } from "../lib/dates";
 import { LEAD_METRIC_LABELS, fetchCbuRate, isMetaDemo, metaAccountOf, syncMeta, testMetaToken } from "../lib/integrations";
 import { canEdit, canView } from "../lib/permissions";
@@ -10,7 +11,7 @@ import type { Integrations as Cfg } from "../lib/types";
 
 /** Tashqi tizimlar: Meta Ads, Markaziy bank kursi, Telegram bot holati va jurnal. */
 export function Integrations() {
-  const { state, me, today, run, showToast } = useErp();
+  const { state, me, today, run, showToast, session } = useErp();
   const editable = canEdit(me.role, "integrations");
   const meta = state.settings.integrations.meta;
   const cbu = state.settings.integrations.cbu;
@@ -25,7 +26,12 @@ export function Integrations() {
   const test = async () => {
     setBusy("test");
     try {
-      const name = await testMetaToken(meta);
+      const name = SERVER_MODE ? (await api<{ name: string }>("/api/integrations/meta/test", {})).name : await testMetaToken(meta);
+      if (SERVER_MODE) {
+        showToast(`Meta: ulanish ishlayapti — ${name}`);
+        await session?.refresh();
+        return;
+      }
       showToast(`Meta: ulanish ishlayapti — ${name}`);
       run("logIntegration", ["meta", true, `Meta Ads: token tekshirildi (${name})`]);
     } catch (e) {
@@ -35,6 +41,21 @@ export function Integrations() {
     }
   };
   const sync = async () => {
+    if (SERVER_MODE) {
+      setBusy("sync");
+      try {
+        const r = await api<StateResponse & { count: number; errors: string[] }>("/api/integrations/meta/sync", {});
+        session?.adopt(r);
+        showToast(
+          r.errors.length ? `⚠ ${r.errors.join("; ")}` : r.count ? `${r.count} ta kunlik hisobot olindi` : "Hamma hisobotlar joyida — yangi ma'lumot yo'q",
+        );
+      } catch (e) {
+        showToast(`⚠ ${e instanceof Error ? e.message : "Xatolik"}`);
+      } finally {
+        setBusy("");
+      }
+      return;
+    }
     setBusy("sync");
     const res = await syncMeta(state, today);
     setBusy("");
@@ -51,6 +72,18 @@ export function Integrations() {
   };
   const pullRate = async () => {
     setBusy("cbu");
+    if (SERVER_MODE) {
+      try {
+        const r = await api<{ rate: number }>("/api/integrations/cbu/pull", {});
+        showToast(`1 USD = ${fmtNum(r.rate)} so'm`);
+      } catch (e) {
+        showToast(`⚠ ${e instanceof Error ? e.message : "Xatolik"}. Kursni qo'lda kiriting`);
+      } finally {
+        await session?.refresh();
+        setBusy("");
+      }
+      return;
+    }
     try {
       const r = await fetchCbuRate();
       run("setUsdRate", [r.rate, r.date, "cbu"], `1 USD = ${fmtNum(r.rate)} so'm`);
@@ -67,10 +100,17 @@ export function Integrations() {
   return (
     <>
       <PageHeader title="Integratsiyalar" sub="Tashqi tizimlardan ma'lumot qo'lda kiritilmaydi — o'zi olinadi" />
-      <Banner tone="amber">
-        Demo: tokenlar faqat shu brauzerda saqlanadi va so'rovlar brauzerdan yuboriladi. Haqiqiy tizimda bu ishni server har kuni ertalab bajaradi, tokenlar
-        hech kimga ko'rinmaydi.
-      </Banner>
+      {SERVER_MODE ? (
+        <Banner tone="green">
+          Tokenlar serverda saqlanadi va hech kimga ko'rsatilmaydi. Server har kuni o'zi bajaradi: Markaziy bank kursi (00:05, 09:05, 15:05), Meta Ads
+          hisobotlari (07:30), xodimlarga eslatmalar (08:45).
+        </Banner>
+      ) : (
+        <Banner tone="amber">
+          Demo: tokenlar faqat shu brauzerda saqlanadi va so'rovlar brauzerdan yuboriladi. Haqiqiy tizimda bu ishni server har kuni ertalab bajaradi, tokenlar
+          hech kimga ko'rinmaydi.
+        </Banner>
+      )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
@@ -78,10 +118,13 @@ export function Integrations() {
             icon={{ name: "target", color: "blue" }}
             title="Meta Ads (Facebook / Instagram reklama)"
             sub="Har bir loyihaning kunlik sarfi, ko'rishlar, kliklar va lidlar target hisobotiga o'zi tushadi"
-            right={demo ? <Badge tone="gray">Demo rejim</Badge> : <Badge tone="green">Token kiritilgan</Badge>}
+            right={demo ? <Badge tone="gray">{SERVER_MODE ? "Token kiritilmagan" : "Demo rejim"}</Badge> : <Badge tone="green">Token kiritilgan</Badge>}
           />
           <div className="grid grid-cols-1 gap-3 px-5 pb-4 sm:grid-cols-2">
-            <Field label="Kirish tokeni (Marketing API)" hint="Bo'sh — demo rejim: namunaviy raqamlar">
+            <Field
+              label="Kirish tokeni (Marketing API)"
+              hint={SERVER_MODE ? "Bo'sh bo'lsa, target hisobotlari qo'lda kiritiladi" : "Bo'sh — demo rejim: namunaviy raqamlar"}
+            >
               <Input
                 type="password"
                 autoComplete="off"
@@ -252,7 +295,7 @@ export function Integrations() {
                 {tg.enabled && tg.botToken ? (
                   <Badge tone="green">Ishlayapti</Badge>
                 ) : tg.enabled ? (
-                  <Badge tone="gray">Demo (token yo'q)</Badge>
+                  <Badge tone="gray">{SERVER_MODE ? "Token kiritilmagan" : "Demo (token yo'q)"}</Badge>
                 ) : (
                   <Badge tone="red">O'chirilgan</Badge>
                 )}

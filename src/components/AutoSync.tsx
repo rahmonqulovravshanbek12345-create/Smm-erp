@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { SERVER_MODE } from "../lib/api";
 import { fetchCbuRate, syncMeta } from "../lib/integrations";
 import { useErp } from "../lib/store";
 
@@ -10,7 +11,8 @@ export function useAutoSync() {
   const { state, today, run } = useErp();
   const started = useRef(false);
   useEffect(() => {
-    if (started.current) return;
+    // Serverli tizimda bu ishni server jadval bo'yicha bajaradi
+    if (started.current || SERVER_MODE) return;
     started.current = true;
     const { cbu, meta } = state.settings.integrations;
     void (async () => {

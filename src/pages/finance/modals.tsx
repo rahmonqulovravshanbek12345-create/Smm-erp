@@ -3,7 +3,7 @@ import { AmountInput, Banner, Button, Field, Input, Modal, Select, userOptions }
 import { fmtMoney, fmtUsd } from "../../lib/dates";
 import { WORK_LABELS, accountOf, billPaid, employeeBalance, invoiceOutstanding, invoiceOutstandingUsd, payrollStaff } from "../../lib/finance";
 import { useErp, useLookup } from "../../lib/store";
-import type { Bill, Invoice } from "../../lib/types";
+import type { Account, Bill, Invoice } from "../../lib/types";
 import { useAccountOptions } from "./common";
 
 interface MoneyState {
@@ -500,10 +500,13 @@ export function ManualAccrualModal({ userId, onClose }: { userId?: string; onClo
 
 // ---------- Ta'minotchi ----------
 
+const NEW_VENDOR = "__new";
+
 export function BillModal({ onClose }: { onClose: () => void }) {
   const { state, run, today } = useErp();
   const articles = state.articles.filter((a) => a.dir === "out" && (a.group === "direct" || a.group === "overhead"));
-  const [vendorId, setVendorId] = useState(state.vendors[0]?.id ?? "");
+  const [vendorId, setVendorId] = useState(state.vendors[0]?.id ?? NEW_VENDOR);
+  const [vendor, setVendor] = useState({ name: "", kind: "" });
   const [articleId, setArticleId] = useState(articles[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(today);
@@ -511,7 +514,21 @@ export function BillModal({ onClose }: { onClose: () => void }) {
   const [note, setNote] = useState("");
   const [projectId, setProjectId] = useState("");
   const save = () => {
-    if (run("addBill", [{ vendorId, articleId, amount: Number(amount), date, dueDate, note, projectId: projectId || undefined }], "Xarajat hujjati qo'shildi"))
+    let vid = vendorId;
+    if (vid === NEW_VENDOR) {
+      // Yangi ta'minotchi avval ro'yxatga qo'shiladi
+      const r = run("saveVendor", [{ name: vendor.name, kind: vendor.kind }]);
+      if (!r) return;
+      vid = r.value;
+      setVendorId(vid);
+    }
+    if (
+      run(
+        "addBill",
+        [{ vendorId: vid, articleId, amount: Number(amount), date, dueDate, note, projectId: projectId || undefined }],
+        "Xarajat hujjati qo'shildi",
+      )
+    )
       onClose();
   };
   return (
@@ -519,12 +536,26 @@ export function BillModal({ onClose }: { onClose: () => void }) {
       open
       onClose={onClose}
       title="Ta'minotchidan xarajat hujjati"
-      footer={<Footer onClose={onClose} onSave={save} label="Qo'shish" disabled={!Number(amount)} />}
+      footer={<Footer onClose={onClose} onSave={save} label="Qo'shish" disabled={!Number(amount) || (vendorId === NEW_VENDOR && !vendor.name.trim())} />}
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Ta'minotchi">
-          <Select value={vendorId} onChange={(e) => setVendorId(e.target.value)} options={state.vendors.map((v) => ({ value: v.id, label: v.name }))} />
+          <Select
+            value={vendorId}
+            onChange={(e) => setVendorId(e.target.value)}
+            options={[...state.vendors.map((v) => ({ value: v.id, label: v.name })), { value: NEW_VENDOR, label: "+ Yangi ta'minotchi…" }]}
+          />
         </Field>
+        {vendorId === NEW_VENDOR && (
+          <>
+            <Field label="Yangi ta'minotchi nomi">
+              <Input value={vendor.name} onChange={(e) => setVendor({ ...vendor, name: e.target.value })} placeholder="Masalan: «Poytaxt» biznes markazi" />
+            </Field>
+            <Field label="Turi (ixtiyoriy)">
+              <Input value={vendor.kind} onChange={(e) => setVendor({ ...vendor, kind: e.target.value })} placeholder="Ijara, internet, dastur…" />
+            </Field>
+          </>
+        )}
         <Field label="Modda">
           <Select value={articleId} onChange={(e) => setArticleId(e.target.value)} options={articles.map((a) => ({ value: a.id, label: a.name }))} />
         </Field>
@@ -577,3 +608,86 @@ export function PayBillModal({ bill, onClose }: { bill: Bill; onClose: () => voi
 }
 
 export { WORK_LABELS };
+
+// ---------- Hisoblar (kassa, bank, karta) ----------
+
+/** Hisoblar ro'yxati: nomi, turi, valyutasi va tizim yuritila boshlagan kundagi qoldiq. Yangi hisob qo'shish. */
+export function AccountsModal({ onClose }: { onClose: () => void }) {
+  const { state, run } = useErp();
+  const used = new Set(state.transactions.map((t) => t.accountId));
+  const blank = { name: "", kind: "bank" as Account["kind"], currency: "UZS" as Account["currency"], opening: "" };
+  const [rows, setRows] = useState(() => state.accounts.map((a) => ({ ...a, opening: String(a.opening) })));
+  const [fresh, setFresh] = useState(blank);
+  const kinds = [
+    { value: "bank", label: "Bank hisob" },
+    { value: "cash", label: "Naqd kassa" },
+    { value: "card", label: "Karta" },
+  ];
+  const currencies = [
+    { value: "UZS", label: "so'm" },
+    { value: "USD", label: "USD" },
+  ];
+  const saveRow = (i: number) => {
+    const r = rows[i]!;
+    run("saveAccount", [{ id: r.id, name: r.name, kind: r.kind, currency: r.currency, opening: Number(r.opening) || 0 }], `${r.name.trim()}: saqlandi`);
+  };
+  const add = () => {
+    const r = run("saveAccount", [{ name: fresh.name, kind: fresh.kind, currency: fresh.currency, opening: Number(fresh.opening) || 0 }], "Hisob qo'shildi");
+    if (r) {
+      setRows((x) => [...x, { id: r.value, name: fresh.name.trim(), kind: fresh.kind, currency: fresh.currency, opening: fresh.opening || "0" }]);
+      setFresh(blank);
+    }
+  };
+  const set = (i: number, patch: Partial<(typeof rows)[number]>) => setRows((x) => x.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  return (
+    <Modal open wide onClose={onClose} title="Hisoblar: kassa, bank, karta" footer={<Button onClick={onClose}>Yopish</Button>}>
+      <p className="mb-3 text-[13px] text-label2">
+        «Boshlang'ich qoldiq» — tizimda ish boshlangan kundagi haqiqiy pul (bank ko'chirmasi yoki kassadagi naqd). Undan keyingi har bir kirim-chiqim tizimga
+        kiritiladi.
+      </p>
+      <div className="space-y-2">
+        {rows.map((r, i) => (
+          <div key={r.id} className="grid grid-cols-2 items-end gap-2 rounded-[14px] bg-fill p-2.5 sm:grid-cols-[1fr_130px_90px_160px_auto]">
+            <Field label="Nomi" className="col-span-2 sm:col-span-1">
+              <Input value={r.name} onChange={(e) => set(i, { name: e.target.value })} />
+            </Field>
+            <Field label="Turi">
+              <Select value={r.kind} onChange={(e) => set(i, { kind: e.target.value as Account["kind"] })} options={kinds} />
+            </Field>
+            <Field label="Valyuta">
+              <Select
+                value={r.currency}
+                disabled={used.has(r.id)}
+                onChange={(e) => set(i, { currency: e.target.value as Account["currency"] })}
+                options={currencies}
+              />
+            </Field>
+            <Field label="Boshlang'ich qoldiq">
+              <AmountInput value={r.opening} onValue={(v) => set(i, { opening: v })} />
+            </Field>
+            <Button size="sm" onClick={() => saveRow(i)} disabled={!r.name.trim()}>
+              Saqlash
+            </Button>
+          </div>
+        ))}
+        <div className="grid grid-cols-2 items-end gap-2 rounded-[14px] border border-dashed border-sep p-2.5 sm:grid-cols-[1fr_130px_90px_160px_auto]">
+          <Field label="Yangi hisob" className="col-span-2 sm:col-span-1">
+            <Input value={fresh.name} onChange={(e) => setFresh({ ...fresh, name: e.target.value })} placeholder="Masalan: Kapitalbank hisob" />
+          </Field>
+          <Field label="Turi">
+            <Select value={fresh.kind} onChange={(e) => setFresh({ ...fresh, kind: e.target.value as Account["kind"] })} options={kinds} />
+          </Field>
+          <Field label="Valyuta">
+            <Select value={fresh.currency} onChange={(e) => setFresh({ ...fresh, currency: e.target.value as Account["currency"] })} options={currencies} />
+          </Field>
+          <Field label="Boshlang'ich qoldiq">
+            <AmountInput value={fresh.opening} onValue={(v) => setFresh({ ...fresh, opening: v })} />
+          </Field>
+          <Button size="sm" variant="primary" onClick={add} disabled={!fresh.name.trim()}>
+            Qo'shish
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}

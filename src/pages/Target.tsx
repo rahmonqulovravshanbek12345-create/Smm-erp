@@ -6,12 +6,13 @@ import { addDays, fmtDate, fmtMoney, fmtNum } from "../lib/dates";
 import { access, canEdit, visibleProjects } from "../lib/permissions";
 import { isMetaDemo, metaAccountOf, syncMeta } from "../lib/integrations";
 import { targetReportMissing } from "../lib/rules";
+import { SERVER_MODE, api, type StateResponse } from "../lib/api";
 import { useErp, useLookup } from "../lib/store";
 import { AD_CHANNELS, hasAds } from "../lib/services";
 import type { AdChannel } from "../lib/types";
 
 export function Target() {
-  const { state, me, run, today, showToast } = useErp();
+  const { state, me, run, today, showToast, session } = useErp();
   const look = useLookup();
   const own = access(me.role, "target") === "own";
   const editable = canEdit(me.role, "target");
@@ -43,6 +44,18 @@ export function Target() {
   const [syncing, setSyncing] = useState(false);
   const pullMeta = async () => {
     setSyncing(true);
+    if (SERVER_MODE) {
+      try {
+        const r = await api<StateResponse & { count: number; errors: string[] }>("/api/integrations/meta/sync", { projectId, days: [f.date] });
+        session?.adopt(r);
+        showToast(r.errors.length ? `⚠ ${r.errors.join("; ")}` : r.count ? "Meta Ads'dan olindi" : "Meta'da bu kun uchun ma'lumot yo'q");
+      } catch (e) {
+        showToast(`⚠ ${e instanceof Error ? e.message : "Xatolik"}`);
+      } finally {
+        setSyncing(false);
+      }
+      return;
+    }
     const res = await syncMeta(state, today, { projectId, days: [f.date] });
     setSyncing(false);
     const err = res.find((r) => r.error)?.error;
