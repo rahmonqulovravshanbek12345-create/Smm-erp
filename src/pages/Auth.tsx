@@ -77,10 +77,7 @@ function Screen({ title, sub, children }: { title: string; sub?: ReactNode; chil
       <main className="glass-strong w-full max-w-[400px] animate-pop rounded-[28px] p-6 sm:p-8">
         <div className="mb-6 flex items-center gap-3">
           <BrandMark />
-          <span className="leading-tight">
-            <span className="block text-[17px] font-bold tracking-tight text-label">{BRAND}</span>
-            <span className="block text-[12px] font-medium text-label2">Agentlik ERP</span>
-          </span>
+          <span className="text-[17px] font-bold leading-tight tracking-tight text-label">{BRAND}</span>
         </div>
         <h1 className="text-[22px] font-bold tracking-tight text-label">{title}</h1>
         {sub && <p className="mt-1 text-[14px] text-label2">{sub}</p>}
