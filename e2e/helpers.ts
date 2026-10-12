@@ -2,6 +2,10 @@ import { expect, type Page } from "@playwright/test";
 
 export const STORAGE_KEY = "smm-erp-demo";
 
+/** Serverli tizim sinovi (E2E_SERVER=1): kirish login/parol bilan, holat serverda. */
+export const SERVER = process.env.E2E_SERVER === "1";
+export const PASS = "Sinov-parol-2026";
+
 export const USERS = {
   u_boss: "rahbar",
   u_admin: "admin",
@@ -47,6 +51,19 @@ export async function watch(page: Page): Promise<Problems> {
 
 /** Ilovani ochadi (kerak bo'lsa toza demo bilan) va berilgan foydalanuvchi sifatida kiradi. */
 export async function openAs(page: Page, user: UserId | (string & {}), hash = "") {
+  if (SERVER) {
+    // Serverli tizim: haqiqiy kirish (login = xodim ID'si), keyin sahifa
+    await page.context().clearCookies();
+    const r = await page.request.post("./api/auth/login", { data: { login: user.toLowerCase(), password: PASS }, headers: { "x-erp": "1" } });
+    expect(r.ok(), `kirish: ${user} — ${await r.text()}`).toBe(true);
+    // Bir xil manzil (faqat # farqi) sahifani qayta yuklamaydi — avval bo'sh sahifa
+    await page.goto("about:blank");
+    await page.goto(`./?u=${user}${hash ? `#${hash}` : ""}`);
+    await expect(page.locator("#root")).not.toBeEmpty();
+    // Ilova shu xodim bilan ochildi (kirish ekrani emas)
+    await page.waitForFunction((u) => document.documentElement.dataset.me === u, user);
+    return;
+  }
   await page.goto("./");
   await expect(page.locator("#root")).not.toBeEmpty();
   await page.evaluate(
@@ -66,7 +83,19 @@ export async function go(page: Page, path: string) {
   await page.waitForFunction((h) => location.hash === `#${h}` || location.hash !== "", path);
 }
 
-export const state = (page: Page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), STORAGE_KEY);
+/** Joriy holat: demo'da brauzerdan, serverli tizimda — serverdan (yuborilayotgan amallar tugagach). */
+export async function state(page: Page) {
+  if (SERVER) {
+    // Brauzer yuborayotgan amallar serverda saqlanib bo'lishini kutamiz, keyin serverdagi to'liq holatni olamiz
+    await page.waitForFunction(() => document.documentElement.dataset.sync !== "busy");
+    const r = await page.request.get("./__test/state");
+    const { state: s } = (await r.json()) as { state: Record<string, unknown> };
+    // Demo'dagi kabi: joriy foydalanuvchi — sahifadagi xodim
+    const me = await page.evaluate(() => document.documentElement.dataset.me ?? "");
+    return JSON.parse(JSON.stringify({ ...s, currentUserId: me || s.currentUserId }));
+  }
+  return page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), STORAGE_KEY);
+}
 
 /** Sahifa gorizontal aylantirilmasligi kerak (mobil uchun eng ko'p uchraydigan nuqson). */
 export async function horizontalOverflow(page: Page): Promise<number> {
@@ -82,4 +111,14 @@ export async function settle(page: Page) {
       timeout: 5000,
     },
   );
+}
+
+/** Brauzer soatini o'rnatadi (serverli tizimda — server «bugun»ini ham). `install` — birinchi marta. */
+export async function setClock(page: Page, time: Date, install = false) {
+  if (install) await page.clock.install({ time });
+  else await page.clock.setSystemTime(time);
+  if (SERVER) {
+    const r = await page.request.post("./__test/clock", { data: { time: time.toISOString(), reseed: install }, headers: { "x-erp": "1" } });
+    expect(r.ok()).toBe(true);
+  }
 }

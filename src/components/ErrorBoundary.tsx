@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { SERVER_MODE } from "../lib/api";
 
 const STORAGE_KEY = "smm-erp-demo";
 
@@ -32,15 +33,19 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
         <div className="glass-strong max-w-md rounded-[24px] p-6 text-center">
           <div className="text-[20px] font-bold text-label">Nimadir noto'g'ri ketdi</div>
           <p className="mt-2 text-[14px] text-label2">
-            Avval sahifani qayta yuklab ko'ring. Yordam bermasa — demo'ni qayta tiklang (joriy ma'lumot zaxiraga olinadi).
+            {SERVER_MODE
+              ? "Sahifani qayta yuklab ko'ring. Ma'lumotlaringiz serverda saqlangan — hech narsa yo'qolmaydi. Takrorlansa, adminga xabar bering."
+              : "Avval sahifani qayta yuklab ko'ring. Yordam bermasa — demo'ni qayta tiklang (joriy ma'lumot zaxiraga olinadi)."}
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <button type="button" onClick={this.reload} className="h-10 rounded-full bg-accent px-5 text-[15px] font-semibold text-white">
               Qayta yuklash
             </button>
-            <button type="button" onClick={this.reset} className="h-10 rounded-full bg-fill px-5 text-[15px] font-semibold text-label">
-              Demo'ni qayta tiklash
-            </button>
+            {!SERVER_MODE && (
+              <button type="button" onClick={this.reset} className="h-10 rounded-full bg-fill px-5 text-[15px] font-semibold text-label">
+                Demo'ni qayta tiklash
+              </button>
+            )}
           </div>
           <p className="mt-3 break-words text-[12px] text-label3">{this.state.error.message}</p>
         </div>

@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { USERS, horizontalOverflow, openAs, watch, type UserId } from "./helpers";
+import { expect, test } from "./fixtures";
+import { USERS, horizontalOverflow, openAs, watch, type UserId, SERVER } from "./helpers";
 
 // Har bir rol uchun: menyudagi har bir sahifa ochiladi, sarlavha bor, xato yo'q, ruxsatsiz sahifaga yo'naltirilmaydi.
 const FINANCE = [
@@ -64,6 +64,7 @@ test("ruxsatsiz sahifa rolning bosh sahifasiga yo'naltiradi", async ({ page }) =
 });
 
 test("akkaunt menyusi orqali rolni almashtirish", async ({ page }) => {
+  test.skip(SERVER, "Demo rejimi: serverli tizimda har kim o'z login va paroli bilan kiradi");
   const p = await watch(page);
   await page.goto("./");
   await page.locator("aside button", { hasText: "Sherzod Alimov" }).click();
@@ -71,4 +72,34 @@ test("akkaunt menyusi orqali rolni almashtirish", async ({ page }) => {
   await expect(page.locator("aside")).toContainText("Moliya");
   await expect(page.locator("main h1").first()).toBeVisible();
   expect(p.errors).toEqual([]);
+});
+
+test("Server: akkaunt menyusida xodim, login va «Chiqish» — chiqqach sahifa ochilmaydi", async ({ page }) => {
+  test.skip(!SERVER, "Faqat serverli tizim uchun");
+  const p = await watch(page);
+  await openAs(page, "u_mol", "/moliya");
+  await page.locator("aside button", { hasText: "Gulnora Mirzayeva" }).click();
+  await expect(page.getByText("u_mol", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("Demo: kim sifatida kirish")).toHaveCount(0);
+  await page.getByRole("button", { name: "Chiqish" }).click();
+  await expect(page.getByRole("heading", { name: "Tizimga kirish" })).toBeVisible();
+  // Sessiya serverda yopilgan: sahifani yangilasa ham kirish so'raladi
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Tizimga kirish" })).toBeVisible();
+  const r = await page.request.get("./api/state");
+  expect(r.status()).toBe(401);
+  expect(p.errors).toEqual([]);
+});
+
+test("Server: noto'g'ri parol — kirib bo'lmaydi, to'g'risi bilan kiradi", async ({ page }) => {
+  test.skip(!SERVER, "Faqat serverli tizim uchun");
+  await watch(page);
+  await page.goto("./");
+  await page.getByLabel("Login").fill("u_boss");
+  await page.getByLabel("Parol").fill("notogri-parol-1");
+  await page.getByRole("button", { name: "Kirish" }).click();
+  await expect(page.getByText("Login yoki parol noto'g'ri")).toBeVisible();
+  await page.getByLabel("Parol").fill("Sinov-parol-2026");
+  await page.getByRole("button", { name: "Kirish" }).click();
+  await expect(page.locator("aside")).toContainText("Sherzod Alimov");
 });

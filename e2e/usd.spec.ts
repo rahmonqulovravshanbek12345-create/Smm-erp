@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { check } from "../src/lib/audit-check";
 import { go, openAs, state, watch } from "./helpers";
 

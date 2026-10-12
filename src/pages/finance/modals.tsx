@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { AmountInput, Banner, Button, Field, Input, Modal, Select, userOptions } from "../../components/ui";
-import * as act from "../../lib/actions";
 import { fmtMoney, fmtUsd } from "../../lib/dates";
 import { WORK_LABELS, accountOf, billPaid, employeeBalance, invoiceOutstanding, invoiceOutstandingUsd, payrollStaff } from "../../lib/finance";
 import { useErp, useLookup } from "../../lib/store";
-import type { Bill, Invoice } from "../../lib/types";
+import type { Account, Bill, Invoice } from "../../lib/types";
 import { useAccountOptions } from "./common";
 
 interface MoneyState {
@@ -121,8 +120,9 @@ export function TxModal({ dir, onClose }: { dir: "in" | "out"; onClose: () => vo
 
   const save = () => {
     const ok = run(
-      (c) =>
-        act.addTransaction(c, {
+      "addTransaction",
+      [
+        {
           date: m.date,
           accountId: m.accountId,
           dir,
@@ -131,7 +131,8 @@ export function TxModal({ dir, onClose }: { dir: "in" | "out"; onClose: () => vo
           articleId,
           projectId: projectId || undefined,
           note,
-        }),
+        },
+      ],
       dir === "in" ? "Kirim qayd etildi" : "Chiqim qayd etildi",
     );
     if (ok) onClose();
@@ -183,7 +184,7 @@ export function TransferModal({ onClose }: { onClose: () => void }) {
   const a = Number(amountFrom) || 0;
   const amountTo = cf === ct ? a : cf === "UZS" ? Math.round((a / r) * 100) / 100 : Math.round(a * r);
   const save = () => {
-    if (run((c) => act.addTransfer(c, { from, to, amountFrom: a, amountTo, rate: cf !== ct ? r : undefined, date, note }), "O'tkazma bajarildi")) onClose();
+    if (run("addTransfer", [{ from, to, amountFrom: a, amountTo, rate: cf !== ct ? r : undefined, date, note }], "O'tkazma bajarildi")) onClose();
   };
   return (
     <Modal
@@ -259,8 +260,10 @@ function UsdInvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClose: (
   const save = () => {
     if (
       run(
-        (c) =>
-          act.recordClientPayment(c, invoice.id, {
+        "recordClientPayment",
+        [
+          invoice.id,
+          {
             amount: value,
             date,
             accountId,
@@ -268,7 +271,8 @@ function UsdInvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClose: (
             fxRate: usdAcc ? undefined : fx,
             markupPct: usdAcc ? undefined : mk,
             note,
-          }),
+          },
+        ],
         "To'lov qabul qilindi",
       )
     )
@@ -322,12 +326,7 @@ function UzsInvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClose: (
   const m = useMoneyFields("acc_bank").withDefault(left);
   const [note, setNote] = useState("");
   const save = () => {
-    if (
-      run(
-        (c) => act.recordClientPayment(c, invoice.id, { amount: m.value, date: m.date, accountId: m.accountId, rate: m.rateNum, note }),
-        "To'lov qabul qilindi",
-      )
-    )
+    if (run("recordClientPayment", [invoice.id, { amount: m.value, date: m.date, accountId: m.accountId, rate: m.rateNum, note }], "To'lov qabul qilindi"))
       onClose();
   };
   return (
@@ -359,7 +358,7 @@ export function ExtraInvoiceModal({ onClose }: { onClose: () => void }) {
   const [dueDate, setDueDate] = useState(today);
   const [note, setNote] = useState("Qo'shimcha syomka");
   const save = () => {
-    if (run((c) => act.createExtraInvoice(c, { projectId, amount: Number(amount), issueDate, dueDate, note }), "Faktura chiqarildi")) onClose();
+    if (run("createExtraInvoice", [{ projectId, amount: Number(amount), issueDate, dueDate, note }], "Faktura chiqarildi")) onClose();
   };
   return (
     <Modal
@@ -404,7 +403,8 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
     const n = note || (kind === "advance" ? "Avans" : "Ish haqi");
     if (
       run(
-        (c) => act.payEmployee(c, { userId: uid, amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note: n, advance: kind === "advance" }),
+        "payEmployee",
+        [{ userId: uid, amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note: n, advance: kind === "advance" }],
         "To'lov qayd etildi — xodimga xabar ketdi",
       )
     )
@@ -453,7 +453,7 @@ export function ManualAccrualModal({ userId, onClose }: { userId?: string; onClo
   const [date, setDate] = useState(today);
   const [title, setTitle] = useState("");
   const save = () => {
-    if (run((c) => act.addManualAccrual(c, { userId: uid, kind, amount: Number(amount), projectId, date, title }), "Hisoblash qo'shildi")) onClose();
+    if (run("addManualAccrual", [{ userId: uid, kind, amount: Number(amount), projectId, date, title }], "Hisoblash qo'shildi")) onClose();
   };
   return (
     <Modal
@@ -500,10 +500,13 @@ export function ManualAccrualModal({ userId, onClose }: { userId?: string; onClo
 
 // ---------- Ta'minotchi ----------
 
+const NEW_VENDOR = "__new";
+
 export function BillModal({ onClose }: { onClose: () => void }) {
   const { state, run, today } = useErp();
   const articles = state.articles.filter((a) => a.dir === "out" && (a.group === "direct" || a.group === "overhead"));
-  const [vendorId, setVendorId] = useState(state.vendors[0]?.id ?? "");
+  const [vendorId, setVendorId] = useState(state.vendors[0]?.id ?? NEW_VENDOR);
+  const [vendor, setVendor] = useState({ name: "", kind: "" });
   const [articleId, setArticleId] = useState(articles[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(today);
@@ -511,9 +514,18 @@ export function BillModal({ onClose }: { onClose: () => void }) {
   const [note, setNote] = useState("");
   const [projectId, setProjectId] = useState("");
   const save = () => {
+    let vid = vendorId;
+    if (vid === NEW_VENDOR) {
+      // Yangi ta'minotchi avval ro'yxatga qo'shiladi
+      const r = run("saveVendor", [{ name: vendor.name, kind: vendor.kind }]);
+      if (!r) return;
+      vid = r.value;
+      setVendorId(vid);
+    }
     if (
       run(
-        (c) => act.addBill(c, { vendorId, articleId, amount: Number(amount), date, dueDate, note, projectId: projectId || undefined }),
+        "addBill",
+        [{ vendorId: vid, articleId, amount: Number(amount), date, dueDate, note, projectId: projectId || undefined }],
         "Xarajat hujjati qo'shildi",
       )
     )
@@ -524,12 +536,26 @@ export function BillModal({ onClose }: { onClose: () => void }) {
       open
       onClose={onClose}
       title="Ta'minotchidan xarajat hujjati"
-      footer={<Footer onClose={onClose} onSave={save} label="Qo'shish" disabled={!Number(amount)} />}
+      footer={<Footer onClose={onClose} onSave={save} label="Qo'shish" disabled={!Number(amount) || (vendorId === NEW_VENDOR && !vendor.name.trim())} />}
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Ta'minotchi">
-          <Select value={vendorId} onChange={(e) => setVendorId(e.target.value)} options={state.vendors.map((v) => ({ value: v.id, label: v.name }))} />
+          <Select
+            value={vendorId}
+            onChange={(e) => setVendorId(e.target.value)}
+            options={[...state.vendors.map((v) => ({ value: v.id, label: v.name })), { value: NEW_VENDOR, label: "+ Yangi ta'minotchi…" }]}
+          />
         </Field>
+        {vendorId === NEW_VENDOR && (
+          <>
+            <Field label="Yangi ta'minotchi nomi">
+              <Input value={vendor.name} onChange={(e) => setVendor({ ...vendor, name: e.target.value })} placeholder="Masalan: «Poytaxt» biznes markazi" />
+            </Field>
+            <Field label="Turi (ixtiyoriy)">
+              <Input value={vendor.kind} onChange={(e) => setVendor({ ...vendor, kind: e.target.value })} placeholder="Ijara, internet, dastur…" />
+            </Field>
+          </>
+        )}
         <Field label="Modda">
           <Select value={articleId} onChange={(e) => setArticleId(e.target.value)} options={articles.map((a) => ({ value: a.id, label: a.name }))} />
         </Field>
@@ -562,7 +588,7 @@ export function PayBillModal({ bill, onClose }: { bill: Bill; onClose: () => voi
   const left = bill.amount - billPaid(state, bill);
   const m = useMoneyFields("acc_bank").withDefault(left);
   const save = () => {
-    if (run((c) => act.payBill(c, bill.id, { amount: m.value, date: m.date, accountId: m.accountId, rate: m.rateNum }), "To'landi")) onClose();
+    if (run("payBill", [bill.id, { amount: m.value, date: m.date, accountId: m.accountId, rate: m.rateNum }], "To'landi")) onClose();
   };
   return (
     <Modal
@@ -582,3 +608,86 @@ export function PayBillModal({ bill, onClose }: { bill: Bill; onClose: () => voi
 }
 
 export { WORK_LABELS };
+
+// ---------- Hisoblar (kassa, bank, karta) ----------
+
+/** Hisoblar ro'yxati: nomi, turi, valyutasi va tizim yuritila boshlagan kundagi qoldiq. Yangi hisob qo'shish. */
+export function AccountsModal({ onClose }: { onClose: () => void }) {
+  const { state, run } = useErp();
+  const used = new Set(state.transactions.map((t) => t.accountId));
+  const blank = { name: "", kind: "bank" as Account["kind"], currency: "UZS" as Account["currency"], opening: "" };
+  const [rows, setRows] = useState(() => state.accounts.map((a) => ({ ...a, opening: String(a.opening) })));
+  const [fresh, setFresh] = useState(blank);
+  const kinds = [
+    { value: "bank", label: "Bank hisob" },
+    { value: "cash", label: "Naqd kassa" },
+    { value: "card", label: "Karta" },
+  ];
+  const currencies = [
+    { value: "UZS", label: "so'm" },
+    { value: "USD", label: "USD" },
+  ];
+  const saveRow = (i: number) => {
+    const r = rows[i]!;
+    run("saveAccount", [{ id: r.id, name: r.name, kind: r.kind, currency: r.currency, opening: Number(r.opening) || 0 }], `${r.name.trim()}: saqlandi`);
+  };
+  const add = () => {
+    const r = run("saveAccount", [{ name: fresh.name, kind: fresh.kind, currency: fresh.currency, opening: Number(fresh.opening) || 0 }], "Hisob qo'shildi");
+    if (r) {
+      setRows((x) => [...x, { id: r.value, name: fresh.name.trim(), kind: fresh.kind, currency: fresh.currency, opening: fresh.opening || "0" }]);
+      setFresh(blank);
+    }
+  };
+  const set = (i: number, patch: Partial<(typeof rows)[number]>) => setRows((x) => x.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  return (
+    <Modal open wide onClose={onClose} title="Hisoblar: kassa, bank, karta" footer={<Button onClick={onClose}>Yopish</Button>}>
+      <p className="mb-3 text-[13px] text-label2">
+        «Boshlang'ich qoldiq» — tizimda ish boshlangan kundagi haqiqiy pul (bank ko'chirmasi yoki kassadagi naqd). Undan keyingi har bir kirim-chiqim tizimga
+        kiritiladi.
+      </p>
+      <div className="space-y-2">
+        {rows.map((r, i) => (
+          <div key={r.id} className="grid grid-cols-2 items-end gap-2 rounded-[14px] bg-fill p-2.5 sm:grid-cols-[1fr_130px_90px_160px_auto]">
+            <Field label="Nomi" className="col-span-2 sm:col-span-1">
+              <Input value={r.name} onChange={(e) => set(i, { name: e.target.value })} />
+            </Field>
+            <Field label="Turi">
+              <Select value={r.kind} onChange={(e) => set(i, { kind: e.target.value as Account["kind"] })} options={kinds} />
+            </Field>
+            <Field label="Valyuta">
+              <Select
+                value={r.currency}
+                disabled={used.has(r.id)}
+                onChange={(e) => set(i, { currency: e.target.value as Account["currency"] })}
+                options={currencies}
+              />
+            </Field>
+            <Field label="Boshlang'ich qoldiq">
+              <AmountInput value={r.opening} onValue={(v) => set(i, { opening: v })} />
+            </Field>
+            <Button size="sm" onClick={() => saveRow(i)} disabled={!r.name.trim()}>
+              Saqlash
+            </Button>
+          </div>
+        ))}
+        <div className="grid grid-cols-2 items-end gap-2 rounded-[14px] border border-dashed border-sep p-2.5 sm:grid-cols-[1fr_130px_90px_160px_auto]">
+          <Field label="Yangi hisob" className="col-span-2 sm:col-span-1">
+            <Input value={fresh.name} onChange={(e) => setFresh({ ...fresh, name: e.target.value })} placeholder="Masalan: Kapitalbank hisob" />
+          </Field>
+          <Field label="Turi">
+            <Select value={fresh.kind} onChange={(e) => setFresh({ ...fresh, kind: e.target.value as Account["kind"] })} options={kinds} />
+          </Field>
+          <Field label="Valyuta">
+            <Select value={fresh.currency} onChange={(e) => setFresh({ ...fresh, currency: e.target.value as Account["currency"] })} options={currencies} />
+          </Field>
+          <Field label="Boshlang'ich qoldiq">
+            <AmountInput value={fresh.opening} onValue={(v) => setFresh({ ...fresh, opening: v })} />
+          </Field>
+          <Button size="sm" variant="primary" onClick={add} disabled={!fresh.name.trim()}>
+            Qo'shish
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}

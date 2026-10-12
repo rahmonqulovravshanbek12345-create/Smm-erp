@@ -228,6 +228,9 @@ describe("Platformalar: bitta post — bir nechta joy", () => {
       forTarget: false,
     });
     const newPost = s.posts.find((x) => x.projectId === id)!;
+    // Tasdiqlanmagan post joylanmaydi
+    expect(() => act.publishPost(makeCtx(s, "u_smm1").c, newPost.id)).toThrow(/tasdiqlanmagan/);
+    newPost.status = "approved";
     act.publishPost(makeCtx(s, "u_smm1").c, newPost.id);
     expect(s.projects.find((x) => x.id === id)!.periodStart).toBe(TODAY);
   });

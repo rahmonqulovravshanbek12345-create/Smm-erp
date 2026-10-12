@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import * as act from "../lib/actions";
+import { SERVER_MODE } from "../lib/api";
 import { fetchCbuRate, syncMeta } from "../lib/integrations";
 import { useErp } from "../lib/store";
 
@@ -11,27 +11,23 @@ export function useAutoSync() {
   const { state, today, run } = useErp();
   const started = useRef(false);
   useEffect(() => {
-    if (started.current) return;
+    // Serverli tizimda bu ishni server jadval bo'yicha bajaradi
+    if (started.current || SERVER_MODE) return;
     started.current = true;
     const { cbu, meta } = state.settings.integrations;
     void (async () => {
       if (cbu.autoUpdate && cbu.rateDate !== today && cbu.lastAttempt !== today) {
-        run((c) => {
-          c.s.settings.integrations.cbu.lastAttempt = today;
-        });
+        run("markIntegrationAttempt", ["cbu"]);
         try {
           const r = await fetchCbuRate();
-          run((c) => act.setUsdRate(c, r.rate, r.date, "cbu"));
+          run("setUsdRate", [r.rate, r.date, "cbu"]);
         } catch (e) {
-          run((c) => act.logIntegration(c, "cbu", false, `${e instanceof Error ? e.message : "Xatolik"} — kurs o'zgarmadi`));
+          run("logIntegration", ["cbu", false, `${e instanceof Error ? e.message : "Xatolik"} — kurs o'zgarmadi`]);
         }
       }
       if (meta.autoSync && meta.lastAttempt !== today) {
         const res = await syncMeta(state, today);
-        run((c) => {
-          c.s.settings.integrations.meta.lastAttempt = today;
-          act.applyMetaSync(c, res);
-        });
+        run("metaAutoSync", [res]);
       }
     })();
     // Faqat birinchi ochilishda ishlaydi

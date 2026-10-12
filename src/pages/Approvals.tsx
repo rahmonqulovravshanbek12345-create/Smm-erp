@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Badge, Button, Card, Empty, Input, LinkOut, PageHeader } from "../components/ui";
-import * as act from "../lib/actions";
 import { fmtDate, relDays } from "../lib/dates";
 import { FORMAT_LABELS, TASK_KIND_LABELS, platformsText } from "../lib/labels";
 import { useErp, useLookup } from "../lib/store";
@@ -57,10 +56,10 @@ export function Approvals() {
                     onChange={(e) => setNotes({ ...notes, [p.id]: e.target.value })}
                     className="min-w-[180px] flex-1"
                   />
-                  <Button variant="danger" onClick={() => run((c) => act.returnPost(c, p.id, notes[p.id] ?? ""), "Izoh bilan qaytarildi")}>
+                  <Button variant="danger" onClick={() => run("returnPost", [p.id, notes[p.id] ?? ""], "Izoh bilan qaytarildi")}>
                     Qaytarish
                   </Button>
-                  <Button variant="primary" onClick={() => run((c) => act.approveInternal(c, p.id), "Tasdiqlandi — SMM menejerga xabar ketdi")}>
+                  <Button variant="primary" onClick={() => run("approveInternal", [p.id], "Tasdiqlandi — SMM menejerga xabar ketdi")}>
                     ✓ Tasdiqlash
                   </Button>
                 </div>

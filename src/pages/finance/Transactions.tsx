@@ -1,13 +1,12 @@
 import { useMemo, useState } from "react";
 import { Icon } from "../../components/icons";
 import { Badge, Button, Card, CardHeader, Empty, Input, PageHeader, Select } from "../../components/ui";
-import * as act from "../../lib/actions";
 import { fmtDate, fmtMoney, fmtNum, monthKey } from "../../lib/dates";
 import { GROUP_LABELS, accountBalance, accountOf, articleOf, txUZS } from "../../lib/finance";
 import { canEditFinance } from "../../lib/permissions";
 import { useErp, useLookup } from "../../lib/store";
 import { FinNav, MonthSelect, TableWrap, td, tdr, th, thr } from "./common";
-import { TransferModal, TxModal } from "./modals";
+import { AccountsModal, TransferModal, TxModal } from "./modals";
 import { ExportButton } from "../../components/ExportButton";
 
 export function Transactions() {
@@ -18,7 +17,7 @@ export function Transactions() {
   const [account, setAccount] = useState("");
   const [group, setGroup] = useState("");
   const [q, setQ] = useState("");
-  const [modal, setModal] = useState<null | "in" | "out" | "transfer">(null);
+  const [modal, setModal] = useState<null | "in" | "out" | "transfer" | "accounts">(null);
 
   const rows = useMemo(
     () =>
@@ -73,6 +72,9 @@ export function Transactions() {
             />
             {editable && (
               <>
+                <Button onClick={() => setModal("accounts")}>
+                  <Icon name="wallet" size={16} /> Hisoblar
+                </Button>
                 <Button onClick={() => setModal("transfer")}>
                   <Icon name="history" size={16} /> O'tkazma
                 </Button>
@@ -188,7 +190,7 @@ export function Transactions() {
                           type="button"
                           title="O'chirish"
                           className="rounded-full p-1.5 text-label3 transition hover:bg-red/12 hover:text-red"
-                          onClick={() => run((c) => act.deleteTransaction(c, t.id), "O'chirildi")}
+                          onClick={() => run("deleteTransaction", [t.id], "O'chirildi")}
                         >
                           <Icon name="trash" size={15} />
                         </button>
@@ -202,6 +204,7 @@ export function Transactions() {
         )}
       </Card>
       {modal === "transfer" && <TransferModal onClose={() => setModal(null)} />}
+      {modal === "accounts" && <AccountsModal onClose={() => setModal(null)} />}
       {(modal === "in" || modal === "out") && <TxModal dir={modal} onClose={() => setModal(null)} />}
       <p className="mt-3 px-1 text-[12px] text-label3">
         Mijoz to'lovlari «Fakturalar»dan, ish haqi to'lovlari «Ish haqi»dan, ta'minotchiga to'lov «Debitor / Kreditor»dan kiritiladi — shunda ular hujjatga

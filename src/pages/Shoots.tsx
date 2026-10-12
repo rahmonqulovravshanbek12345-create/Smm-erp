@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ShootModal } from "../components/forms";
 import { Badge, Button, Card, Empty, Input, LinkOut, PageHeader } from "../components/ui";
-import * as act from "../lib/actions";
 import { fmtDate, fmtDateTime, relDays } from "../lib/dates";
 import { access, canEdit } from "../lib/permissions";
 import { useErp, useLookup } from "../lib/store";
@@ -93,7 +92,7 @@ export function Shoots() {
                       onChange={(e) => setLinks({ ...links, [s.id]: e.target.value })}
                       className="min-w-[200px] flex-1"
                     />
-                    <Button variant="primary" onClick={() => run((c) => act.handFootage(c, s.id, links[s.id] ?? ""), "Montajyorga topshirildi")}>
+                    <Button variant="primary" onClick={() => run("handFootage", [s.id, links[s.id] ?? ""], "Montajyorga topshirildi")}>
                       Montajyorga topshirildi
                     </Button>
                   </div>

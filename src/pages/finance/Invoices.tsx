@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { PayBadge } from "../../components/bits";
 import { A, Button, Card, CardHeader, Empty, Field, Input, Modal, PageHeader, Select, Stat } from "../../components/ui";
-import * as act from "../../lib/actions";
 import { diffDays, fmtDate, fmtMoney, fmtUsd, monthKey } from "../../lib/dates";
 import { invoiceOutstanding, invoiceOutstandingUsd, invoicePaid, invoicePaidUsd, invoicePeriod, invoiceStatus, type PayStatus } from "../../lib/finance";
 import { PAYMENT_KIND_LABELS, PAYMENT_STATUS } from "../../lib/labels";
@@ -119,7 +118,7 @@ export function Invoices({ projectId }: { projectId?: string }) {
                         type="date"
                         aria-label={`${inv.number}: to'lov sanasini belgilash`}
                         value=""
-                        onChange={(e) => run((c) => act.setInvoiceDue(c, inv.id, e.target.value), "Sana saqlandi")}
+                        onChange={(e) => run("setInvoiceDue", [inv.id, e.target.value], "Sana saqlandi")}
                         className="!w-36 !py-1 !text-xs"
                       />
                     ) : inv.dueDate ? (
@@ -261,7 +260,7 @@ function VoidInvoiceModal({ invoice, onClose }: { invoice: Invoice; onClose: () 
   const { run } = useErp();
   const [reason, setReason] = useState("");
   const save = () => {
-    if (run((c) => act.voidInvoice(c, invoice.id, reason), `Faktura ${invoice.number} bekor qilindi`)) onClose();
+    if (run("voidInvoice", [invoice.id, reason], `Faktura ${invoice.number} bekor qilindi`)) onClose();
   };
   return (
     <Modal

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# SMM ERP boshqaruv buyrug'i (serverda): sudo smm-erp <buyruq>
+set -euo pipefail
+APP=/opt/smm-erp
+[ "$(id -u)" = 0 ] || { echo "sudo bilan ishga tushiring: sudo smm-erp $*" >&2; exit 1; }
+
+# Ilova buyrug'ini xizmat bilan bir xil foydalanuvchi va sozlamalar bilan bajarish
+app() {
+  systemd-run --quiet --wait --pipe --collect -p User=smmerp -p Group=smmerp -p EnvironmentFile=/etc/smm-erp/env \
+    -p Environment=TZ=Asia/Tashkent -p WorkingDirectory="$APP/current" /opt/node/bin/node "$APP/current/server.mjs" "$@"
+}
+
+case "${1:-help}" in
+  status)
+    systemctl --no-pager status smm-erp | head -n 12
+    echo; app check
+    ;;
+  logs) journalctl -u smm-erp -n "${2:-100}" --no-pager ;;
+  restart) systemctl restart smm-erp && echo "Qayta ishga tushirildi" ;;
+  update) exec "$APP/current/deploy/update.sh" ;;
+  backup) "$APP/current/deploy/backup.sh" qolda ;;
+  backups) ls -lh /var/backups/smm-erp/ ;;
+  restore)
+    f=${2:-}
+    [ -f "$f" ] || { echo "Foydalanish: sudo smm-erp restore /var/backups/smm-erp/erp-....dump" >&2; exit 1; }
+    # Avval nusxa o'qilishini tekshiramiz — buzilgan faylga almashtirib bo'lmaydi
+    pg_restore --list "$f" >/dev/null || { echo "Zaxira fayli o'qilmadi yoki buzilgan: $f" >&2; exit 1; }
+    read -r -p "Hozirgi ma'lumot «$f» nusxasi bilan almashtiriladi (hozirgisi ham saqlab qo'yiladi). Davom etilsinmi? (ha/yo'q): " a </dev/tty
+    [ "$a" = "ha" ] || { echo "Bekor qilindi"; exit 1; }
+    "$APP/current/deploy/backup.sh" tiklashdan-oldin
+    # Yangi bazaga tiklanadi; muvaffaqiyatli bo'lsagina almashtiriladi — oraliqda ma'lumot yo'qolmaydi
+    runuser -u postgres -- dropdb --if-exists smmerp_tiklash
+    runuser -u postgres -- createdb -O smmerp smmerp_tiklash
+    if ! runuser -u postgres -- pg_restore --no-owner --role=smmerp --exit-on-error -d smmerp_tiklash <"$f"; then
+      runuser -u postgres -- dropdb --if-exists smmerp_tiklash
+      echo "Tiklab bo'lmadi — hozirgi ma'lumot o'zgarmadi" >&2
+      exit 1
+    fi
+    old="smmerp_eski_$(date +%Y%m%d%H%M%S)"
+    systemctl stop smm-erp
+    runuser -u postgres -- psql -qc "ALTER DATABASE smmerp RENAME TO $old"
+    runuser -u postgres -- psql -qc "ALTER DATABASE smmerp_tiklash RENAME TO smmerp"
+    systemctl start smm-erp
+    echo "Tiklandi: $f (oldingi baza «$old» nomi bilan saqlab qo'yildi)"
+    ;;
+  https)
+    domain=$(grep '^APP_ORIGIN=' /etc/smm-erp/env | sed 's#APP_ORIGIN=https://##')
+    if [ -n "${2:-}" ]; then em=(-m "$2"); else em=(--register-unsafely-without-email); fi
+    certbot --nginx -d "$domain" --redirect --agree-tos -n "${em[@]}"
+    systemctl reload nginx
+    ;;
+  init | reset-password | reset-2fa | unlock | check) app "$@" ;;
+  help | *)
+    cat <<'HELP'
+SMM ERP boshqaruvi (sudo smm-erp <buyruq>):
+  status                 — ishlayaptimi
+  logs [N]               — oxirgi N ta yozuv
+  restart                — qayta ishga tushirish
+  update                 — eng yangi versiyani o'rnatish (oldin zaxira oladi)
+  backup | backups       — hozir zaxira olish | zaxiralar ro'yxati
+  restore <fayl>         — zaxiradan tiklash
+  https [email]          — HTTPS sertifikatini olish (domen serverga ulangandan keyin)
+  reset-password <login> — xodimga yangi vaqtinchalik parol
+  reset-2fa <login>      — telefon yo'qolsa: 2FA ni o'chirish
+  unlock <login>         — noto'g'ri urinishlar blokini olib tashlash
+HELP
+    ;;
+esac

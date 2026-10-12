@@ -6,18 +6,25 @@ export function toISODate(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** Faqat avtomatik testlar uchun: ilova «bugun»ini siljitish (ishlab chiqarishda doim 0). */
+let clockOffsetMs = 0;
+export function setClockOffset(ms: number) {
+  clockOffsetMs = ms;
+}
+const current = () => new Date(Date.now() + clockOffsetMs);
+
 export function todayISO(): string {
-  return toISODate(new Date());
+  return toISODate(current());
 }
 
 /** Hozirgi mahalliy vaqt «HH:MM» (deadline soati bilan solishtirish uchun). */
 export function nowHM(): string {
-  const d = new Date();
+  const d = current();
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 export function nowISO(): string {
-  return new Date().toISOString();
+  return current().toISOString();
 }
 
 export function parseDate(s: string): Date {

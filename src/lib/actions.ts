@@ -35,9 +35,10 @@ import {
   stagesFor,
   type ServiceInput,
 } from "./services";
+import { isMasked } from "./redact";
 import { isTaskOpen, lateness, postStage, workBlockedReason } from "./rules";
 import { currentPeriod, periodAt } from "./period";
-import { newId, type Ctx } from "./store";
+import { newId, type Ctx } from "./ctx";
 import { acceptedIds, defaultPicks, nextProposalNumber, proposalPrice, tariffOf, tariffService } from "./tariffs";
 import type {
   Bill,
@@ -95,7 +96,12 @@ function assertWorkAllowed(c: Ctx, projectId: string) {
 
 // ---------- CRM ----------
 
-export function saveLead(c: Ctx, data: Omit<Lead, "id" | "history" | "createdAt" | "stage"> & { id?: string }) {
+export function saveLead(c: Ctx, input: Omit<Lead, "id" | "history" | "createdAt" | "stage" | "projectId" | "maxStep"> & { id?: string }) {
+  // Loyihaga bog'lanish va voronka bosqichi faqat amallar orqali o'zgaradi (formadan emas)
+  const raw = { ...input } as typeof input & { projectId?: unknown; maxStep?: unknown };
+  delete raw.projectId;
+  delete raw.maxStep;
+  const data: typeof input = raw;
   if (data.id) {
     const l = c.s.leads.find((x) => x.id === data.id);
     if (!l) return;
@@ -775,9 +781,12 @@ export function updateProject(c: Ctx, id: string, patch: Partial<Project>) {
   if (!p) return;
   if (p.status === "closed" && patch.pauseWork === false) throw new Error("Loyiha yopilgan — ishni qayta ochib bo'lmaydi");
   if ("periodStart" in patch && patch.periodStart !== p.periodStart) {
-    if (c.s.invoices.some((i) => i.projectId === p.id && i.kind === "monthly"))
+    if (c.s.invoices.some((i) => i.projectId === p.id && i.kind === "monthly" && !i.voidedAt))
       throw new Error("Oylik fakturalar chiqqan — hisob davri boshini o'zgartirib bo'lmaydi (fakturalar siljib ketadi)");
+    if (patch.periodStart && !isDate(patch.periodStart)) throw new Error("Sanani tanlang");
     if (patch.periodStart && patch.periodStart > c.today) throw new Error("Hisob davri boshi kelajakda bo'lishi mumkin emas");
+    if (patch.periodStart && isDate(p.contractDate) && patch.periodStart < p.contractDate)
+      throw new Error(`Hisob davri boshi shartnoma sanasidan (${fmtDate(p.contractDate)}) oldin bo'lishi mumkin emas`);
   }
   if ("currency" in patch && (patch.currency ?? "UZS") !== (p.currency ?? "UZS"))
     throw new Error("Shartnoma valyutasini o'zgartirib bo'lmaydi — kerak bo'lsa yangi shartnoma tuzing");
@@ -877,6 +886,7 @@ export function returnPost(c: Ctx, postId: string, note: string) {
 export function clientApproved(c: Ctx, postId: string) {
   const p = c.s.posts.find((x) => x.id === postId);
   if (!p) return;
+  if (p.status !== "client") throw new Error("Post mijoz tasdig'ida emas");
   p.status = "approved";
   const pr = findProject(c, p.projectId);
   c.notify([pr?.marketologId, p.assigneeId], `Mijoz tasdiqladi: ${p.topic} (${pr?.name ?? "—"}) — joylash ${fmtDate(p.date)}`, "/kontent");
@@ -892,6 +902,8 @@ const platformList = platformsText;
 export function publishPost(c: Ctx, postId: string, platform?: Platform) {
   const p = c.s.posts.find((x) => x.id === postId);
   if (!p) return;
+  if (p.status !== "approved") throw new Error("Post hali tasdiqlanmagan — avval ichki va mijoz tasdig'idan o'tsin");
+  if (platform && !p.platforms.includes(platform)) throw new Error("Bu platforma postda yo'q");
   if (!p.platforms.length) return handToTarget(c, postId);
   p.publishedOn ??= {};
   for (const pl of platform ? [platform] : p.platforms) p.publishedOn[pl] ??= c.today;
@@ -993,6 +1005,7 @@ export function createShoot(c: Ctx, data: Omit<Shoot, "id" | "createdAt" | "stat
   if (!data.location.trim()) throw new Error("Joyni kiriting");
   if (!(Number.isInteger(data.videoCount) && data.videoCount >= 1 && data.videoCount <= 100)) throw new Error("Video soni 1 dan 100 gacha bo'lsin");
   if (!c.s.users.find((u) => u.id === data.operatorId)?.active) throw new Error("Syomka operatorini tanlang");
+  if (data.postIds.some((pid) => c.s.posts.find((x) => x.id === pid)?.projectId !== data.projectId)) throw new Error("Postlar bu loyihaga tegishli emas");
   const sh: Shoot = { ...data, id: newId("shoot"), status: "planned", createdAt: nowISO() };
   c.s.shoots.push(sh);
   for (const pid of sh.postIds) {
@@ -1041,6 +1054,8 @@ export function createTask(c: Ctx, data: Omit<Task, "id" | "createdAt" | "create
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data.deadline)) throw new Error("Deadline sanasini tanlang");
   const who = c.s.users.find((u) => u.id === data.assigneeId);
   if (!who?.active) throw new Error("Ijrochini tanlang (faol xodim)");
+  if (data.postId && c.s.posts.find((x) => x.id === data.postId)?.projectId !== data.projectId) throw new Error("Post bu loyihaga tegishli emas");
+  if (data.shootId && c.s.shoots.find((x) => x.id === data.shootId)?.projectId !== data.projectId) throw new Error("Syomka bu loyihaga tegishli emas");
   const t: Task = { ...data, id: newId("task"), status: "new", createdBy: c.me.id, createdAt: nowISO() };
   // Syomka allaqachon topshirilgan bo'lsa, montajyor kadrlar havolasini darhol oladi
   if (t.kind === "montaj" && !t.footageLink && t.postId) {
@@ -1083,6 +1098,7 @@ export function submitTask(c: Ctx, id: string, resultLink: string) {
 export function acceptTask(c: Ctx, id: string) {
   const t = c.s.tasks.find((x) => x.id === id);
   if (!t) return;
+  if (t.status !== "review") throw new Error("Ish hali tekshiruvga topshirilmagan");
   t.status = "accepted";
   t.acceptedAt = nowISO();
   t.returnNote = undefined;
@@ -1129,11 +1145,18 @@ export function returnTask(c: Ctx, id: string, note: string) {
 export function launchTarget(c: Ctx, id: string, date: string) {
   const t = c.s.tasks.find((x) => x.id === id);
   if (!t) return;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Reklama yoqilgan sanani tanlang");
+  if (t.kind !== "target") throw new Error("Bu target vazifasi emas");
+  if (!isDate(date)) throw new Error("Reklama yoqilgan sanani tanlang");
   if (date > c.today) throw new Error("Kelajakdagi sana bo'lishi mumkin emas");
+  const p = findProject(c, t.projectId);
+  // Hisob davri boshi shartnoma va TZ sanasidan oldin bo'lishi mumkin emas (aks holda o'tgan oylar uchun fakturalar chiqib ketadi)
+  const earliest = [p?.contractDate, t.createdAt.slice(0, 10)]
+    .filter((x): x is string => isDate(x))
+    .sort()
+    .pop();
+  if (earliest && date < earliest) throw new Error(`Sana ${fmtDate(earliest)} dan oldin bo'lishi mumkin emas (shartnoma yoki TZ sanasi)`);
   t.launchedAt = date;
   t.status = "progress";
-  const p = findProject(c, t.projectId);
   // Hisob davri bir marta boshlanadi; faktura chiqqanidan keyin orqaga surilmaydi (aks holda fakturalar siljiydi)
   const billed = Boolean(p && c.s.invoices.some((i) => i.projectId === p.id && i.kind === "monthly"));
   if (p && (!p.periodStart || (date < p.periodStart && !billed))) {
@@ -1197,6 +1220,12 @@ export function applyMetaSync(c: Ctx, results: MetaResult[]): number {
 }
 
 export function saveMetaSettings(c: Ctx, patch: Partial<Omit<Integrations["meta"], "accounts">>) {
+  // Saqlangan token brauzerga «••••» belgisi bilan boradi — u qaytib kelsa, token o'zgarmaydi
+  if (patch.token !== undefined && isMasked(patch.token)) {
+    patch = { ...patch };
+    delete patch.token;
+  }
+  if (patch.token !== undefined) patch = { ...patch, token: patch.token.trim() };
   Object.assign(c.s.settings.integrations.meta, patch);
 }
 
@@ -1241,7 +1270,12 @@ export function setInvoiceDue(c: Ctx, invoiceId: string, dueDate: string) {
 
 /** Pul harakati sanasi kelajakda bo'lmasligi va USD hisobda kurs bo'lishi shart. */
 /** yyyy-mm-dd ko'rinishidagi sana. */
-const isDate = (d?: string) => /^\d{4}-\d{2}-\d{2}$/.test(d ?? "");
+/** Haqiqiy kalendar sanasi «YYYY-MM-DD» (2026-02-30 kabi mavjud bo'lmagan sana emas). */
+const isDate = (d?: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d ?? "")) return false;
+  const t = new Date(`${d}T00:00:00Z`);
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d;
+};
 
 /** Bitta amal uchun maksimal summa (so'm) — xato bilan qo'shimcha nollar yozilishidan himoya. */
 const MAX_UZS = 100_000_000_000;

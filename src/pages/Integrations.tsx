@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Icon, IconChip } from "../components/icons";
 import { A, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, PageHeader, Select } from "../components/ui";
-import * as act from "../lib/actions";
+import { SERVER_MODE, api, type StateResponse } from "../lib/api";
 import { fmtDate, fmtDateTime, fmtNum } from "../lib/dates";
 import { LEAD_METRIC_LABELS, fetchCbuRate, isMetaDemo, metaAccountOf, syncMeta, testMetaToken } from "../lib/integrations";
 import { canEdit, canView } from "../lib/permissions";
@@ -11,7 +11,7 @@ import type { Integrations as Cfg } from "../lib/types";
 
 /** Tashqi tizimlar: Meta Ads, Markaziy bank kursi, Telegram bot holati va jurnal. */
 export function Integrations() {
-  const { state, me, today, run, showToast } = useErp();
+  const { state, me, today, run, showToast, session } = useErp();
   const editable = canEdit(me.role, "integrations");
   const meta = state.settings.integrations.meta;
   const cbu = state.settings.integrations.cbu;
@@ -26,9 +26,14 @@ export function Integrations() {
   const test = async () => {
     setBusy("test");
     try {
-      const name = await testMetaToken(meta);
+      const name = SERVER_MODE ? (await api<{ name: string }>("/api/integrations/meta/test", {})).name : await testMetaToken(meta);
+      if (SERVER_MODE) {
+        showToast(`Meta: ulanish ishlayapti — ${name}`);
+        await session?.refresh();
+        return;
+      }
       showToast(`Meta: ulanish ishlayapti — ${name}`);
-      run((c) => act.logIntegration(c, "meta", true, `Meta Ads: token tekshirildi (${name})`));
+      run("logIntegration", ["meta", true, `Meta Ads: token tekshirildi (${name})`]);
     } catch (e) {
       showToast(`⚠ ${e instanceof Error ? e.message : "Xatolik"}`);
     } finally {
@@ -36,13 +41,26 @@ export function Integrations() {
     }
   };
   const sync = async () => {
+    if (SERVER_MODE) {
+      setBusy("sync");
+      try {
+        const r = await api<StateResponse & { count: number; errors: string[] }>("/api/integrations/meta/sync", {});
+        session?.adopt(r);
+        showToast(
+          r.errors.length ? `⚠ ${r.errors.join("; ")}` : r.count ? `${r.count} ta kunlik hisobot olindi` : "Hamma hisobotlar joyida — yangi ma'lumot yo'q",
+        );
+      } catch (e) {
+        showToast(`⚠ ${e instanceof Error ? e.message : "Xatolik"}`);
+      } finally {
+        setBusy("");
+      }
+      return;
+    }
     setBusy("sync");
     const res = await syncMeta(state, today);
     setBusy("");
-    let n = 0;
-    run((c) => {
-      n = act.applyMetaSync(c, res);
-    });
+    const r = run("applyMetaSync", [res]);
+    const n = r ? r.value : 0;
     const err = res.filter((r) => r.error).length;
     showToast(
       err
@@ -54,26 +72,45 @@ export function Integrations() {
   };
   const pullRate = async () => {
     setBusy("cbu");
+    if (SERVER_MODE) {
+      try {
+        const r = await api<{ rate: number }>("/api/integrations/cbu/pull", {});
+        showToast(`1 USD = ${fmtNum(r.rate)} so'm`);
+      } catch (e) {
+        showToast(`⚠ ${e instanceof Error ? e.message : "Xatolik"}. Kursni qo'lda kiriting`);
+      } finally {
+        await session?.refresh();
+        setBusy("");
+      }
+      return;
+    }
     try {
       const r = await fetchCbuRate();
-      run((c) => act.setUsdRate(c, r.rate, r.date, "cbu"), `1 USD = ${fmtNum(r.rate)} so'm`);
+      run("setUsdRate", [r.rate, r.date, "cbu"], `1 USD = ${fmtNum(r.rate)} so'm`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Xatolik";
-      run((c) => act.logIntegration(c, "cbu", false, `${msg} — kursni qo'lda kiriting`));
+      run("logIntegration", ["cbu", false, `${msg} — kursni qo'lda kiriting`]);
       showToast(`⚠ ${msg}. Kursni qo'lda kiriting`);
     } finally {
       setBusy("");
     }
   };
-  const saveMeta = (patch: Partial<Omit<Cfg["meta"], "accounts">>, toast?: string) => run((c) => act.saveMetaSettings(c, patch), toast);
+  const saveMeta = (patch: Partial<Omit<Cfg["meta"], "accounts">>, toast?: string) => run("saveMetaSettings", [patch], toast);
 
   return (
     <>
       <PageHeader title="Integratsiyalar" sub="Tashqi tizimlardan ma'lumot qo'lda kiritilmaydi — o'zi olinadi" />
-      <Banner tone="amber">
-        Demo: tokenlar faqat shu brauzerda saqlanadi va so'rovlar brauzerdan yuboriladi. Haqiqiy tizimda bu ishni server har kuni ertalab bajaradi, tokenlar
-        hech kimga ko'rinmaydi.
-      </Banner>
+      {SERVER_MODE ? (
+        <Banner tone="green">
+          Tokenlar serverda saqlanadi va hech kimga ko'rsatilmaydi. Server har kuni o'zi bajaradi: Markaziy bank kursi (00:05, 09:05, 15:05), Meta Ads
+          hisobotlari (07:30), xodimlarga eslatmalar (08:45).
+        </Banner>
+      ) : (
+        <Banner tone="amber">
+          Demo: tokenlar faqat shu brauzerda saqlanadi va so'rovlar brauzerdan yuboriladi. Haqiqiy tizimda bu ishni server har kuni ertalab bajaradi, tokenlar
+          hech kimga ko'rinmaydi.
+        </Banner>
+      )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
@@ -81,10 +118,13 @@ export function Integrations() {
             icon={{ name: "target", color: "blue" }}
             title="Meta Ads (Facebook / Instagram reklama)"
             sub="Har bir loyihaning kunlik sarfi, ko'rishlar, kliklar va lidlar target hisobotiga o'zi tushadi"
-            right={demo ? <Badge tone="gray">Demo rejim</Badge> : <Badge tone="green">Token kiritilgan</Badge>}
+            right={demo ? <Badge tone="gray">{SERVER_MODE ? "Token kiritilmagan" : "Demo rejim"}</Badge> : <Badge tone="green">Token kiritilgan</Badge>}
           />
           <div className="grid grid-cols-1 gap-3 px-5 pb-4 sm:grid-cols-2">
-            <Field label="Kirish tokeni (Marketing API)" hint="Bo'sh — demo rejim: namunaviy raqamlar">
+            <Field
+              label="Kirish tokeni (Marketing API)"
+              hint={SERVER_MODE ? "Bo'sh bo'lsa, target hisobotlari qo'lda kiritiladi" : "Bo'sh — demo rejim: namunaviy raqamlar"}
+            >
               <Input
                 type="password"
                 autoComplete="off"
@@ -139,7 +179,7 @@ export function Integrations() {
                           placeholder="act_1234567890"
                           aria-label={`${p.name}: reklama kabineti ID`}
                           className="!w-48 !py-1.5 !text-[13px]"
-                          onBlur={(e) => e.target.value.trim() !== acc && run((c) => act.setMetaAccount(c, p.id, e.target.value), "Saqlandi")}
+                          onBlur={(e) => e.target.value.trim() !== acc && run("setMetaAccount", [p.id, e.target.value], "Saqlandi")}
                         />
                       </td>
                       <td className="px-3 py-2 text-label2">
@@ -207,7 +247,7 @@ export function Integrations() {
                     />
                     <Button
                       onClick={() => {
-                        if (run((c) => act.setUsdRate(c, Number(manualRate), today, "manual"), "Kurs saqlandi")) setManualRate("");
+                        if (run("setUsdRate", [Number(manualRate), today, "manual"], "Kurs saqlandi")) setManualRate("");
                       }}
                       disabled={!(Number(manualRate) > 0)}
                     >
@@ -215,11 +255,7 @@ export function Integrations() {
                     </Button>
                   </div>
                   <label className="mt-3 flex items-center gap-2 text-[14px] text-label">
-                    <input
-                      type="checkbox"
-                      checked={cbu.autoUpdate}
-                      onChange={(e) => run((c) => (c.s.settings.integrations.cbu.autoUpdate = e.target.checked), "Saqlandi")}
-                    />
+                    <input type="checkbox" checked={cbu.autoUpdate} onChange={(e) => run("setCbuAuto", [e.target.checked], "Saqlandi")} />
                     Har kuni avtomatik yangilash
                   </label>
                   <div className="mt-3 border-t border-sep pt-3">
@@ -238,7 +274,7 @@ export function Integrations() {
                         className="!py-1.5"
                       />
                       <Button
-                        onClick={() => run((c) => act.setUsdMarkup(c, Number(markup)), "Ustama saqlandi")}
+                        onClick={() => run("setUsdMarkup", [Number(markup)], "Ustama saqlandi")}
                         disabled={markup === "" || Number(markup) === (state.settings.usdMarkupPct ?? 2)}
                       >
                         Saqlash
@@ -259,7 +295,7 @@ export function Integrations() {
                 {tg.enabled && tg.botToken ? (
                   <Badge tone="green">Ishlayapti</Badge>
                 ) : tg.enabled ? (
-                  <Badge tone="gray">Demo (token yo'q)</Badge>
+                  <Badge tone="gray">{SERVER_MODE ? "Token kiritilmagan" : "Demo (token yo'q)"}</Badge>
                 ) : (
                   <Badge tone="red">O'chirilgan</Badge>
                 )}

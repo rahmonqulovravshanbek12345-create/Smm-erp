@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Card, CardHeader, Input, PageHeader, Progress } from "../../components/ui";
-import * as act from "../../lib/actions";
 import { fmtMonth, monthKey } from "../../lib/dates";
 import { pnl } from "../../lib/finance";
 import { canEditFinance } from "../../lib/permissions";
@@ -63,7 +62,7 @@ export function Budget() {
                         step={1000000}
                         defaultValue={p || ""}
                         key={`${month}-${l.id}`}
-                        onBlur={(e) => run((c) => act.setBudget(c, month, l.id as BudgetLine["line"], Number(e.target.value) || 0), "Reja saqlandi")}
+                        onBlur={(e) => run("setBudget", [month, l.id as BudgetLine["line"], Number(e.target.value) || 0], "Reja saqlandi")}
                         className="!ml-auto !w-36 !py-1 text-right !text-[13px]"
                       />
                     ) : (

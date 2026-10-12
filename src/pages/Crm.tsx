@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { ExportButton } from "../components/ExportButton";
 import { ProjectFormModal, defaultService } from "../components/ProjectForm";
 import { A, Badge, Banner, Button, Field, Input, Modal, PageHeader, Select, Textarea, navigate, userOptions } from "../components/ui";
-import * as act from "../lib/actions";
 import { diffDays, fmtDate, fmtDateShort, fmtDateTime, fmtMoney, relDays } from "../lib/dates";
 import { LEAD_SOURCES, LEAD_STAGES, SERVICES, leadStageMeta } from "../lib/labels";
 import { serviceKindOf } from "../lib/services";
@@ -38,7 +37,7 @@ export function Crm() {
     if (!l || l.stage === stage || !editable) return;
     if (l.stage === "contract") return;
     if (["meeting", "unfit", "lowquality", "contract"].includes(stage)) setPending({ leadId, stage });
-    else run((c) => act.moveLead(c, leadId, stage), `Bosqich: ${leadStageMeta(stage).label}`);
+    else run("moveLead", [leadId, stage], `Bosqich: ${leadStageMeta(stage).label}`);
   };
 
   return (
@@ -185,15 +184,16 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
 
   const save = () => {
     const ok = run(
-      (c) =>
-        act.saveLead(c, {
+      "saveLead",
+      [
+        {
           ...f,
           id: lead?.id,
           nextContactDate: f.nextContactDate || undefined,
           meeting: lead?.meeting,
           rejectReason: lead?.rejectReason,
-          projectId: lead?.projectId,
-        }),
+        },
+      ],
       lead ? "Saqlandi" : "Lid qo'shildi",
     );
     if (ok) onClose();
@@ -347,7 +347,7 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
                 <Input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} className="!w-40" title="Keyingi aloqa sanasi" />
                 <Button
                   onClick={() => {
-                    if (run((c) => act.addContact(c, lead.id, contact, nextDate), "Aloqa yozildi")) {
+                    if (run("addContact", [lead.id, contact, nextDate], "Aloqa yozildi")) {
                       setContact("");
                       set("nextContactDate", nextDate);
                     }
@@ -408,13 +408,10 @@ function StageDialog({ pending, onClose }: { pending: NonNullable<Pending>; onCl
         }}
         onClose={onClose}
         onSubmit={(input) => {
-          let id = "";
-          const ok = run((c) => {
-            id = act.createProject(c, input, lead.id);
-          }, "Loyiha kartasi yaratildi, moliyaga oldindan to'lov uchun xabar ketdi");
-          if (ok) {
+          const r = run("createProject", [input, lead.id], "Loyiha kartasi yaratildi, moliyaga oldindan to'lov uchun xabar ketdi");
+          if (r) {
             onClose();
-            navigate(`/loyiha/${id}`);
+            navigate(`/loyiha/${r.value}`);
           }
         }}
       />
@@ -424,7 +421,8 @@ function StageDialog({ pending, onClose }: { pending: NonNullable<Pending>; onCl
   const isMeeting = pending.stage === "meeting";
   const submit = () => {
     const ok = run(
-      (c) => act.moveLead(c, lead.id, pending.stage, isMeeting ? { meeting } : { reason }),
+      "moveLead",
+      [lead.id, pending.stage, isMeeting ? { meeting } : { reason }],
       isMeeting ? "Uchrashuv belgilandi — marketologga bildirishnoma ketdi" : "Bosqich o'zgartirildi",
     );
     if (ok) onClose();

@@ -1,8 +1,10 @@
-# SMM agentlik ERP — MVP demo
+# SMM agentlik ERP
 
-Mijozga ko'rsatish uchun interaktiv demo: lid kelganidan oylik hisobot va to'lovgacha bo'lgan
-butun jarayon bitta tizimda. Server kerak emas — natija bitta `index.html` fayl, ma'lumotlar
-brauzerda (localStorage) saqlanadi va namunaviy ma'lumotlar bilan to'ldirilgan.
+Lid kelganidan oylik hisobot va to'lovgacha bo'lgan butun jarayon bitta tizimda. Ikki ko'rinishda yig'iladi:
+
+- **Haqiqiy tizim (server)** — `npm run build:server` + `server/`: PostgreSQL bazasi, login/parol va 2FA, har bir xodimga
+  faqat ruxsat etilgan ma'lumot, barcha amallar serverda tekshiriladi. Serverga o'rnatish: [deploy/README.md](deploy/README.md).
+- **Demo** — `npm run build`: server kerak emas, bitta `index.html`, ma'lumotlar brauzerda (namunaviy ma'lumotlar bilan).
 
 ## Nimalar bor
 
@@ -51,6 +53,26 @@ npm run dev      # http://localhost:5173
 npm run build    # dist/index.html — bitta mustaqil fayl
 npm run preview  # build'ni GitHub Pages kabi /Smm-erp/ prefiksi ostida ochadi: http://127.0.0.1:4173/Smm-erp/
 ```
+
+## Serverli tizim (ishlab chiqish)
+
+```bash
+npm ci && npm ci --prefix server
+npm run build:server                 # dist-server/index.html (kirish sahifasi bilan)
+(cd server && node build.mjs)        # server/dist/server.mjs — bitta fayl, serverda faqat Node.js kerak
+scripts/package-release.sh           # release/smm-erp.tar.gz — serverga o'rnatiladigan paket
+```
+
+Arxitektura: holat bitta JSON hujjat (PostgreSQL), har bir o'zgarish nomli amal (`src/lib/registry.ts`) —
+server argumentlarni tekshiradi (`server/src/schemas.ts`), huquqni tekshiradi (`src/lib/action-rules.ts`),
+amalni bajaradi va xodimga faqat ruxsat etilgan qismini qaytaradi (`src/lib/redact.ts`).
+
+| Buyruq                                            | Nima tekshiradi                                                                                    |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `npx vitest run --config server/vitest.config.ts` | Kirish, bloklash, 2FA, sessiya, CSRF, huquqlar, ma'lumotni saralash, argumentlar, parallel amallar |
+| `npm run e2e:server`                              | Barcha brauzer testlari haqiqiy server va baza orqali (har xodim login/parol bilan)                |
+
+Testlar uchun PostgreSQL: `TEST_DATABASE_URL` (standart `postgres://erp:erptest@127.0.0.1:55432/erp_test`).
 
 ## Sifat nazorati
 

@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
-import { horizontalOverflow, openAs, settle, watch } from "./helpers";
+import { expect, test } from "./fixtures";
+import { horizontalOverflow, openAs, settle, watch, SERVER } from "./helpers";
 
 const PAGES = [
   "/",
@@ -74,7 +74,8 @@ test("hujjat tili va kodirovkasi", async ({ page }) => {
   await page.goto("./");
   expect(await page.getAttribute("html", "lang")).toBe("uz");
   expect(await page.evaluate(() => document.characterSet)).toBe("UTF-8");
-  await expect(page.locator("main")).toContainText("o'");
+  // Serverli tizimda birinchi ekran — kirish sahifasi
+  await expect(page.locator("main")).toContainText(SERVER ? "Tizimga kirish" : "o'");
 });
 
 test.describe("qorong'i rejim", () => {

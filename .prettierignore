@@ -3,3 +3,8 @@ node_modules
 package-lock.json
 playwright-report
 test-results
+dist-server
+server/dist
+server/node_modules
+server/package-lock.json
+release

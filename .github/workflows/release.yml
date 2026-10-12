@@ -1,0 +1,64 @@
+name: Server versiyasi
+
+# main'ga har birlashtirishda: barcha testlar → server paketi → GitHub Release (serverdagi `sudo smm-erp update` shuni oladi)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erptest
+          POSTGRES_DB: erp_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://erp:erptest@127.0.0.1:5432/erp_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix server
+      - name: Type-check, lint, format, unit testlar
+        run: npm run check
+      - name: Server type-check
+        run: npx tsc --noEmit -p server/tsconfig.json
+      - name: Server testlari (kirish, huquqlar, hujumlar)
+        run: npx vitest run --config server/vitest.config.ts
+      - name: Yig'ish
+        run: |
+          npm run build:server
+          (cd server && node build.mjs)
+          scripts/package-release.sh
+      - name: Serverli e2e testlar
+        run: |
+          npx playwright install --with-deps chromium
+          npm run e2e:server
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(cat release/smm-erp/VERSION)
+          gh release create "v$VER" release/smm-erp.tar.gz release/smm-erp.tar.gz.sha256 release/install.sh \
+            --title "Versiya $VER" --latest \
+            --notes "Serverda yangilash: \`sudo smm-erp update\`. Birinchi o'rnatish: install.sh (README)."

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Icon } from "../../components/icons";
 import { A, Avatar, Badge, Button, Card, CardHeader, Empty, Input, PageHeader, Select, Stat, Tabs } from "../../components/ui";
-import * as act from "../../lib/actions";
 import { fmtDate, fmtMoney, fmtMonth, monthKey, shiftMonthKey } from "../../lib/dates";
 import { ACCRUAL_KIND_LABELS, WORK_LABELS, employeeBalance, employeeLedger, payrollSheet, payrollStaff, profileOf, txUZS } from "../../lib/finance";
 import { ROLE_LABELS } from "../../lib/labels";
@@ -197,7 +196,7 @@ export function AccrualTable({
             {sel.length ? "Tanlovni bekor qilish" : `Tasdiqlanmaganlarni tanlash (${pending.length})`}
           </Button>
           {sel.length > 0 && (
-            <Button size="sm" variant="primary" onClick={() => run((c) => act.approveAccruals(c, sel), `${sel.length} ta tasdiqlandi`) && setSel([])}>
+            <Button size="sm" variant="primary" onClick={() => run("approveAccruals", [sel], `${sel.length} ta tasdiqlandi`) && setSel([])}>
               <Icon name="check" size={14} /> Tasdiqlash ({sel.length})
             </Button>
           )}
@@ -229,7 +228,7 @@ export function AccrualTable({
               userName={look.userName(a.userId)}
               onDelete={
                 editable && (a.createdBy !== "system" || a.kind === "piece" || a.kind === "bonus")
-                  ? () => run((c) => act.deleteAccrual(c, a.id), "Hisoblash o'chirildi")
+                  ? () => run("deleteAccrual", [a.id], "Hisoblash o'chirildi")
                   : undefined
               }
             />
@@ -568,7 +567,7 @@ function Rates({ editable }: { editable: boolean }) {
                         size="sm"
                         variant="primary"
                         onClick={() => {
-                          if (run((c) => act.savePayProfile(c, { ...p, userId: u.id }), "Stavkalar saqlandi")) {
+                          if (run("savePayProfile", [{ ...p, userId: u.id }], "Stavkalar saqlandi")) {
                             setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== u.id)));
                           }
                         }}

@@ -1,0 +1,50 @@
+# SMM ERP server (systemd). Cheklangan foydalanuvchi, faqat o'qiladigan tizim, imtiyozlarsiz.
+[Unit]
+Description=SMM ERP server
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=smmerp
+Group=smmerp
+EnvironmentFile=/etc/smm-erp/env
+Environment=NODE_ENV=production
+Environment=TZ=Asia/Tashkent
+WorkingDirectory=/opt/smm-erp/current
+ExecStart=/opt/node/bin/node /opt/smm-erp/current/server.mjs serve
+Restart=always
+RestartSec=3
+TimeoutStopSec=20
+
+# --- Xavfsizlik: buzilgan taqdirda ham tizimga zarar yetkaza olmasin ---
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+UMask=0077
+LimitNOFILE=8192
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
-import { openAs, settle, watch, type UserId } from "./helpers";
+import { type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
+import { openAs, settle, watch, type UserId, SERVER } from "./helpers";
 
 /** Sahifadagi yozuvlar bir-birining ustiga chiqib ketmaganini tekshiradi (ko'rinadigan qismlari bo'yicha). */
 async function overlaps(page: Page): Promise<string[]> {
@@ -173,6 +174,7 @@ test("boshqaruv paneli turli ekran kengligida ham ustma-ust tushmaydi", async ({
 
 /** Juda uzun nomlar (bo'sh joyli va bo'sh joysiz) sahifani gorizontal kengaytirmasligi kerak. */
 test("uzun nomlar: sahifa gorizontal kengaymaydi (390 va 1280)", async ({ page }) => {
+  test.skip(SERVER, "Demo rejimi: nomlar brauzer xotirasiga to'g'ridan-to'g'ri yoziladi");
   test.setTimeout(300_000);
   await watch(page);
   await openAs(page, "u_boss");

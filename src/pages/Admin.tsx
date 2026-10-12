@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Badge, Banner, Button, Card, CardHeader, Field, Input, Modal, PageHeader, Select } from "../components/ui";
-import * as act from "../lib/actions";
-import { fmtMoney } from "../lib/dates";
+import { SERVER_MODE, api } from "../lib/api";
+import { fmtDateTime, fmtMoney } from "../lib/dates";
 import { ROLE_DUTIES, ROLE_LABELS } from "../lib/labels";
 import { ACCESS_LABELS, MATRIX_VIEW, access } from "../lib/permissions";
 import { alertsFor } from "../lib/rules";
 import { userLoad } from "../lib/staff";
-import { newId, useErp } from "../lib/store";
+import { useErp } from "../lib/store";
 import { sendTelegram, telegramText } from "../lib/telegram";
 import type { Role, User } from "../lib/types";
 
@@ -20,8 +20,17 @@ export function Admin() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [archiveId, setArchiveId] = useState<string | null>(null);
   const tg = state.settings.telegram;
+  const logins = useLogins();
+  const [creds, setCreds] = useState<string | null>(null);
 
   const testTelegram = async () => {
+    if (SERVER_MODE) {
+      setTesting(true);
+      await api("/api/integrations/telegram/test", {})
+        .then(() => showToast("Test xabar yuborildi"))
+        .catch((e: Error) => showToast(`⚠ ${e.message}`));
+      return setTesting(false);
+    }
     const chatId = me.telegramChatId?.trim();
     if (!tg.botToken.trim() || !chatId) {
       showToast("⚠ Bot tokeni va o'zingizning chat ID'ingizni kiriting");
@@ -36,14 +45,16 @@ export function Admin() {
   const setChatForAll = () => {
     const id = sharedChat.trim();
     if (!id) return showToast("⚠ Chat ID kiriting");
-    run((c) => {
-      for (const u of c.s.users) u.telegramChatId = id;
-      c.log("Barcha xodimlarga bitta Telegram chat ID qo'yildi (demo)", "/admin");
-    }, `Chat ID ${state.users.length} ta xodimga qo'yildi`);
+    run("setChatIdForAll", [id], `Chat ID ${state.users.length} ta xodimga qo'yildi`);
   };
 
   // Haqiqiy tizimda server har kuni ertalab yuboradi; demo'da tugma bilan ko'rsatiladi.
-  const sendDigest = () => {
+  const sendDigest = async () => {
+    if (SERVER_MODE) {
+      return api<{ sent: number }>("/api/integrations/telegram/digest", {})
+        .then((r) => showToast(r.sent ? `${r.sent} ta xodimga eslatma yuborilmoqda` : "Chat ID kiritilgan xodimlarda eslatma yo'q"))
+        .catch((e: Error) => showToast(`⚠ ${e.message}`));
+    }
     const token = tg.botToken.trim();
     if (!tg.enabled || !token) return showToast("⚠ Avval Telegram'ni yoqing va bot tokenini kiriting");
     let sent = 0;
@@ -67,10 +78,11 @@ export function Admin() {
         <Card className="xl:col-span-2">
           <CardHeader title="Foydalanuvchilar" sub="Telegram chat ID — xodim botga /start bosgandan keyin @userinfobot orqali olinadi" />
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className={`w-full ${SERVER_MODE ? "min-w-[920px]" : "min-w-[720px]"} text-sm`}>
               <thead className="text-left text-xs text-label2">
                 <tr>
                   <th className="px-4 py-2 font-medium">Ism</th>
+                  {SERVER_MODE && <th className="px-4 py-2 font-medium">Kirish</th>}
                   <th className="px-4 py-2 font-medium">Rol</th>
                   <th className="px-4 py-2 font-medium">Telegram chat ID</th>
                   <th className="px-4 py-2 font-medium">Holat</th>
@@ -81,20 +93,17 @@ export function Admin() {
                 {state.users.map((u) => (
                   <tr key={u.id}>
                     <td className="px-4 py-2 text-label">{u.name}</td>
+                    {SERVER_MODE && (
+                      <td className="px-4 py-2">
+                        <LoginCell info={logins.list?.find((l) => l.userId === u.id)} active={u.active} isMe={u.id === me.id} onGive={() => setCreds(u.id)} />
+                      </td>
+                    )}
                     <td className="px-4 py-2">
                       <Select
                         aria-label={`${u.name}: rol`}
                         value={u.role}
                         disabled={u.id === me.id}
-                        onChange={(e) =>
-                          run((c) => {
-                            const x = c.s.users.find((y) => y.id === u.id);
-                            if (x?.role === "rahbar" && e.target.value !== "rahbar" && c.s.users.filter((y) => y.role === "rahbar" && y.active).length <= 1)
-                              throw new Error("Oxirgi faol rahbarning rolini o'zgartirib bo'lmaydi");
-                            if (x) x.role = e.target.value as Role;
-                            c.log(`${u.name}: rol → ${ROLE_LABELS[e.target.value as Role]}`, "/admin");
-                          }, "Rol o'zgartirildi")
-                        }
+                        onChange={(e) => run("setUserRole", [u.id, e.target.value as Role], "Rol o'zgartirildi")}
                         options={ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
                         className="!w-44 !py-1 !text-xs"
                       />
@@ -105,13 +114,7 @@ export function Admin() {
                         defaultValue={u.telegramChatId ?? ""}
                         aria-label={`${u.name}: Telegram chat ID`}
                         placeholder="masalan 123456789"
-                        onBlur={(e) =>
-                          e.target.value !== (u.telegramChatId ?? "") &&
-                          run((c) => {
-                            const x = c.s.users.find((y) => y.id === u.id);
-                            if (x) x.telegramChatId = e.target.value.trim() || undefined;
-                          }, "Chat ID saqlandi")
-                        }
+                        onBlur={(e) => e.target.value !== (u.telegramChatId ?? "") && run("setUserChatId", [u.id, e.target.value], "Chat ID saqlandi")}
                         className="!w-44 !py-1 !text-xs"
                       />
                     </td>
@@ -120,15 +123,17 @@ export function Admin() {
                     </td>
                     <td className="px-4 py-2">
                       {u.active ? (
-                        <Button size="sm" disabled={u.id === me.id} onClick={() => setArchiveId(u.id)} aria-label={`${u.name}: arxivlash`}>
+                        <Button
+                          size="sm"
+                          className="whitespace-nowrap"
+                          disabled={u.id === me.id}
+                          onClick={() => setArchiveId(u.id)}
+                          aria-label={`${u.name}: arxivlash`}
+                        >
                           Arxivlash
                         </Button>
                       ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => run((c) => act.restoreUser(c, u.id), `${u.name} arxivdan qaytarildi`)}
-                          aria-label={`${u.name}: qaytarish`}
-                        >
+                        <Button size="sm" onClick={() => run("restoreUser", [u.id], `${u.name} arxivdan qaytarildi`)} aria-label={`${u.name}: qaytarish`}>
                           Qaytarish
                         </Button>
                       )}
@@ -153,12 +158,13 @@ export function Admin() {
             <Button
               variant="primary"
               disabled={!nu.name.trim()}
-              onClick={() =>
-                run((c) => {
-                  c.s.users.push({ id: newId("u"), name: nu.name.trim(), role: nu.role, active: true, hiredAt: c.today });
-                  c.log(`Yangi xodim: ${nu.name.trim()} (${ROLE_LABELS[nu.role]})`, "/admin");
-                }, "Xodim qo'shildi") && setNu({ ...nu, name: "" })
-              }
+              onClick={() => {
+                const r = run("addUser", [{ name: nu.name, role: nu.role }], "Xodim qo'shildi");
+                if (!r) return;
+                setNu({ ...nu, name: "" });
+                // Serverli tizimda — darhol login va vaqtinchalik parol berish
+                if (SERVER_MODE) setCreds(r.value);
+              }}
             >
               Qo'shish
             </Button>
@@ -169,48 +175,47 @@ export function Admin() {
           <CardHeader title="Telegram bot" sub="Bildirishnomalar tizim ichida va Telegram orqali" />
           <div className="space-y-3 p-4">
             <label className="flex items-center gap-2 text-sm text-label">
-              <input
-                type="checkbox"
-                checked={tg.enabled}
-                onChange={(e) =>
-                  run((c) => {
-                    c.s.settings.telegram.enabled = e.target.checked;
-                  }, "Saqlandi")
-                }
-              />
+              <input type="checkbox" checked={tg.enabled} onChange={(e) => run("setTelegramEnabled", [e.target.checked], "Saqlandi")} />
               Telegram bildirishnomalarini yoqish
             </label>
-            <Field label="Bot tokeni (@BotFather'dan)" hint="Bo'sh qoldirilsa, xabarlar «demo» rejimida faqat tizimda ko'rsatiladi">
+            <Field
+              label="Bot tokeni (@BotFather'dan)"
+              hint={
+                SERVER_MODE
+                  ? "Token serverda saqlanadi, hech kimga ko'rsatilmaydi (faqat oxirgi 4 belgisi)"
+                  : "Bo'sh qoldirilsa, xabarlar «demo» rejimida faqat tizimda ko'rsatiladi"
+              }
+            >
               <Input
                 type="password"
                 defaultValue={tg.botToken}
                 placeholder="123456:ABC-DEF…"
-                onBlur={(e) =>
-                  run((c) => {
-                    c.s.settings.telegram.botToken = e.target.value.trim();
-                  }, "Token saqlandi")
-                }
+                onBlur={(e) => e.target.value.trim() !== tg.botToken && run("setTelegramToken", [e.target.value], "Token saqlandi")}
               />
             </Field>
-            <Banner tone="amber">
-              Demo versiyada token faqat shu brauzerda saqlanadi. Haqiqiy tizimda bot serverda ishlaydi va token hech kimga ko'rinmaydi.
-            </Banner>
+            {!SERVER_MODE && (
+              <Banner tone="amber">
+                Demo versiyada token faqat shu brauzerda saqlanadi. Haqiqiy tizimda bot serverda ishlaydi va token hech kimga ko'rinmaydi.
+              </Banner>
+            )}
             <ol className="list-decimal space-y-1 pl-5 text-xs text-label2">
               <li>@BotFather'da /newbot buyrug'i bilan bot yarating va tokenni yuqoriga kiriting.</li>
               <li>Botingizni topib /start bosing (bot faqat /start bosgan odamga yoza oladi).</li>
               <li>Chat ID'ingizni @userinfobot'dan oling va jadvalga yoki pastdagi maydonga yozing.</li>
             </ol>
-            <div className="rounded-[14px] bg-fill p-3">
-              <div className="text-[13px] font-semibold text-label">Demo uchun: hamma xabar bitta Telegram'ga</div>
-              <p className="mt-0.5 text-xs text-label2">
-                Barcha xodimlarga bitta chat ID qo'yiladi. Har xabarda kimga ekanligi yoziladi (👤 Ism · Rol). Guruh ID'si (-100… bilan boshlanadi) ham bo'ladi
-                — botni guruhga qo'shing.
-              </p>
-              <div className="mt-2 flex gap-2">
-                <Input value={sharedChat} onChange={(e) => setSharedChat(e.target.value)} placeholder="masalan 123456789" className="!py-1.5 !text-[13px]" />
-                <Button onClick={setChatForAll}>Hammaga qo'yish</Button>
+            {!SERVER_MODE && (
+              <div className="rounded-[14px] bg-fill p-3">
+                <div className="text-[13px] font-semibold text-label">Demo uchun: hamma xabar bitta Telegram'ga</div>
+                <p className="mt-0.5 text-xs text-label2">
+                  Barcha xodimlarga bitta chat ID qo'yiladi. Har xabarda kimga ekanligi yoziladi (👤 Ism · Rol). Guruh ID'si (-100… bilan boshlanadi) ham
+                  bo'ladi — botni guruhga qo'shing.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Input value={sharedChat} onChange={(e) => setSharedChat(e.target.value)} placeholder="masalan 123456789" className="!py-1.5 !text-[13px]" />
+                  <Button onClick={setChatForAll}>Hammaga qo'yish</Button>
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex flex-wrap gap-2">
               <Button onClick={testTelegram} disabled={testing}>
                 {testing ? "Yuborilmoqda…" : "Menga test xabar yuborish"}
@@ -218,8 +223,8 @@ export function Admin() {
               <Button onClick={sendDigest}>Bugungi eslatmalarni yuborish</Button>
             </div>
             <p className="text-xs text-label3">
-              Eslatmalar: deadline, kechikkan ishlar, ertangi syomka, qarzlar, to'lov muddati, qayta aloqa. Haqiqiy tizimda har kuni ertalab avtomatik
-              yuboriladi.
+              Eslatmalar: deadline, kechikkan ishlar, ertangi syomka, qarzlar, to'lov muddati, qayta aloqa.{" "}
+              {SERVER_MODE ? "Har kuni ertalab 8:45 da (dushanba–shanba) avtomatik yuboriladi." : "Haqiqiy tizimda har kuni ertalab avtomatik yuboriladi."}
             </p>
           </div>
         </Card>
@@ -231,9 +236,7 @@ export function Admin() {
               <Input
                 defaultValue={state.settings.companyName}
                 onBlur={(e) =>
-                  run((c) => {
-                    c.s.settings.companyName = e.target.value.trim() || c.s.settings.companyName;
-                  }, "Saqlandi")
+                  e.target.value.trim() && e.target.value.trim() !== state.settings.companyName && run("setCompanyName", [e.target.value], "Saqlandi")
                 }
               />
             </Field>
@@ -252,12 +255,7 @@ export function Admin() {
                 <Field key={k} label={label} className={k === "address" ? "sm:col-span-2" : ""}>
                   <Input
                     defaultValue={state.settings.requisites[k]}
-                    onBlur={(e) =>
-                      e.target.value !== state.settings.requisites[k] &&
-                      run((c) => {
-                        c.s.settings.requisites[k] = e.target.value.trim();
-                      }, "Rekvizit saqlandi")
-                    }
+                    onBlur={(e) => e.target.value !== state.settings.requisites[k] && run("setRequisite", [k, e.target.value], "Rekvizit saqlandi")}
                   />
                 </Field>
               ))}
@@ -269,9 +267,7 @@ export function Admin() {
                   type="number"
                   defaultValue={state.settings.usdRate}
                   onBlur={(e) =>
-                    run((c) => {
-                      c.s.settings.usdRate = Math.max(1, Number(e.target.value) || c.s.settings.usdRate);
-                    }, "Kurs saqlandi")
+                    Number(e.target.value) !== state.settings.usdRate && run("setUsdRate", [Number(e.target.value), today, "manual"], "Kurs saqlandi")
                   }
                 />
               </Field>
@@ -281,11 +277,7 @@ export function Admin() {
                   min={1}
                   max={28}
                   defaultValue={state.settings.payday}
-                  onBlur={(e) =>
-                    run((c) => {
-                      c.s.settings.payday = Math.min(28, Math.max(1, Number(e.target.value) || 10));
-                    }, "Saqlandi")
-                  }
+                  onBlur={(e) => Number(e.target.value) !== state.settings.payday && run("setPayday", [Number(e.target.value)], "Saqlandi")}
                 />
               </Field>
               <Field label="Kechikish jarimasi, %" hint="0 — o'chirilgan">
@@ -294,42 +286,51 @@ export function Admin() {
                   min={0}
                   max={100}
                   defaultValue={state.settings.latePenaltyPct}
-                  onBlur={(e) =>
-                    run((c) => {
-                      c.s.settings.latePenaltyPct = Math.min(100, Math.max(0, Number(e.target.value) || 0));
-                    }, "Saqlandi")
-                  }
+                  onBlur={(e) => Number(e.target.value) !== state.settings.latePenaltyPct && run("setLatePenalty", [Number(e.target.value)], "Saqlandi")}
                 />
               </Field>
             </div>
             <p className="text-[12px] text-label3">Xodimlar stavkalari: Moliya → Ish haqi → Stavkalar.</p>
-            <div className="border-t border-sep pt-4">
-              <div className="mb-1 text-sm text-label">Demo ma'lumotlarni tiklash</div>
-              <p className="mb-2 text-xs text-label2">
-                Mijozga ko'rsatishdan oldin barcha o'zgarishlarni o'chirib, boshlang'ich holatga qaytaradi. Telegram sozlamalari saqlanib qoladi.
-              </p>
-              {confirmReset ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-red">Barcha o'zgarishlar o'chiriladi.</span>
-                  <Button
-                    variant="danger"
-                    onClick={() => {
-                      reset();
-                      setConfirmReset(false);
-                    }}
-                  >
-                    Ha, tiklash
+            {SERVER_MODE ? (
+              <div className="border-t border-sep pt-4">
+                <div className="mb-1 text-sm text-label">Zaxira nusxa</div>
+                <p className="mb-2 text-xs text-label2">
+                  Server har kecha o'zi zaxira oladi. Qo'shimcha ishonch uchun barcha ma'lumotni faylga yuklab, xavfsiz joyda saqlab qo'yishingiz mumkin
+                  (tokenlarsiz). Bu faylni begona odamga bermang — unda moliya va oyliklar bor.
+                </p>
+                <a href="/api/admin/export" download className="inline-flex h-10 items-center rounded-full bg-fill px-4 text-[15px] font-semibold text-label">
+                  Zaxira nusxani yuklab olish
+                </a>
+              </div>
+            ) : (
+              <div className="border-t border-sep pt-4">
+                <div className="mb-1 text-sm text-label">Demo ma'lumotlarni tiklash</div>
+                <p className="mb-2 text-xs text-label2">
+                  Mijozga ko'rsatishdan oldin barcha o'zgarishlarni o'chirib, boshlang'ich holatga qaytaradi. Telegram sozlamalari saqlanib qoladi.
+                </p>
+                {confirmReset ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-red">Barcha o'zgarishlar o'chiriladi.</span>
+                    <Button
+                      variant="danger"
+                      onClick={() => {
+                        reset();
+                        setConfirmReset(false);
+                      }}
+                    >
+                      Ha, tiklash
+                    </Button>
+                    <Button variant="ghost" onClick={() => setConfirmReset(false)}>
+                      Bekor qilish
+                    </Button>
+                  </div>
+                ) : (
+                  <Button variant="danger" onClick={() => setConfirmReset(true)}>
+                    Demo'ni qayta tiklash
                   </Button>
-                  <Button variant="ghost" onClick={() => setConfirmReset(false)}>
-                    Bekor qilish
-                  </Button>
-                </div>
-              ) : (
-                <Button variant="danger" onClick={() => setConfirmReset(true)}>
-                  Demo'ni qayta tiklash
-                </Button>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </Card>
 
@@ -366,7 +367,9 @@ export function Admin() {
           </div>
         </Card>
       </div>
+      {SERVER_MODE && <SecurityLog />}
       <ArchiveModal userId={archiveId} onClose={() => setArchiveId(null)} />
+      {creds && <CredentialsModal userId={creds} onClose={() => setCreds(null)} onSaved={logins.reload} />}
     </>
   );
 }
@@ -387,7 +390,7 @@ function ArchiveBody({ u, onClose }: { u: User; onClose: () => void }) {
   const hasWork = load.projects.length > 0 || load.openTasks.length > 0;
   const save = () => {
     const to = peers.find((x) => x.id === rep);
-    if (run((c) => act.archiveUser(c, u.id, rep || undefined), to ? `${u.name} arxivlandi — ishlari ${to.name}ga o'tdi` : `${u.name} arxivlandi`)) onClose();
+    if (run("archiveUser", [u.id, rep || undefined], to ? `${u.name} arxivlandi — ishlari ${to.name}ga o'tdi` : `${u.name} arxivlandi`)) onClose();
   };
   return (
     <Modal
@@ -431,5 +434,258 @@ function ArchiveBody({ u, onClose }: { u: User; onClose: () => void }) {
         {!warn && <Banner tone="green">Bog'langan ish, qarz yoki loyiha yo'q.</Banner>}
       </div>
     </Modal>
+  );
+}
+
+// ---------- Serverli tizim: kirish ma'lumotlari va xavfsizlik jurnali ----------
+
+interface LoginInfo {
+  userId: string;
+  login: string;
+  mustChange: boolean;
+  has2fa: boolean;
+  lastLoginAt: string | null;
+  sessions: number;
+  locked: boolean;
+}
+
+function useLogins() {
+  const [list, setList] = useState<LoginInfo[] | null>(null);
+  const reload = useCallback(() => {
+    if (!SERVER_MODE) return;
+    void api<{ logins: LoginInfo[] }>("/api/admin/logins")
+      .then((r) => setList(r.logins))
+      .catch(() => setList([]));
+  }, []);
+  useEffect(reload, [reload]);
+  return { list, reload };
+}
+
+function LoginCell({ info, active, isMe, onGive }: { info?: LoginInfo; active: boolean; isMe: boolean; onGive: () => void }) {
+  return (
+    <div className="flex min-w-[180px] flex-col items-start gap-1">
+      {info ? (
+        <>
+          <span className="font-mono text-[13px] text-label">{info.login}</span>
+          <span className="flex flex-wrap gap-1">
+            {info.has2fa && <Badge tone="green">2FA</Badge>}
+            {info.mustChange && <Badge tone="amber">parol almashtirilmagan</Badge>}
+            {info.locked && <Badge tone="red">bloklangan</Badge>}
+            {info.lastLoginAt && <span className="text-[11px] text-label3">{fmtDateTime(info.lastLoginAt)}</span>}
+          </span>
+        </>
+      ) : (
+        <span className="text-[12px] text-label3">login berilmagan</span>
+      )}
+      {active && !isMe && (
+        <Button size="sm" onClick={onGive}>
+          {info ? "Yangi parol" : "Login berish"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** Lotin harflariga o'tkazib, login taklif qiladi: «Aziza Karimova» → «aziza.karimova». */
+const suggestLogin = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/[ʻʼ'`‘’]/g, "")
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .slice(0, 32);
+
+function CredentialsModal({ userId, onClose, onSaved }: { userId: string; onClose: () => void; onSaved: () => void }) {
+  const { state, showToast } = useErp();
+  const u = state.users.find((x) => x.id === userId);
+  const [login, setLogin] = useState(() => suggestLogin(u?.name ?? ""));
+  const [result, setResult] = useState<{ login: string; tempPassword: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [extra, setExtra] = useState(false);
+  if (!u) return null;
+  const save = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      setResult(await api<{ login: string; tempPassword: string }>("/api/admin/credentials", { userId, login }));
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Xatolik");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const adminAct = async (path: string, ok: string) => {
+    await api(path, { userId })
+      .then(() => {
+        showToast(ok);
+        onSaved();
+      })
+      .catch((e: Error) => showToast(`⚠ ${e.message}`));
+  };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`${u.name}: kirish`}
+      footer={
+        result ? (
+          <Button variant="primary" onClick={onClose}>
+            Tayyor
+          </Button>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={onClose}>
+              Bekor qilish
+            </Button>
+            <Button variant="primary" onClick={save} disabled={busy || login.length < 3}>
+              {busy ? "Saqlanmoqda…" : "Vaqtinchalik parol yaratish"}
+            </Button>
+          </>
+        )
+      }
+    >
+      {result ? (
+        <div className="space-y-3 text-[14px] text-label2">
+          <Banner tone="green">Tayyor. Bu ma'lumotni xodimga shaxsan (yoki telefon orqali) ayting — parol faqat hozir ko'rinadi.</Banner>
+          <div className="rounded-[14px] bg-fill p-3 font-mono text-[15px] text-label">
+            <div>
+              Login: <b>{result.login}</b>
+            </div>
+            <div>
+              Parol: <b>{result.tempPassword}</b>
+            </div>
+          </div>
+          <p>Xodim birinchi kirishda o'zining yangi parolini o'rnatadi. Agar u ilgari kirgan bo'lsa — barcha qurilmalaridan chiqarildi.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {error && <Banner tone="red">{error}</Banner>}
+          <Field label="Login" hint="3–32 belgi: lotin harflari, raqam, nuqta, chiziqcha">
+            <Input value={login} onChange={(e) => setLogin(e.target.value.toLowerCase().trim())} autoCapitalize="none" spellCheck={false} />
+          </Field>
+          <p className="text-[13px] text-label2">
+            Tizim xavfsiz vaqtinchalik parol yaratadi. Eski paroli bo'lsa — u ishlamay qoladi va xodim barcha qurilmalardan chiqariladi.
+          </p>
+          <button type="button" className="text-[13px] text-accent" onClick={() => setExtra((v) => !v)}>
+            {extra ? "Yashirish" : "Boshqa amallar…"}
+          </button>
+          {extra && (
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => adminAct("/api/admin/logout-user", "Barcha qurilmalardan chiqarildi")}>
+                Barcha qurilmalardan chiqarish
+              </Button>
+              <Button size="sm" onClick={() => adminAct("/api/admin/reset-2fa", "2FA o'chirildi — keyingi kirishda qayta sozlanadi")}>
+                Telefon yo'qolgan: 2FA ni tiklash
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+interface AuditRow {
+  id: string;
+  at: string;
+  user_id: string | null;
+  ip: string | null;
+  kind: string;
+  action: string | null;
+  ok: boolean;
+  detail: { login?: string; reason?: string; error?: string; newDevice?: boolean } | null;
+}
+
+const AUDIT_LABELS: Record<string, string> = {
+  login: "Kirish",
+  "login-2fa": "2FA kodi",
+  logout: "Chiqish",
+  "password-change": "Parol almashtirildi",
+  "2fa-enable": "2FA yoqildi",
+  "2fa-disable": "2FA o'chirildi",
+  "admin-credentials": "Admin: login/parol berdi",
+  "admin-reset-2fa": "Admin: 2FA tiklandi",
+  "admin-logout-user": "Admin: qurilmalardan chiqardi",
+  "admin-export": "Zaxira yuklab olindi",
+  action: "Amal",
+};
+
+/** Xavfsizlik jurnali: kirishlar, xato urinishlar va rad etilgan amallar (o'chirib bo'lmaydi). */
+function SecurityLog() {
+  const look = useErp();
+  const [rows, setRows] = useState<AuditRow[] | null>(null);
+  const [onlyBad, setOnlyBad] = useState(true);
+  useEffect(() => {
+    void api<{ rows: AuditRow[] }>("/api/admin/audit")
+      .then((r) => setRows(r.rows))
+      .catch(() => setRows([]));
+  }, []);
+  const name = (id: string | null) => (id ? (look.state.users.find((u) => u.id === id)?.name ?? id) : "—");
+  const list = (rows ?? []).filter((r) =>
+    onlyBad ? !r.ok || (r.kind !== "action" && r.kind !== "login") || r.detail?.newDevice : r.kind !== "action" || !r.ok,
+  );
+  return (
+    <Card className="mt-4">
+      <CardHeader
+        title="Xavfsizlik jurnali"
+        sub="Kim, qachon, qayerdan kirdi; noto'g'ri urinishlar va rad etilgan amallar. Bu jurnalni o'zgartirib yoki o'chirib bo'lmaydi."
+        right={
+          <label className="flex items-center gap-2 text-[13px] text-label2">
+            <input type="checkbox" checked={onlyBad} onChange={(e) => setOnlyBad(e.target.checked)} />
+            Faqat muhimlari
+          </label>
+        }
+      />
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-[13px]">
+          <thead className="text-left text-xs text-label2">
+            <tr>
+              <th className="px-4 py-2 font-medium">Vaqt</th>
+              <th className="px-4 py-2 font-medium">Xodim</th>
+              <th className="px-4 py-2 font-medium">Hodisa</th>
+              <th className="px-4 py-2 font-medium">IP</th>
+              <th className="px-4 py-2 font-medium">Natija</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-sep">
+            {rows === null ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-3 text-label2">
+                  Yuklanmoqda…
+                </td>
+              </tr>
+            ) : list.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-3 text-label2">
+                  Hech narsa yo'q
+                </td>
+              </tr>
+            ) : (
+              list.slice(0, 100).map((r) => (
+                <tr key={r.id}>
+                  <td className="whitespace-nowrap px-4 py-2 text-label2">{fmtDateTime(r.at)}</td>
+                  <td className="px-4 py-2 text-label">{r.user_id ? name(r.user_id) : r.detail?.login ? `«${r.detail.login}»` : "—"}</td>
+                  <td className="px-4 py-2 text-label">
+                    {AUDIT_LABELS[r.kind] ?? r.kind}
+                    {r.action ? `: ${r.action}` : ""}
+                    {r.detail?.newDevice ? " (yangi qurilma)" : ""}
+                  </td>
+                  <td className="px-4 py-2 font-mono text-label2">{r.ip ?? "—"}</td>
+                  <td className="px-4 py-2">
+                    {r.ok ? (
+                      <Badge tone="green">ok</Badge>
+                    ) : (
+                      <Badge tone="red">{r.detail?.reason === "locked" ? "bloklangan" : (r.detail?.error ?? "rad etildi")}</Badge>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }

@@ -1,7 +1,8 @@
-import { expect, test } from "@playwright/test";
-import { STORAGE_KEY, openAs, state, watch } from "./helpers";
+import { expect, test } from "./fixtures";
+import { STORAGE_KEY, openAs, state, watch, SERVER } from "./helpers";
 
 test("buzilgan demo ma'lumot oq ekran emas: zaxiraga olinadi va demo qayta ochiladi", async ({ page }) => {
+  test.skip(SERVER, "Demo rejimi: ma'lumot brauzerda (serverli tizimda bu holat bo'lmaydi)");
   await watch(page);
   await page.goto("./");
   await page.evaluate((key) => {
@@ -17,6 +18,7 @@ test("buzilgan demo ma'lumot oq ekran emas: zaxiraga olinadi va demo qayta ochil
 });
 
 test("eski yoki qisman saqlangan ma'lumot (ro'yxatlar yetishmaydi) ilovani yiqitmaydi", async ({ page }) => {
+  test.skip(SERVER, "Demo rejimi: ma'lumot brauzerda (serverli tizimda bu holat bo'lmaydi)");
   const p = await watch(page);
   await page.goto("./");
   await page.evaluate((key) => {
@@ -42,6 +44,7 @@ test("eski yoki qisman saqlangan ma'lumot (ro'yxatlar yetishmaydi) ilovani yiqit
 });
 
 test("ikkita oyna: birida qo'shilgan ma'lumot ikkinchisida yo'qolib ketmaydi", async ({ browser }) => {
+  test.skip(SERVER, "Demo rejimi: oynalar brauzer xotirasi orqali bog'lanadi (serverda — umumiy baza)");
   const ctx = await browser.newContext();
   const a = await ctx.newPage();
   await a.goto("./");
@@ -82,6 +85,7 @@ test("foydalanuvchi kiritgan HTML/skript matn sifatida ko'rsatiladi (XSS yo'q)",
 });
 
 test("javascript: havolasi bosilganda skript ishlamaydi", async ({ page }) => {
+  test.skip(SERVER, "Demo rejimi: ma'lumot brauzerda (serverli tizimda bu holat bo'lmaydi)");
   await watch(page);
   await openAs(page, "u_boss");
   await page.evaluate((key) => {

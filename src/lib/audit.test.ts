@@ -11,7 +11,7 @@ import { serviceFromTariff } from "./tariffs";
 import { hasAds, isRecurring, recurringFee } from "./services";
 import { TODAY, demoState, makeCtx } from "./test-utils";
 import { syncAll } from "./store-sync";
-import type { Ctx } from "./store";
+import type { Ctx } from "./ctx";
 import type { ErpState } from "./types";
 
 import { check } from "./audit-check";

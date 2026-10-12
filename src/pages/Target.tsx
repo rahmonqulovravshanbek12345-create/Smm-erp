@@ -2,17 +2,17 @@ import { useState } from "react";
 import { TaskBadge } from "../components/bits";
 import { TaskModal } from "../components/forms";
 import { A, AmountInput, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, LinkOut, PageHeader, Select } from "../components/ui";
-import * as act from "../lib/actions";
 import { addDays, fmtDate, fmtMoney, fmtNum } from "../lib/dates";
 import { access, canEdit, visibleProjects } from "../lib/permissions";
 import { isMetaDemo, metaAccountOf, syncMeta } from "../lib/integrations";
 import { targetReportMissing } from "../lib/rules";
+import { SERVER_MODE, api, type StateResponse } from "../lib/api";
 import { useErp, useLookup } from "../lib/store";
 import { AD_CHANNELS, hasAds } from "../lib/services";
 import type { AdChannel } from "../lib/types";
 
 export function Target() {
-  const { state, me, run, today, showToast } = useErp();
+  const { state, me, run, today, showToast, session } = useErp();
   const look = useLookup();
   const own = access(me.role, "target") === "own";
   const editable = canEdit(me.role, "target");
@@ -44,25 +44,36 @@ export function Target() {
   const [syncing, setSyncing] = useState(false);
   const pullMeta = async () => {
     setSyncing(true);
+    if (SERVER_MODE) {
+      try {
+        const r = await api<StateResponse & { count: number; errors: string[] }>("/api/integrations/meta/sync", { projectId, days: [f.date] });
+        session?.adopt(r);
+        showToast(r.errors.length ? `⚠ ${r.errors.join("; ")}` : r.count ? "Meta Ads'dan olindi" : "Meta'da bu kun uchun ma'lumot yo'q");
+      } catch (e) {
+        showToast(`⚠ ${e instanceof Error ? e.message : "Xatolik"}`);
+      } finally {
+        setSyncing(false);
+      }
+      return;
+    }
     const res = await syncMeta(state, today, { projectId, days: [f.date] });
     setSyncing(false);
     const err = res.find((r) => r.error)?.error;
     if (err) {
-      run((c) => act.applyMetaSync(c, res));
+      run("applyMetaSync", [res]);
       showToast(`⚠ ${err}`);
       return;
     }
-    let n = 0;
-    run((c) => {
-      n = act.applyMetaSync(c, res);
-    });
+    const r = run("applyMetaSync", [res]);
+    const n = r ? r.value : 0;
     showToast(n ? (res[0]?.demo ? "Meta Ads: namunaviy raqamlar olindi (demo rejim)" : "Meta Ads'dan olindi") : "Meta'da bu kun uchun ma'lumot yo'q");
   };
 
   const saveReport = () => {
     const ok = run(
-      (c) =>
-        act.saveTargetReport(c, {
+      "saveTargetReport",
+      [
+        {
           projectId,
           date: f.date,
           spend: Number(f.spend) || 0,
@@ -72,7 +83,8 @@ export function Target() {
           note: f.note,
           channel: channels.length > 1 ? f.channel : undefined,
           source: "manual",
-        }),
+        },
+      ],
       "Kunlik hisobot saqlandi",
     );
     if (ok) setF({ ...f, spend: "", views: "", clicks: "", leads: "", note: "" });
@@ -130,7 +142,7 @@ export function Target() {
                           onChange={(e) => setLaunch({ ...launch, [t.id]: e.target.value })}
                           className="!w-40 !py-1.5 !text-xs"
                         />
-                        <Button size="sm" variant="primary" onClick={() => run((c) => act.launchTarget(c, t.id, launch[t.id] || today), "Reklama yoqildi")}>
+                        <Button size="sm" variant="primary" onClick={() => run("launchTarget", [t.id, launch[t.id] || today], "Reklama yoqildi")}>
                           Reklamani yoqdim
                         </Button>
                       </div>

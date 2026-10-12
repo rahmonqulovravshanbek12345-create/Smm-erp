@@ -1,5 +1,4 @@
 import { useState } from "react";
-import * as act from "../lib/actions";
 import { diffDays, fmtDate, fmtMoney, fmtNum, fmtUsd } from "../lib/dates";
 import { invoiceSettled, invoiceStatus } from "../lib/finance";
 import { canEdit } from "../lib/permissions";
@@ -66,7 +65,7 @@ export function ServicesPanel({ project: p }: { project: Project }) {
           className="!text-red"
           onClick={() =>
             window.confirm(`${serviceLabel(svc.kind)} to'xtatilsinmi? To'lanmagan fakturalari bekor qilinadi.`) &&
-            run((c) => act.cancelService(c, p.id, svc.id), `${serviceLabel(svc.kind)} to'xtatildi`)
+            run("cancelService", [p.id, svc.id], `${serviceLabel(svc.kind)} to'xtatildi`)
           }
         >
           To'xtatish
@@ -207,7 +206,7 @@ export function OneTimeService({ project: p, svc, compact }: { project: Project;
           i < stages.length && (
             <span className="flex flex-wrap justify-end gap-1.5">
               {i > 0 && (
-                <Button size="sm" variant="ghost" onClick={() => run((c) => act.revertServiceStage(c, p.id, svc.id), "Bosqich qayta ochildi")}>
+                <Button size="sm" variant="ghost" onClick={() => run("revertServiceStage", [p.id, svc.id], "Bosqich qayta ochildi")}>
                   Orqaga
                 </Button>
               )}
@@ -217,7 +216,7 @@ export function OneTimeService({ project: p, svc, compact }: { project: Project;
                 disabled={blocked}
                 onClick={() =>
                   (!last || window.confirm("Ish mijozga topshirildimi? Qoldiq faktura chiqadi va daromad tan olinadi.")) &&
-                  run((c) => act.advanceServiceStage(c, p.id, svc.id), last ? "Topshirildi — moliyaga xabar ketdi" : "Bosqich bajarildi")
+                  run("advanceServiceStage", [p.id, svc.id], last ? "Topshirildi — moliyaga xabar ketdi" : "Bosqich bajarildi")
                 }
               >
                 {last ? "✓ Topshirildi" : "Keyingi bosqich →"}
@@ -392,8 +391,7 @@ function AddServiceModal({ project: p, onClose }: { project: Project; onClose: (
             variant="primary"
             disabled={!valid}
             onClick={() =>
-              run((c) => act.addService(c, p.id, svc, { dueDate: due, prorate: Boolean(per) && prorate }), "Xizmat qo'shildi — moliyaga xabar ketdi") &&
-              onClose()
+              run("addService", [p.id, svc, { dueDate: due, prorate: Boolean(per) && prorate }], "Xizmat qo'shildi — moliyaga xabar ketdi") && onClose()
             }
           >
             Qo'shish
@@ -455,7 +453,7 @@ function EditServiceModal({ project: p, svc, onClose }: { project: Project; svc:
     const patch: Partial<ServiceInput> = usd ? { priceUsd: priceUsd ?? 0, price: Math.round((priceUsd ?? 0) * rate) } : { price: Number(price) || 0 };
     if (once) Object.assign(patch, { assigneeId, deadline: deadline || undefined, assigneeFee: Number(fee) || undefined });
     if (svc.kind === "performance") patch.adPct = Math.max(0, Math.min(50, Number(adPct) || 0));
-    if (run((c) => act.updateService(c, p.id, svc.id, patch), "Xizmat shartlari yangilandi")) onClose();
+    if (run("updateService", [p.id, svc.id, patch], "Xizmat shartlari yangilandi")) onClose();
   };
   return (
     <Modal

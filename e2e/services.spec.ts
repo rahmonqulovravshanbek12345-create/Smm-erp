@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
-import { openAs, state, watch } from "./helpers";
+import { type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
+import { openAs, state, watch, setClock } from "./helpers";
 
 const dialog = (page: Page) => page.locator("[role=dialog]");
 
@@ -317,7 +318,7 @@ test("Admin: xodimni arxivlashda ishlari tanlangan xodimga o'tadi", async ({ pag
 });
 
 test("TZ deadline soati o'tsa — o'sha kunning o'zida «Kechikdi» chiqadi", async ({ page }) => {
-  await page.clock.install({ time: new Date("2026-11-03T08:30:00") });
+  await setClock(page, new Date("2026-11-03T08:30:00"), true);
   const p = await watch(page);
   await openAs(page, "u_smm1", "/kontent");
   await page.getByRole("button", { name: "+ Montaj TZ" }).click();
@@ -330,7 +331,7 @@ test("TZ deadline soati o'tsa — o'sha kunning o'zida «Kechikdi» chiqadi", as
   await openAs(page, t.assigneeId, "/montaj");
   const card = page.getByText("Soat bo'yicha kechikish", { exact: true }).first().locator("xpath=ancestor::div[contains(@class,'glass')][1]");
   await expect(card.getByText("Kechikdi")).toHaveCount(0);
-  await page.clock.setSystemTime(new Date("2026-11-03T09:30:00"));
+  await setClock(page, new Date("2026-11-03T09:30:00"));
   await openAs(page, t.assigneeId, "/montaj");
   await expect(
     page.getByText("Soat bo'yicha kechikish", { exact: true }).first().locator("xpath=ancestor::div[contains(@class,'glass')][1]").getByText("Kechikdi"),
