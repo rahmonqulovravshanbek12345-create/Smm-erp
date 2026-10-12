@@ -35,6 +35,7 @@ import {
   stagesFor,
   type ServiceInput,
 } from "./services";
+import { isMasked } from "./redact";
 import { isTaskOpen, lateness, postStage, workBlockedReason } from "./rules";
 import { currentPeriod, periodAt } from "./period";
 import { newId, type Ctx } from "./ctx";
@@ -1197,6 +1198,12 @@ export function applyMetaSync(c: Ctx, results: MetaResult[]): number {
 }
 
 export function saveMetaSettings(c: Ctx, patch: Partial<Omit<Integrations["meta"], "accounts">>) {
+  // Saqlangan token brauzerga «••••» belgisi bilan boradi — u qaytib kelsa, token o'zgarmaydi
+  if (patch.token !== undefined && isMasked(patch.token)) {
+    patch = { ...patch };
+    delete patch.token;
+  }
+  if (patch.token !== undefined) patch = { ...patch, token: patch.token.trim() };
   Object.assign(c.s.settings.integrations.meta, patch);
 }
 

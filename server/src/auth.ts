@@ -1,0 +1,146 @@
+// Kirish: login + parol (+ 2FA), noto'g'ri urinishlarda bloklash, sessiyalar va qurilmalar.
+import { burnPasswordTime, newToken, sha256, verifyPassword, verifyTotp, type Sealer } from "./crypto";
+import type { Db } from "./db";
+
+export const SESSION_DAYS = 30;
+/** Shuncha kun ishlatilmagan sessiya o'chadi. */
+export const IDLE_DAYS = 14;
+const TOTP_STAGE_MIN = 5;
+const MAX_FAILS = 5;
+const LOCK_MIN = 15;
+
+export interface Credential {
+  user_id: string;
+  login: string;
+  pass_hash: string;
+  must_change: boolean;
+  totp_secret: string | null;
+  totp_pending: string | null;
+  totp_enabled: boolean;
+  totp_last_step: string;
+  last_login_at: Date | null;
+}
+
+export interface Session {
+  id: string;
+  user_id: string;
+  stage: "full" | "totp";
+  created_at: Date;
+  last_seen: Date;
+  expires_at: Date;
+}
+
+export const normLogin = (v: string) => v.trim().toLowerCase();
+export const LOGIN_RE = /^[a-z0-9._-]{3,32}$/;
+
+export async function credentialByLogin(db: Db, login: string): Promise<Credential | null> {
+  const { rows } = await db.query<Credential>("SELECT * FROM credentials WHERE login = $1", [normLogin(login)]);
+  return rows[0] ?? null;
+}
+
+export async function credentialByUser(db: Db, userId: string): Promise<Credential | null> {
+  const { rows } = await db.query<Credential>("SELECT * FROM credentials WHERE user_id = $1", [userId]);
+  return rows[0] ?? null;
+}
+
+// ---------- Noto'g'ri urinishlar ----------
+
+/** Bloklangan bo'lsa — necha daqiqa qolgani. */
+export async function lockedFor(db: Db, login: string): Promise<number> {
+  const { rows } = await db.query<{ locked_until: Date | null }>("SELECT locked_until FROM login_attempts WHERE login = $1", [normLogin(login)]);
+  const until = rows[0]?.locked_until;
+  if (!until || until.getTime() <= Date.now()) return 0;
+  return Math.ceil((until.getTime() - Date.now()) / 60_000);
+}
+
+/** Har 5 ta xatodan keyin blok: 15 daqiqa, keyin 30, 60… (24 soatgacha). */
+export async function recordFailure(db: Db, login: string): Promise<void> {
+  await db.query(
+    `INSERT INTO login_attempts (login, failed, updated_at) VALUES ($1, 1, now())
+     ON CONFLICT (login) DO UPDATE SET failed = login_attempts.failed + 1, updated_at = now(),
+       locked_until = CASE WHEN (login_attempts.failed + 1) % $2 = 0
+         THEN now() + make_interval(mins => LEAST($3 * power(2, (login_attempts.failed + 1) / $2 - 1), 1440)::int)
+         ELSE login_attempts.locked_until END`,
+    [normLogin(login).slice(0, 64), MAX_FAILS, LOCK_MIN],
+  );
+}
+
+export async function clearFailures(db: Db, login: string): Promise<void> {
+  await db.query("DELETE FROM login_attempts WHERE login = $1", [normLogin(login)]);
+}
+
+/** Login va parolni tekshiradi. Login topilmasa ham bir xil vaqt va bir xil javob. */
+export async function checkPassword(db: Db, login: string, password: string): Promise<Credential | null> {
+  const cred = LOGIN_RE.test(normLogin(login)) ? await credentialByLogin(db, login) : null;
+  if (!cred) {
+    await burnPasswordTime(password);
+    return null;
+  }
+  return (await verifyPassword(password, cred.pass_hash)) ? cred : null;
+}
+
+// ---------- Sessiyalar ----------
+
+export async function createSession(db: Db, userId: string, stage: Session["stage"], ip: string, ua: string): Promise<string> {
+  const token = newToken();
+  const minutes = stage === "totp" ? TOTP_STAGE_MIN : SESSION_DAYS * 24 * 60;
+  await db.query("INSERT INTO sessions (id, user_id, stage, expires_at, ip, user_agent) VALUES ($1, $2, $3, now() + make_interval(mins => $4), $5, $6)", [
+    sha256(token),
+    userId,
+    stage,
+    minutes,
+    ip.slice(0, 64),
+    ua.slice(0, 300),
+  ]);
+  return token;
+}
+
+export async function getSession(db: Db, token: string | undefined): Promise<Session | null> {
+  if (!token || token.length > 100) return null;
+  const { rows } = await db.query<Session>("SELECT * FROM sessions WHERE id = $1", [sha256(token)]);
+  const s = rows[0];
+  if (!s) return null;
+  const now = Date.now();
+  if (s.expires_at.getTime() <= now || now - s.last_seen.getTime() > IDLE_DAYS * 86_400_000) {
+    await db.query("DELETE FROM sessions WHERE id = $1", [s.id]);
+    return null;
+  }
+  // Faollik vaqti 5 daqiqada bir marta yangilanadi (har so'rovda bazaga yozmaslik uchun)
+  if (now - s.last_seen.getTime() > 5 * 60_000) await db.query("UPDATE sessions SET last_seen = now() WHERE id = $1", [s.id]);
+  return s;
+}
+
+export async function deleteSession(db: Db, id: string): Promise<void> {
+  await db.query("DELETE FROM sessions WHERE id = $1", [id]);
+}
+
+/** Foydalanuvchining barcha sessiyalari (masalan, parol o'zgarganda yoki arxivlanganda). */
+export async function revokeUser(db: Db, userId: string, exceptId?: string): Promise<number> {
+  const r = await db.query("DELETE FROM sessions WHERE user_id = $1 AND id <> $2", [userId, exceptId ?? ""]);
+  return r.rowCount ?? 0;
+}
+
+export async function pruneSessions(db: Db): Promise<void> {
+  await db.query("DELETE FROM sessions WHERE expires_at < now() OR last_seen < now() - make_interval(days => $1)", [IDLE_DAYS]);
+  await db.query("DELETE FROM login_attempts WHERE updated_at < now() - interval '2 days' AND (locked_until IS NULL OR locked_until < now())");
+}
+
+// ---------- 2FA ----------
+
+/** Kodni tekshiradi va qayta ishlatib bo'lmaydigan qiladi. */
+export async function checkTotp(db: Db, sealer: Sealer, cred: Credential, code: string, pending = false): Promise<boolean> {
+  const sealed = pending ? cred.totp_pending : cred.totp_secret;
+  if (!sealed) return false;
+  const step = verifyTotp(sealer.open(sealed), code.replace(/\s/g, ""), Number(cred.totp_last_step));
+  if (step === null) return false;
+  const r = await db.query("UPDATE credentials SET totp_last_step = $2 WHERE user_id = $1 AND totp_last_step < $2", [cred.user_id, step]);
+  return r.rowCount === 1;
+}
+
+// ---------- Qurilmalar ----------
+
+/** Yangi qurilma bo'lsa — true (va eslab qoladi). */
+export async function rememberDevice(db: Db, userId: string, device: string): Promise<boolean> {
+  const r = await db.query("INSERT INTO known_devices (user_id, device) VALUES ($1, $2) ON CONFLICT DO NOTHING", [userId, sha256(device)]);
+  return r.rowCount === 1;
+}

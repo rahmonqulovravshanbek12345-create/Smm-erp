@@ -4,6 +4,7 @@ import { applyMetaSync, logIntegration } from "./actions";
 import { newId, type Ctx } from "./ctx";
 import type { MetaResult } from "./integrations";
 import { ROLE_LABELS } from "./labels";
+import { isMasked } from "./redact";
 import type { Account, Requisites, Role, Vendor } from "./types";
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
@@ -68,6 +69,8 @@ export function setTelegramEnabled(c: Ctx, on: boolean) {
 }
 
 export function setTelegramToken(c: Ctx, token: string) {
+  // Brauzer saqlangan tokenni faqat «••••» belgisi sifatida ko'radi — u qaytib kelsa, token o'zgarmaydi
+  if (isMasked(token)) return;
   const v = token.trim();
   if (v && !/^\d{5,15}:[A-Za-z0-9_-]{20,}$/.test(v)) throw new Error("Bot tokeni noto'g'ri ko'rinadi (masalan 123456:ABC-DEF…)");
   c.s.settings.telegram.botToken = v;
