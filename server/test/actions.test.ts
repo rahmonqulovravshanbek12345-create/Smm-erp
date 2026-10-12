@@ -242,3 +242,95 @@ describe("Amallar va ID'lar", () => {
     expect(b.map((x) => x.amount).sort()).toEqual(Array.from({ length: 30 }, (_, i) => 1000 + i).sort());
   });
 });
+
+describe("Mustaqil tekshiruv topgan hujumlar (tuzatilgan)", () => {
+  it("targetolog hisob davri boshini o'tmishga sura olmaydi (o'tgan oylar uchun fakturalar chiqmaydi)", async () => {
+    await giveLogin(t.db, "u_tg", "bekzod");
+    const tg = await loginAs(t.app, "bekzod");
+    const s = t.store.current().state;
+    const task = s.tasks.find((x) => x.kind === "target" && x.assigneeId === "u_tg")!;
+    const invBefore = s.invoices.length;
+    const r = await action(tg, "launchTarget", [task.id, "2015-01-01"]);
+    expect(r.statusCode).toBe(422);
+    expect((await action(tg, "launchTarget", [task.id, "2026-02-30"])).statusCode).toBe(400);
+    expect(t.store.current().state.invoices.length).toBe(invBefore);
+  });
+
+  it("2FA kodini tanlash: qayta kirib (yoki IP almashtirib) blokni aylanib o'tib bo'lmaydi", async () => {
+    const { totpAt } = await import("../src/crypto");
+    await giveLogin(t.db, "u_op2", "jasur");
+    const owner = await loginAs(t.app, "jasur");
+    const { secret } = (await owner.req("POST", "/api/auth/2fa/setup")).json();
+    expect((await owner.req("POST", "/api/auth/2fa/enable", { code: totpAt(secret, Math.floor(Date.now() / 30_000)) })).statusCode).toBe(200);
+    let last = 0;
+    for (let round = 0; round < 3; round++) {
+      const thief = client(t.app); // har safar yangi IP
+      expect((await thief.req("POST", "/api/auth/login", { login: "jasur", password: "Sinov-parol-2026" })).statusCode).toBeLessThan(500);
+      for (let i = 0; i < 4; i++) last = (await thief.req("POST", "/api/auth/totp", { code: String(200000 + round * 10 + i) })).statusCode;
+    }
+    // 10 ta xatodan keyin login yopiladi — to'g'ri parol bilan ham, yangi IP'dan ham
+    expect(last).toBe(429);
+    expect((await client(t.app).req("POST", "/api/auth/login", { login: "jasur", password: "Sinov-parol-2026" })).statusCode).toBe(429);
+  });
+
+  it("operator lidga boshqa loyihani bog'lab, uning moliyasini ko'ra olmaydi", async () => {
+    await giveLogin(t.db, "u_op1", "dilnoza");
+    const op = await loginAs(t.app, "dilnoza");
+    const s = t.store.current().state;
+    const lead = s.leads.find((l) => l.operatorId === "u_op1")!;
+    const before = (await state(op)).projects.length;
+    const { id, name, phone, source, service, note, operatorId } = lead;
+    const r = await action(op, "saveLead", [{ id, name, phone, source, service, note, operatorId, projectId: "p_mebel" }]);
+    expect(r.statusCode).toBe(400);
+    // Formadan kelgan maydon bo'lsa ham amal uni yozmaydi
+    expect(t.store.current().state.leads.find((l) => l.id === lead.id)!.projectId).toBe(lead.projectId);
+    expect((await state(op)).projects.length).toBe(before);
+  });
+
+  it("montajyor boshqa xodimning ijrochi haqini ko'rmaydi", async () => {
+    const s = await state(mt);
+    const fees = s.projects.flatMap((p) => p.services).filter((x) => x.assigneeFee !== undefined && x.assigneeId !== "u_mt1");
+    expect(fees).toEqual([]);
+  });
+
+  it("tasdiqlanmagan postni joylab, tekshirilmagan ishni qabul qilib, boshqa loyiha postini TZ'ga bog'lab bo'lmaydi", async () => {
+    const s = t.store.current().state;
+    const mine = s.projects.find((p) => p.smmId === "u_smm1" && p.status === "active")!;
+    const plan = s.posts.find((p) => p.projectId === mine.id && p.status === "plan");
+    if (plan) expect((await action(smm, "publishPost", [plan.id])).statusCode).toBe(422);
+    const notReview = s.tasks.find((x) => x.status === "new" && s.projects.find((p) => p.id === x.projectId)?.smmId === "u_smm1");
+    if (notReview) expect((await action(smm, "acceptTask", [notReview.id])).statusCode).toBe(422);
+    const foreignPost = s.posts.find((p) => p.projectId !== mine.id)!;
+    const r = await action(smm, "createTask", [
+      { kind: "montaj", projectId: mine.id, postId: foreignPost.id, assigneeId: "u_mt1", title: "X", brief: "", deadline: "2026-12-01" },
+    ]);
+    expect([403, 422]).toContain(r.statusCode);
+  });
+
+  it("ulkan matn (20 000 belgidan ortiq) qabul qilinmaydi; bir xodim minutiga 120 tadan ko'p amal yubora olmaydi", async () => {
+    const s = t.store.current().state;
+    const mine = s.projects.find((p) => p.smmId === "u_smm1" && p.status === "active")!;
+    const big = await action(smm, "savePost", [
+      {
+        projectId: mine.id,
+        date: "2026-10-10",
+        platforms: ["instagram"],
+        typeId: "ct_video",
+        format: "video",
+        topic: "X",
+        script: "x".repeat(25_000),
+        assigneeId: "u_smm1",
+        forTarget: false,
+      },
+    ]);
+    expect(big.statusCode).toBe(400);
+    await giveLogin(t.db, "u_smm2", "sardor");
+    const spam = await loginAs(t.app, "sardor");
+    const codes: number[] = [];
+    for (let i = 0; i < 125; i++) codes.push((await action(spam, "markAllRead", [])).statusCode);
+    expect(codes.slice(0, 120).every((c) => c === 200)).toBe(true);
+    expect(codes.slice(120).every((c) => c === 429)).toBe(true);
+    // Boshqa xodim (xuddi shu IP'dan) ishlashda davom etadi
+    expect((await action(mol, "markAllRead", [])).statusCode).toBe(200);
+  });
+});

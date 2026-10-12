@@ -58,7 +58,8 @@ describe("Ish haqi", () => {
     const { c } = makeCtx(s, "u_smm1");
     const before = employeeBalance(s, t.assigneeId);
     act.acceptTask(c, t.id);
-    act.acceptTask(c, t.id);
+    // Qayta qabul qilib bo'lmaydi (faqat tekshiruvdagi ish qabul qilinadi) — ishbay ikki marta hisoblanmaydi
+    expect(() => act.acceptTask(c, t.id)).toThrow(/tekshiruvga topshirilmagan/);
     const pay = s.accruals.filter((a) => a.sourceId === `task:${t.id}`);
     const fine = s.accruals.filter((a) => a.sourceId === `late:${t.id}`);
     expect(pay).toHaveLength(1);

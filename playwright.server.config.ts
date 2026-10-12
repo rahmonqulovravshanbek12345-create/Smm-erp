@@ -1,4 +1,7 @@
 import { defineConfig } from "@playwright/test";
+
+// Test kodi ham Toshkent vaqtida: «2026-11-03T08:30:00» — server va brauzer uchun bir xil soat
+process.env.TZ = "Asia/Tashkent";
 import { existsSync } from "node:fs";
 
 // Serverli tizim: haqiqiy server + PostgreSQL. Har test oldidan baza demo holatiga qaytariladi (testlar ketma-ket).

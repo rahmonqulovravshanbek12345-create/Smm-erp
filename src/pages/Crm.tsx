@@ -192,7 +192,6 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
           nextContactDate: f.nextContactDate || undefined,
           meeting: lead?.meeting,
           rejectReason: lead?.rejectReason,
-          projectId: lead?.projectId,
         },
       ],
       lead ? "Saqlandi" : "Lid qo'shildi",

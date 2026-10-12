@@ -68,7 +68,13 @@ async function main() {
     const offset = Number.isFinite(t) ? t - Date.now() : 0;
     // Test boshida soat o'rnatilsa — demo kabi, ma'lumotlar o'sha sanaga nisbatan qayta quriladi
     if (body.reseed) await reset(offset);
-    else setClockOffset(offset);
+    else {
+      setClockOffset(offset);
+      // Haqiqiy serverda jadval (har 30 daqiqada) bajaradigan ish: yangi davr fakturalari va ish haqi
+      await store.system((s) => {
+        syncAll(s, todayISO());
+      });
+    }
     return { ok: true, today: todayISO() };
   });
   // To'liq (saralanmagan) holat — testlar server haqiqatini tekshirishi uchun

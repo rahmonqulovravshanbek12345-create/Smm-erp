@@ -39,14 +39,20 @@ export function redactFor(full: ErpState, me: User): ErpState {
   const projects = visibleProjects(full, me);
   const pids = new Set(projects.map((p) => p.id));
   const crm = canView(me.role, "crm");
-  if (crm) for (const l of full.leads) if (l.projectId && l.operatorId === me.id) pids.add(l.projectId);
+  // Operator — o'z lidlaridan tuzilgan loyihalar (loyiha ham aynan shu liddan yaratilgan bo'lishi shart)
+  if (crm)
+    for (const l of full.leads)
+      if (l.projectId && l.operatorId === me.id && full.projects.some((p) => p.id === l.projectId && p.leadId === l.id)) pids.add(l.projectId);
   const inProject = <T extends { projectId: string }>(x: T) => pids.has(x.projectId);
   const invoices = full.invoices.filter(inProject);
   const invIds = new Set(invoices.map((i) => i.id));
 
   return {
     ...out,
-    projects: full.projects.filter((p) => pids.has(p.id)),
+    // Boshqa xodimlarning ish haqi (ijrochi haqi) ko'rinmaydi
+    projects: full.projects
+      .filter((p) => pids.has(p.id))
+      .map((p) => ({ ...p, services: p.services.map((x) => (x.assigneeFee === undefined || x.assigneeId === me.id ? x : { ...x, assigneeFee: undefined })) })),
     leads: crm ? full.leads : [],
     proposals: crm ? full.proposals : [],
     posts: full.posts.filter(inProject),

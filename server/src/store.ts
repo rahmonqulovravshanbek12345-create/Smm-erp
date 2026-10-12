@@ -9,6 +9,9 @@ import { syncAll } from "../../src/lib/store-sync";
 import type { ErpState, User } from "../../src/lib/types";
 import type { Db } from "./db";
 
+/** Holatning eng katta hajmi (oddiy ishda yiliga ~20 MB o'sadi; eski yozuvlar jadval bo'yicha qisqartiriladi). */
+export const MAX_STATE_BYTES = 150 * 1024 * 1024;
+
 /** Foydalanuvchiga ko'rsatiladigan xato (amal qoidasi buzildi) — ichki xatolardan farqli. */
 export class UserError extends Error {}
 
@@ -60,8 +63,11 @@ export class StateStore {
 
   private async persist(next: ErpState, prevVersion: number): Promise<number> {
     const version = prevVersion + 1;
+    const json = JSON.stringify(next);
+    // Himoya: holat haddan tashqari kattalashsa (masalan, kimdir ulkan matnlar yuborsa) — saqlanmaydi
+    if (json.length > MAX_STATE_BYTES) throw new UserError("Ma'lumot hajmi chegaradan oshdi — adminga murojaat qiling");
     const r = await this.db.query("UPDATE app_state SET data = $1, version = $2, updated_at = now() WHERE id = 1 AND version = $3", [
-      JSON.stringify(next),
+      json,
       version,
       prevVersion,
     ]);

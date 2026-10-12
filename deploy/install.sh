@@ -104,7 +104,7 @@ STATIC_DIR=$APP/current/public
 HOST=127.0.0.1
 PORT=3000
 COOKIE_SECURE=1
-REQUIRE_2FA_ROLES=admin,rahbar,moliya
+REQUIRE_2FA_ROLES=admin,rahbar,moliya,marketolog
 LOG_LEVEL=info
 X
   umask 022
@@ -165,6 +165,7 @@ if ! smm-erp check | grep -q "versiya"; then
   LOGIN=$(ask SMM_ERP_ADMIN_LOGIN "Admin logini (lotin harflari, masalan ravshan)" "")
   NAME=$(ask SMM_ERP_ADMIN_NAME "Admin ismi familiyasi" "Administrator")
   smm-erp init "$LOGIN" "$NAME"
+  systemctl restart smm-erp
 fi
 
 printf '\n\033[1;32m✓ Tayyor!\033[0m  Sayt: https://%s\n' "$DOMAIN"

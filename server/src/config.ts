@@ -18,7 +18,7 @@ const Env = z.object({
   /** Ikki bosqichli kirish majburiy bo'lgan rollar. */
   REQUIRE_2FA_ROLES: z
     .string()
-    .default("admin,rahbar,moliya")
+    .default("admin,rahbar,moliya,marketolog")
     .transform((v) =>
       v
         .split(",")

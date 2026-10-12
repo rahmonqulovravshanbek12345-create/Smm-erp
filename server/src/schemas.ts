@@ -9,12 +9,24 @@ const id = z.string().min(1).max(64);
 const optId = id.optional();
 const short = z.string().max(300);
 const text = z.string().max(5_000);
-const long = z.string().max(100_000);
+/** Uzun matn (ssenariy, TZ, strategiya bloki). Cheklov — bitta xodim ulkan matnlar bilan tizimni sekinlashtira olmasin. */
+const long = z.string().max(20_000);
 const link = z.string().max(2_000);
-const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Sana noto'g'ri");
-const dateOrEmpty = z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, "Sana noto'g'ri");
+/** Haqiqiy kalendar sanasi (2026-02-30 yoki 2026-13-01 emas). */
+const realDate = (v: string) => {
+  const t = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === v;
+};
+const date = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Sana noto'g'ri")
+  .refine(realDate, "Sana noto'g'ri");
+const dateOrEmpty = z
+  .string()
+  .regex(/^(\d{4}-\d{2}-\d{2})?$/, "Sana noto'g'ri")
+  .refine((v) => v === "" || realDate(v), "Sana noto'g'ri");
 const time = z.string().regex(/^(\d{2}:\d{2})?$/, "Vaqt noto'g'ri");
-const month = z.string().regex(/^\d{4}-\d{2}$/, "Oy noto'g'ri");
+const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Oy noto'g'ri");
 const money = z.number().finite().min(-1e13).max(1e13);
 const amount = z.number().finite().min(0).max(1e13);
 const count = z.number().finite().min(0).max(1e7);
@@ -128,8 +140,6 @@ export const ARGS: Schemas = {
       nextContactDate: dateOrEmpty.optional(),
       meeting: meeting.optional(),
       rejectReason: text.optional(),
-      maxStep: z.number().int().min(0).max(4).optional(),
-      projectId: optId,
     }),
   ]),
   addContact: z.tuple([id, text, dateOrEmpty.optional()]),

@@ -56,6 +56,8 @@ export async function openAs(page: Page, user: UserId | (string & {}), hash = ""
     await page.context().clearCookies();
     const r = await page.request.post("./api/auth/login", { data: { login: user.toLowerCase(), password: PASS }, headers: { "x-erp": "1" } });
     expect(r.ok(), `kirish: ${user} — ${await r.text()}`).toBe(true);
+    // Bir xil manzil (faqat # farqi) sahifani qayta yuklamaydi — avval bo'sh sahifa
+    await page.goto("about:blank");
     await page.goto(`./?u=${user}${hash ? `#${hash}` : ""}`);
     await expect(page.locator("#root")).not.toBeEmpty();
     // Ilova shu xodim bilan ochildi (kirish ekrani emas)

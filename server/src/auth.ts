@@ -50,12 +50,15 @@ export async function credentialByUser(db: Db, userId: string): Promise<Credenti
 
 const keyOf = (login: string, ip: string) => `${normLogin(login).slice(0, 64)}|${ip.slice(0, 64)}`;
 const globalKey = (login: string) => `${normLogin(login).slice(0, 64)}|*`;
+/** 2FA kodlari — IP'dan qat'i nazar (parolni bilgan odam IP almashtirib kod tanlay olmasin). */
+const totpKey = (login: string) => `${normLogin(login).slice(0, 64)}|2fa`;
 const GLOBAL_MAX = 30;
+const TOTP_MAX = 10;
 
 /** Bloklangan bo'lsa — necha daqiqa qolgani. */
 export async function lockedFor(db: Db, login: string, ip: string): Promise<number> {
   const { rows } = await db.query<{ until: Date | null }>("SELECT max(locked_until) AS until FROM login_attempts WHERE login = ANY($1)", [
-    [keyOf(login, ip), globalKey(login)],
+    [keyOf(login, ip), globalKey(login), totpKey(login)],
   ]);
   const until = rows[0]?.until;
   if (!until || until.getTime() <= Date.now()) return 0;
@@ -83,9 +86,21 @@ export async function recordFailure(db: Db, login: string, ip: string): Promise<
   );
 }
 
-/** Muvaffaqiyatli kirishda — shu IP'dagi hisoblagich; IP berilmasa (admin/CLI) — loginning hamma bloklari. */
+/** Noto'g'ri 2FA kodi: har 10 tasidan keyin blok 15 daqiqa, keyin 30, 60… (IP'ga bog'liq emas). */
+export async function recordTotpFailure(db: Db, login: string): Promise<void> {
+  await db.query(
+    `INSERT INTO login_attempts (login, failed, updated_at) VALUES ($1, 1, now())
+     ON CONFLICT (login) DO UPDATE SET failed = login_attempts.failed + 1, updated_at = now(),
+       locked_until = CASE WHEN (login_attempts.failed + 1) % $2 = 0
+         THEN now() + make_interval(mins => LEAST($3 * power(2, (login_attempts.failed + 1) / $2 - 1), 1440)::int)
+         ELSE login_attempts.locked_until END`,
+    [totpKey(login), TOTP_MAX, LOCK_MIN],
+  );
+}
+
+/** To'liq kirishda — shu IP'dagi hisoblagich va 2FA hisoblagichi; IP berilmasa (admin/CLI) — loginning hamma bloklari. */
 export async function clearFailures(db: Db, login: string, ip?: string): Promise<void> {
-  if (ip !== undefined) await db.query("DELETE FROM login_attempts WHERE login = ANY($1)", [[keyOf(login, ip), globalKey(login)]]);
+  if (ip !== undefined) await db.query("DELETE FROM login_attempts WHERE login = ANY($1)", [[keyOf(login, ip), globalKey(login), totpKey(login)]]);
   else await db.query("DELETE FROM login_attempts WHERE split_part(login, '|', 1) = $1", [normLogin(login).slice(0, 64)]);
 }
 

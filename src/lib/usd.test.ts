@@ -246,6 +246,8 @@ describe("Mustaqil tekshiruv topgan holatlar", () => {
 
   it("kunlarga bo'lingan faktura va performance foizi: kurs o'zgarmasa soxta kurs farqi yo'q", () => {
     const { s, p } = setup({ adBudgetUsd: 333 });
+    // Shartnoma oldinroq tuzilgan, davr 29 kun oldin boshlangan (hisob davri shartnomadan oldin bo'lolmaydi)
+    p.contractDate = addDays(TODAY, -40);
     act.updateProject(ctx(s, "u_mk"), p.id, { periodStart: addDays(TODAY, -29) });
     act.addService(ctx(s, "u_mk"), p.id, { kind: "target", title: "T", price: 0, priceUsd: 15 }, { prorate: true });
     act.addService(ctx(s, "u_mk"), p.id, { kind: "performance", title: "P", price: 0, priceUsd: 100, adPct: 10 }, { prorate: true });

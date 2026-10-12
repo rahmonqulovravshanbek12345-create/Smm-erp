@@ -26,6 +26,7 @@ import {
   lockedFor,
   normLogin,
   recordFailure,
+  recordTotpFailure,
   rememberDevice,
   revokeUser,
   SESSION_DAYS,
@@ -168,8 +169,14 @@ export async function buildApp(d: Deps) {
   const userIn = (s: ErpState, id: string) => s.users.find((u) => u.id === id);
 
   /** Sessiyani tekshiradi. `allowBlocked` — parolni almashtirish/2FA sozlash sahifalari uchun. */
+  /** `init` server ishlab turganda bajarilsa — holat bazadan o'qiladi (qayta ishga tushirish shart emas). */
+  const ensureReady = async () => {
+    if (!store.ready) await store.load().catch(() => false);
+    return store.ready;
+  };
+
   async function authenticate(req: FastifyRequest, reply: FastifyReply, o: { allowBlocked?: boolean } = {}): Promise<AuthInfo | null> {
-    if (!store.ready) {
+    if (!(await ensureReady())) {
       httpError(reply, 503, "Tizim hali sozlanmagan");
       return null;
     }
@@ -221,7 +228,7 @@ export async function buildApp(d: Deps) {
   app.post("/api/auth/login", rl(30, "5 minutes"), async (req, reply) => {
     const body = LoginBody.safeParse(req.body);
     if (!body.success) return httpError(reply, 400, "Login va parolni kiriting");
-    if (!store.ready) return httpError(reply, 503, "Tizim hali sozlanmagan");
+    if (!(await ensureReady())) return httpError(reply, 503, "Tizim hali sozlanmagan");
     const login = normLogin(body.data.login);
     const fail = async (reason: string) => {
       await recordFailure(db, login, ipOf(req));
@@ -238,8 +245,8 @@ export async function buildApp(d: Deps) {
     const user = userIn(store.current().state, cred.user_id);
     if (!user?.active) return fail("inactive");
     if (cred.totp_enabled) {
-      // Parol to'g'ri, lekin hali 2FA kodi kerak — 5 daqiqalik oraliq sessiya
-      await clearFailures(db, login, ipOf(req));
+      // Parol to'g'ri, lekin hali 2FA kodi kerak — 5 daqiqalik oraliq sessiya.
+      // Xato hisoblagichlari bu yerda TOZALANMAYDI: aks holda parolni bilgan odam qayta kirib, kodlarni cheksiz tanlardi.
       setSession(reply, await createSession(db, user.id, "totp", ipOf(req), uaOf(req)), 1);
       return { need2fa: true };
     }
@@ -258,6 +265,7 @@ export async function buildApp(d: Deps) {
     if (await lockedFor(db, cred.login, ipOf(req))) return httpError(reply, 429, "Juda ko'p noto'g'ri urinish — keyinroq urinib ko'ring");
     if (!body.success || !(await checkTotp(db, sealer, cred, body.data.code))) {
       await recordFailure(db, cred.login, ipOf(req));
+      await recordTotpFailure(db, cred.login);
       await audit(db, { userId: user.id, ip: ipOf(req), kind: "login-2fa", ok: false });
       return httpError(reply, 401, "Kod noto'g'ri");
     }
@@ -280,7 +288,7 @@ export async function buildApp(d: Deps) {
 
   app.get("/api/me", async (req, reply) => {
     // Kirilmagan bo'lsa — xato emas, oddiy javob (brauzer konsolida «401» shovqini bo'lmasin)
-    if (store.ready && !(await getSession(db, req.cookies[SID]))) return { user: null };
+    if ((await ensureReady()) && !(await getSession(db, req.cookies[SID]))) return { user: null };
     const a = await authenticate(req, reply, { allowBlocked: true });
     if (!a) return;
     return meInfo(a);
@@ -369,7 +377,11 @@ export async function buildApp(d: Deps) {
     ids: z.array(z.string().max(40)).max(500).optional(),
   });
 
-  app.post("/api/action", rl(240, "1 minute"), async (req, reply) => {
+  // Cheklov har bir sessiyaga (ofisda hamma bitta IP'dan chiqadi): bir xodim boshqalarni sekinlashtira olmasin
+  const actionLimit = cfg.RATE_LIMITS
+    ? { config: { rateLimit: { max: 120, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.cookies[SID] ?? req.ip } } }
+    : rl(0, "");
+  app.post("/api/action", actionLimit, async (req, reply) => {
     const a = await authenticate(req, reply);
     if (!a) return;
     const body = ActionBody.safeParse(req.body);

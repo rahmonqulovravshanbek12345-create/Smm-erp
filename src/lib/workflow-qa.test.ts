@@ -149,7 +149,12 @@ describe("QA-10 launchTarget with an earlier date moves the billing period start
     const p = s.projects.find((x) => x.id === "p_mebel")!;
     const before = p.periodStart; // 2026-04-17, monthly invoices already issued for periods 0..5
     const nBefore = s.invoices.filter((i) => i.projectId === p.id && i.kind === "monthly").length;
-    act.launchTarget(makeCtx(s, "u_tg").c, "task_2c", "2026-03-01"); // date picker typo / back-dated campaign
+    const t = s.tasks.find((x) => x.projectId === p.id && x.kind === "target")!;
+    // Shartnomadan oldingi sana rad etiladi (aks holda o'tgan oylar uchun fakturalar chiqib ketardi)
+    expect(() => act.launchTarget(makeCtx(s, "u_tg").c, t.id, "2026-03-01")).toThrow(/oldin bo'lishi mumkin emas/);
+    // Faqat target vazifasi «reklama yoqildi» bo'ladi
+    const notTarget = s.tasks.find((x) => x.kind !== "target")!;
+    expect(() => act.launchTarget(makeCtx(s, "u_tg").c, notTarget.id, TODAY)).toThrow(/target vazifasi emas/);
     syncAll(s, TODAY);
     const nAfter = s.invoices.filter((i) => i.projectId === p.id && i.kind === "monthly").length;
     expect({ start: p.periodStart, newInvoices: nAfter - nBefore }).toEqual({ start: before, newInvoices: 0 });
