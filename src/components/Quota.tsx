@@ -1,5 +1,4 @@
 import { useState } from "react";
-import * as act from "../lib/actions";
 import { AD_VIDEO, SHOOT_KEY, SHOOT_LABEL, quotaFor, typesFor, quotaProgress, quotaShortage, tariffQuota, typeName } from "../lib/content";
 import { fmtDateTime, fmtMonth, shiftMonthKey } from "../lib/dates";
 import { FORMAT_LABELS } from "../lib/labels";
@@ -120,11 +119,11 @@ export function QuotaModal({ project, month, onClose }: { project: Project; mont
 
   const save = () => {
     const nums = Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, Number(v) || 0]));
-    if (run((c) => act.saveQuota(c, project.id, month, nums, note), "Topshiriq saqlandi — SMM menejerga xabar ketdi")) onClose();
+    if (run("saveQuota", [project.id, month, nums, note], "Topshiriq saqlandi — SMM menejerga xabar ketdi")) onClose();
   };
   const addType = () => {
     if (!adding) return;
-    if (run((c) => act.saveContentType(c, { ...adding, active: true }), "Yangi tur qo'shildi")) setAdding(null);
+    if (run("saveContentType", [{ ...adding, active: true }], "Yangi tur qo'shildi")) setAdding(null);
   };
 
   return (

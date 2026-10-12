@@ -1,5 +1,4 @@
 import { useState } from "react";
-import * as act from "../lib/actions";
 import { addDays, fmtDate, fmtDeadline } from "../lib/dates";
 import { isAdType, typesFor } from "../lib/content";
 import { PLATFORMS, PLATFORM_LABELS, PLATFORM_SHORT, POST_STATUSES, TASK_KIND_LABELS, postStatusMeta } from "../lib/labels";
@@ -71,21 +70,23 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
     if (!form.topic.trim() || !form.projectId || needPlatforms) return;
     const platformNotes = Object.fromEntries(Object.entries(form.platformNotes).filter(([k, v]) => v?.trim() && form.platforms.includes(k as Platform)));
     const ok = run(
-      (c) =>
-        act.savePost(c, {
+      "savePost",
+      [
+        {
           ...form,
           format,
           platformNotes,
           publishedOn: existing?.publishedOn,
           publishedAt: existing?.publishedAt,
           id: existing?.id,
-        }),
+        },
+      ],
       existing ? "Saqlandi" : "Kontent rejaga qo'shildi",
     );
     if (ok) onClose();
   };
-  const step = (fn: (c: Parameters<typeof act.sendToInternal>[0]) => void, msg: string, close = false) => {
-    if (run(fn, msg) && close) onClose();
+  const step = (name: "sendToInternal" | "approveInternal" | "clientApproved" | "handToTarget" | "publishPost", msg: string, close = false) => {
+    if (existing && run(name, [existing.id], msg) && close) onClose();
   };
 
   if (sub === "shoot" && existing) return <ShootModal projectId={projectId} postIds={[existing.id]} onClose={() => setSub(null)} />;
@@ -101,7 +102,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
         editable ? (
           <>
             {existing && (
-              <Button variant="danger" onClick={() => run((c) => act.deletePost(c, existing.id), "Post o'chirildi") && onClose()}>
+              <Button variant="danger" onClick={() => run("deletePost", [existing.id], "Post o'chirildi") && onClose()}>
                 O'chirish
               </Button>
             )}
@@ -244,34 +245,34 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
             <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-label2">Ish jarayoni</div>
             <div className="flex flex-wrap gap-2">
               {editable && ["plan", "shoot", "editing", "design"].includes(existing.status) && (
-                <Button variant="primary" size="sm" onClick={() => step((c) => act.sendToInternal(c, existing.id), "Marketologga tasdiqqa yuborildi", true)}>
+                <Button variant="primary" size="sm" onClick={() => step("sendToInternal", "Marketologga tasdiqqa yuborildi", true)}>
                   Ichki tasdiqqa yuborish →
                 </Button>
               )}
               {isBoss && existing.status === "internal" && (
-                <Button variant="primary" size="sm" onClick={() => step((c) => act.approveInternal(c, existing.id), "Tasdiqlandi", true)}>
+                <Button variant="primary" size="sm" onClick={() => step("approveInternal", "Tasdiqlandi", true)}>
                   ✓ Tasdiqlash
                 </Button>
               )}
               {editable && existing.status === "client" && (
-                <Button variant="primary" size="sm" onClick={() => step((c) => act.clientApproved(c, existing.id), "Mijoz tasdig'i belgilandi")}>
+                <Button variant="primary" size="sm" onClick={() => step("clientApproved", "Mijoz tasdig'i belgilandi")}>
                   ✓ Mijoz tasdiqladi
                 </Button>
               )}
               {editable && existing.status === "approved" && !existing.platforms.length && (
-                <Button variant="primary" size="sm" onClick={() => step((c) => act.handToTarget(c, existing.id), "Targetologga berildi — TZ ketdi", true)}>
+                <Button variant="primary" size="sm" onClick={() => step("handToTarget", "Targetologga berildi — TZ ketdi", true)}>
                   → Targetologga berish
                 </Button>
               )}
               {editable && existing.status === "approved" && existing.platforms.length > 0 && (
-                <Button variant="primary" size="sm" onClick={() => step((c) => act.publishPost(c, existing.id), "Hamma platformada joylandi", true)}>
+                <Button variant="primary" size="sm" onClick={() => step("publishPost", "Hamma platformada joylandi", true)}>
                   ⬆ {existing.platforms.length > 1 ? "Hammasida joylandi" : "Joylandi"}
                 </Button>
               )}
               {editable && (
                 <Select
                   value={existing.status}
-                  onChange={(e) => run((c) => act.setPostStatus(c, existing.id, e.target.value as PostStatus), "Status yangilandi")}
+                  onChange={(e) => run("setPostStatus", [existing.id, e.target.value as PostStatus], "Status yangilandi")}
                   options={POST_STATUSES.filter((s) => statusChoices(existing.status, isBoss).includes(s.id)).map((s) => ({
                     value: s.id,
                     label: `Status: ${postStatusMeta(s.id, !existing.platforms.length).label}`,
@@ -307,14 +308,14 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
                                 <button
                                   type="button"
                                   className="text-xs text-label2 underline"
-                                  onClick={() => run((c) => act.unpublishPlatform(c, existing.id, pl), "Belgi olib tashlandi")}
+                                  onClick={() => run("unpublishPlatform", [existing.id, pl], "Belgi olib tashlandi")}
                                 >
                                   bekor
                                 </button>
                               )}
                             </span>
                           ) : editable && existing.status === "approved" && existing.platforms.length > 1 ? (
-                            <Button size="sm" onClick={() => run((c) => act.publishPost(c, existing.id, pl), `${PLATFORM_LABELS[pl]}: joylandi`)}>
+                            <Button size="sm" onClick={() => run("publishPost", [existing.id, pl], `${PLATFORM_LABELS[pl]}: joylandi`)}>
                               Joylandi
                             </Button>
                           ) : (
@@ -329,7 +330,7 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
             {isBoss && existing.status === "internal" && (
               <div className="mt-3 flex gap-2">
                 <Input placeholder="Qaytarish izohi (nima tuzatilsin)" value={returnNote} onChange={(e) => setReturnNote(e.target.value)} />
-                <Button variant="danger" onClick={() => step((c) => act.returnPost(c, existing.id, returnNote), "Izoh bilan qaytarildi", true)}>
+                <Button variant="danger" onClick={() => run("returnPost", [existing.id, returnNote], "Izoh bilan qaytarildi") && onClose()}>
                   Qaytarish
                 </Button>
               </div>
@@ -431,8 +432,9 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
 
   const save = () => {
     const ok = run(
-      (c) =>
-        act.createTask(c, {
+      "createTask",
+      [
+        {
           kind,
           projectId: f.projectId,
           postId: f.postId || undefined,
@@ -446,7 +448,8 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
           designType: kind === "dizayn" ? f.designType : undefined,
           deadline: f.deadline,
           deadlineTime: f.deadlineTime || undefined,
-        }),
+        },
+      ],
       `TZ yuborildi: ${look.userName(f.assigneeId)}ga bildirishnoma ketdi`,
     );
     if (ok) onClose();
@@ -560,7 +563,7 @@ export function ShootModal({ projectId, postIds, onClose }: { projectId?: string
   const candidates = state.posts.filter((p) => p.projectId === f.projectId && p.format === "video" && p.status !== "published");
 
   const save = () => {
-    if (run((c) => act.createShoot(c, f), "Syomka belgilandi — operatorga bildirishnoma ketdi")) onClose();
+    if (run("createShoot", [f], "Syomka belgilandi — operatorga bildirishnoma ketdi")) onClose();
   };
 
   return (

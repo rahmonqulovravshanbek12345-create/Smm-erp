@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Icon } from "../../components/icons";
 import { Badge, Button, Card, CardHeader, Empty, Input, PageHeader, Select } from "../../components/ui";
-import * as act from "../../lib/actions";
 import { fmtDate, fmtMoney, fmtNum, monthKey } from "../../lib/dates";
 import { GROUP_LABELS, accountBalance, accountOf, articleOf, txUZS } from "../../lib/finance";
 import { canEditFinance } from "../../lib/permissions";
@@ -188,7 +187,7 @@ export function Transactions() {
                           type="button"
                           title="O'chirish"
                           className="rounded-full p-1.5 text-label3 transition hover:bg-red/12 hover:text-red"
-                          onClick={() => run((c) => act.deleteTransaction(c, t.id), "O'chirildi")}
+                          onClick={() => run("deleteTransaction", [t.id], "O'chirildi")}
                         >
                           <Icon name="trash" size={15} />
                         </button>

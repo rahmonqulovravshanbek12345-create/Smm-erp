@@ -22,19 +22,7 @@ export function Notifications() {
       <PageHeader
         title="Bildirishnomalar"
         sub="Tizim ichida va Telegram bot orqali"
-        actions={
-          unread > 0 && (
-            <Button
-              onClick={() =>
-                run((c) => {
-                  for (const n of c.s.notifications) if (n.userId === c.me.id) n.read = true;
-                }, "Hammasi o'qildi")
-              }
-            >
-              Hammasini o'qilgan qilish
-            </Button>
-          )
-        }
+        actions={unread > 0 && <Button onClick={() => run("markAllRead", [], "Hammasi o'qildi")}>Hammasini o'qilgan qilish</Button>}
       />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
@@ -62,16 +50,7 @@ export function Notifications() {
                 <div className="mt-1 flex items-center gap-2 text-[11px] text-label2">
                   {fmtDateTime(n.at)} <Badge tone={TG[n.telegram].tone}>{TG[n.telegram].label}</Badge>
                   {!n.read && (
-                    <button
-                      type="button"
-                      className="text-label2 hover:text-label"
-                      onClick={() =>
-                        run((c) => {
-                          const x = c.s.notifications.find((y) => y.id === n.id);
-                          if (x) x.read = true;
-                        })
-                      }
-                    >
+                    <button type="button" className="text-label2 hover:text-label" onClick={() => run("markRead", [n.id])}>
                       o'qildi
                     </button>
                   )}

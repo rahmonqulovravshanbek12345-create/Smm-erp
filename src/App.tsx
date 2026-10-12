@@ -262,9 +262,7 @@ export function App() {
     .slice(0, 4);
 
   const switchUser = (id: string) => {
-    run((c) => {
-      c.s.currentUserId = id;
-    });
+    run("switchUser", [id]);
     setAccount(false);
     setMore(false);
     const u = state.users.find((x) => x.id === id);

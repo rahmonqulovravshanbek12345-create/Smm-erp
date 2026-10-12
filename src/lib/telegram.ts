@@ -4,7 +4,7 @@ import { ROLE_LABELS } from "./labels";
 import type { User } from "./types";
 
 const GAP_MS = 1100;
-const wait = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let queue: Promise<unknown> = Promise.resolve();
 
 async function post(token: string, chatId: string, text: string): Promise<boolean> {

@@ -1,6 +1,6 @@
 // Unit testlar uchun yordamchilar: belgilangan sanadagi demo holat va soxta Ctx.
 import { buildSeed } from "./seed";
-import type { Ctx } from "./store";
+import type { Ctx } from "./ctx";
 import { syncAll } from "./store-sync";
 import type { ErpState } from "./types";
 

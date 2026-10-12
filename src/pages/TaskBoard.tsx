@@ -2,7 +2,6 @@ import { useState } from "react";
 import { TaskBadge } from "../components/bits";
 import { TaskModal } from "../components/forms";
 import { Badge, Banner, Button, Card, Input, LinkOut, PageHeader, Stat } from "../components/ui";
-import * as act from "../lib/actions";
 import { fmtDeadline, fmtMoney, fmtMonth, monthKey, relDays } from "../lib/dates";
 import { TASK_STATUSES } from "../lib/labels";
 import { access, canEdit } from "../lib/permissions";
@@ -148,14 +147,14 @@ function TaskCard({ task: t }: { task: Task }) {
       )}
 
       {isAssignee && (t.status === "new" || t.status === "returned") && (
-        <Button size="sm" className="mt-3 w-full" onClick={() => run((c) => act.startTask(c, t.id), "Jarayonda")}>
+        <Button size="sm" className="mt-3 w-full" onClick={() => run("startTask", [t.id], "Jarayonda")}>
           ▶ Boshlash
         </Button>
       )}
       {isAssignee && t.status === "progress" && (
         <div className="mt-3 space-y-1.5">
           <Input placeholder="Tayyor ish havolasi (Google Drive)" value={link} onChange={(e) => setLink(e.target.value)} className="!py-1.5 !text-xs" />
-          <Button size="sm" variant="primary" className="w-full" onClick={() => run((c) => act.submitTask(c, t.id, link), "Tekshiruvga topshirildi")}>
+          <Button size="sm" variant="primary" className="w-full" onClick={() => run("submitTask", [t.id, link], "Tekshiruvga topshirildi")}>
             Tayyor — tekshiruvga
           </Button>
         </div>
@@ -164,10 +163,10 @@ function TaskCard({ task: t }: { task: Task }) {
         <div className="mt-3 space-y-1.5">
           <Input placeholder="Qaytarish sababi" value={note} onChange={(e) => setNote(e.target.value)} className="!py-1.5 !text-xs" />
           <div className="flex flex-wrap gap-1.5">
-            <Button size="sm" variant="danger" className="flex-1" onClick={() => run((c) => act.returnTask(c, t.id, note), "Qaytarildi")}>
+            <Button size="sm" variant="danger" className="flex-1" onClick={() => run("returnTask", [t.id, note], "Qaytarildi")}>
               Qaytarish
             </Button>
-            <Button size="sm" variant="primary" className="flex-1" onClick={() => run((c) => act.acceptTask(c, t.id), "Qabul qilindi")}>
+            <Button size="sm" variant="primary" className="flex-1" onClick={() => run("acceptTask", [t.id], "Qabul qilindi")}>
               ✓ Qabul
             </Button>
           </div>

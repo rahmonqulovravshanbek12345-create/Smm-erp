@@ -37,7 +37,7 @@ import {
 } from "./services";
 import { isTaskOpen, lateness, postStage, workBlockedReason } from "./rules";
 import { currentPeriod, periodAt } from "./period";
-import { newId, type Ctx } from "./store";
+import { newId, type Ctx } from "./ctx";
 import { acceptedIds, defaultPicks, nextProposalNumber, proposalPrice, tariffOf, tariffService } from "./tariffs";
 import type {
   Bill,

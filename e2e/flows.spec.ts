@@ -110,7 +110,7 @@ test("Telegram: barcha xodimlarga bitta chat, xabarda qabul qiluvchi ko'rsatilad
     await route.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: '{"ok":true}' });
   });
   await openAs(page, "u_admin", "/admin");
-  await page.getByPlaceholder("123456:ABC-DEF…").fill("123:TEST");
+  await page.getByPlaceholder("123456:ABC-DEF…").fill("123456:TEST_token-for_e2e_only_000000");
   await page.getByPlaceholder("123456:ABC-DEF…").blur();
   await page.locator("input[placeholder='masalan 123456789']").last().fill("555777");
   await page.getByRole("button", { name: "Hammaga qo'yish" }).click();
@@ -128,7 +128,7 @@ test("Telegram: barcha xodimlarga bitta chat, xabarda qabul qiluvchi ko'rsatilad
   await page.getByRole("button", { name: "Demo'ni qayta tiklash" }).click();
   await page.getByRole("button", { name: "Ha, tiklash" }).click();
   const s = await state(page);
-  expect(s.settings.telegram.botToken).toBe("123:TEST");
+  expect(s.settings.telegram.botToken).toBe("123456:TEST_token-for_e2e_only_000000");
   expect(s.users.every((u: { telegramChatId?: string }) => u.telegramChatId === "555777")).toBe(true);
   expect(p.errors).toEqual([]);
 });

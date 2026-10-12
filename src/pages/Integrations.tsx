@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Icon, IconChip } from "../components/icons";
 import { A, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, PageHeader, Select } from "../components/ui";
-import * as act from "../lib/actions";
 import { fmtDate, fmtDateTime, fmtNum } from "../lib/dates";
 import { LEAD_METRIC_LABELS, fetchCbuRate, isMetaDemo, metaAccountOf, syncMeta, testMetaToken } from "../lib/integrations";
 import { canEdit, canView } from "../lib/permissions";
@@ -28,7 +27,7 @@ export function Integrations() {
     try {
       const name = await testMetaToken(meta);
       showToast(`Meta: ulanish ishlayapti — ${name}`);
-      run((c) => act.logIntegration(c, "meta", true, `Meta Ads: token tekshirildi (${name})`));
+      run("logIntegration", ["meta", true, `Meta Ads: token tekshirildi (${name})`]);
     } catch (e) {
       showToast(`⚠ ${e instanceof Error ? e.message : "Xatolik"}`);
     } finally {
@@ -39,10 +38,8 @@ export function Integrations() {
     setBusy("sync");
     const res = await syncMeta(state, today);
     setBusy("");
-    let n = 0;
-    run((c) => {
-      n = act.applyMetaSync(c, res);
-    });
+    const r = run("applyMetaSync", [res]);
+    const n = r ? r.value : 0;
     const err = res.filter((r) => r.error).length;
     showToast(
       err
@@ -56,16 +53,16 @@ export function Integrations() {
     setBusy("cbu");
     try {
       const r = await fetchCbuRate();
-      run((c) => act.setUsdRate(c, r.rate, r.date, "cbu"), `1 USD = ${fmtNum(r.rate)} so'm`);
+      run("setUsdRate", [r.rate, r.date, "cbu"], `1 USD = ${fmtNum(r.rate)} so'm`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Xatolik";
-      run((c) => act.logIntegration(c, "cbu", false, `${msg} — kursni qo'lda kiriting`));
+      run("logIntegration", ["cbu", false, `${msg} — kursni qo'lda kiriting`]);
       showToast(`⚠ ${msg}. Kursni qo'lda kiriting`);
     } finally {
       setBusy("");
     }
   };
-  const saveMeta = (patch: Partial<Omit<Cfg["meta"], "accounts">>, toast?: string) => run((c) => act.saveMetaSettings(c, patch), toast);
+  const saveMeta = (patch: Partial<Omit<Cfg["meta"], "accounts">>, toast?: string) => run("saveMetaSettings", [patch], toast);
 
   return (
     <>
@@ -139,7 +136,7 @@ export function Integrations() {
                           placeholder="act_1234567890"
                           aria-label={`${p.name}: reklama kabineti ID`}
                           className="!w-48 !py-1.5 !text-[13px]"
-                          onBlur={(e) => e.target.value.trim() !== acc && run((c) => act.setMetaAccount(c, p.id, e.target.value), "Saqlandi")}
+                          onBlur={(e) => e.target.value.trim() !== acc && run("setMetaAccount", [p.id, e.target.value], "Saqlandi")}
                         />
                       </td>
                       <td className="px-3 py-2 text-label2">
@@ -207,7 +204,7 @@ export function Integrations() {
                     />
                     <Button
                       onClick={() => {
-                        if (run((c) => act.setUsdRate(c, Number(manualRate), today, "manual"), "Kurs saqlandi")) setManualRate("");
+                        if (run("setUsdRate", [Number(manualRate), today, "manual"], "Kurs saqlandi")) setManualRate("");
                       }}
                       disabled={!(Number(manualRate) > 0)}
                     >
@@ -215,11 +212,7 @@ export function Integrations() {
                     </Button>
                   </div>
                   <label className="mt-3 flex items-center gap-2 text-[14px] text-label">
-                    <input
-                      type="checkbox"
-                      checked={cbu.autoUpdate}
-                      onChange={(e) => run((c) => (c.s.settings.integrations.cbu.autoUpdate = e.target.checked), "Saqlandi")}
-                    />
+                    <input type="checkbox" checked={cbu.autoUpdate} onChange={(e) => run("setCbuAuto", [e.target.checked], "Saqlandi")} />
                     Har kuni avtomatik yangilash
                   </label>
                   <div className="mt-3 border-t border-sep pt-3">
@@ -238,7 +231,7 @@ export function Integrations() {
                         className="!py-1.5"
                       />
                       <Button
-                        onClick={() => run((c) => act.setUsdMarkup(c, Number(markup)), "Ustama saqlandi")}
+                        onClick={() => run("setUsdMarkup", [Number(markup)], "Ustama saqlandi")}
                         disabled={markup === "" || Number(markup) === (state.settings.usdMarkupPct ?? 2)}
                       >
                         Saqlash

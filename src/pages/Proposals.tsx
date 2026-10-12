@@ -3,7 +3,6 @@ import { Icon } from "../components/icons";
 import { ProjectFormModal } from "../components/ProjectForm";
 import { A, Badge, Button, Card, CardHeader, Empty, Field, Input, Modal, PageHeader, Select, Stat, Tabs, Textarea, navigate } from "../components/ui";
 import { ExportButton } from "../components/ExportButton";
-import * as act from "../lib/actions";
 import { addDays, fmtDate, fmtMoney, fmtNum } from "../lib/dates";
 import { PLATFORM_LABELS } from "../lib/labels";
 import { canEdit } from "../lib/permissions";
@@ -308,20 +307,23 @@ export function ProposalModal({ leadId, onClose }: { leadId?: string; onClose: (
 
   const toggle = (id: string) => setIds((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
   const submit = () => {
-    let id = "";
-    const ok = run((c) => {
-      id = act.createProposal(c, {
-        leadId: lid,
-        tariffIds: active.filter((t) => ids.includes(t.id)).map((t) => t.id),
-        recommendedId: rec,
-        discountPct: discount,
-        validDays: Number(days),
-        note,
-      });
-    }, "Tijorat taklifi tayyor");
-    if (ok) {
+    const r = run(
+      "createProposal",
+      [
+        {
+          leadId: lid,
+          tariffIds: active.filter((t) => ids.includes(t.id)).map((t) => t.id),
+          recommendedId: rec,
+          discountPct: discount,
+          validDays: Number(days),
+          note,
+        },
+      ],
+      "Tijorat taklifi tayyor",
+    );
+    if (r) {
       onClose();
-      navigate(`/taklif/${id}`);
+      navigate(`/taklif/${r.value}`);
     }
   };
 
@@ -447,14 +449,16 @@ function TariffModal({ tariff, service, onClose }: { tariff?: Tariff; service: S
   const togglePlatform = (p: Platform) => set("platforms", f.platforms.includes(p) ? f.platforms.filter((x) => x !== p) : [...f.platforms, p]);
   const save = () => {
     const ok = run(
-      (c) =>
-        act.saveTariff(c, {
+      "saveTariff",
+      [
+        {
           ...f,
           features: features
             .split("\n")
             .map((x) => x.trim())
             .filter(Boolean),
-        }),
+        },
+      ],
       "Tarif saqlandi",
     );
     if (ok) onClose();
@@ -576,7 +580,8 @@ export function ProposalPage({ id }: { id: string }) {
   };
   const decide = (status: "sent" | "accepted" | "rejected") => {
     const ok = run(
-      (c) => act.setProposalStatus(c, p.id, status, { tariffIds: picks.filter(Boolean), reason }),
+      "setProposalStatus",
+      [p.id, status, { tariffIds: picks.filter(Boolean), reason }],
       status === "sent" ? "Yuborildi deb belgilandi" : status === "accepted" ? "Qabul qilindi — operator, marketolog va rahbarga xabar ketdi" : "Rad etildi",
     );
     if (ok) setRejecting(false);
@@ -884,13 +889,10 @@ export function ProposalPage({ id }: { id: string }) {
           }}
           onClose={() => setContract(false)}
           onSubmit={(input) => {
-            let pid = "";
-            const ok = run((c) => {
-              pid = act.createProject(c, input, lead.id);
-            }, "Loyiha kartasi yaratildi, moliyaga oldindan to'lov uchun xabar ketdi");
-            if (ok) {
+            const r = run("createProject", [input, lead.id], "Loyiha kartasi yaratildi, moliyaga oldindan to'lov uchun xabar ketdi");
+            if (r) {
               setContract(false);
-              navigate(`/loyiha/${pid}`);
+              navigate(`/loyiha/${r.value}`);
             }
           }}
         />

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { DebtBadge, TaskBadge } from "../components/bits";
 import { ProjectFormModal } from "../components/ProjectForm";
 import { A, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, LinkOut, PageHeader, Progress, Tabs, Textarea, navigate } from "../components/ui";
-import * as act from "../lib/actions";
 import { fmtDate, fmtDateTime, fmtMoney, fmtNum, fmtUsd } from "../lib/dates";
 import { DOC_BLOCKS, TASK_KIND_LABELS } from "../lib/labels";
 import { canEdit, canEditFinance, canView, visibleProjects } from "../lib/permissions";
@@ -111,10 +110,10 @@ export function Projects() {
           initial={{}}
           onClose={() => setCreating(false)}
           onSubmit={(input) => {
-            let id = "";
-            if (run((c) => (id = act.createProject(c, input)), "Loyiha yaratildi")) {
+            const r = run("createProject", [input], "Loyiha yaratildi");
+            if (r) {
               setCreating(false);
-              navigate(`/loyiha/${id}`);
+              navigate(`/loyiha/${r.value}`);
             }
           }}
         />
@@ -257,7 +256,7 @@ function Info({ p }: { p: Project }) {
               <Input
                 type="date"
                 value={p.periodStart ?? ""}
-                onChange={(e) => run((c) => act.updateProject(c, p.id, { periodStart: e.target.value || undefined }), "Saqlandi")}
+                onChange={(e) => run("updateProject", [p.id, { periodStart: e.target.value || undefined }], "Saqlandi")}
                 className="!w-48"
               />
             </Field>
@@ -266,7 +265,7 @@ function Info({ p }: { p: Project }) {
                 <input
                   type="checkbox"
                   checked={p.pauseWork}
-                  onChange={(e) => run((c) => act.updateProject(c, p.id, { pauseWork: e.target.checked }), "Saqlandi")}
+                  onChange={(e) => run("updateProject", [p.id, { pauseWork: e.target.checked }], "Saqlandi")}
                   className="mt-1"
                 />
                 <span>
@@ -301,7 +300,7 @@ function CloseProject({ p }: { p: Project }) {
       <p className="mt-0.5 text-xs text-label2">Yopilgan sanadan keyin yangi fakturalar chiqarilmaydi, ish to'xtaydi. Qarzlar va tarix saqlanadi.</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} className="!w-44 !py-1.5" aria-label="Yopilish sanasi" />
-        <Button size="sm" variant="primary" className="!bg-red" onClick={() => run((c) => act.closeProject(c, p.id, date), "Loyiha yopildi") && setAsk(false)}>
+        <Button size="sm" variant="primary" className="!bg-red" onClick={() => run("closeProject", [p.id, date], "Loyiha yopildi") && setAsk(false)}>
           Yopish
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setAsk(false)}>
@@ -330,7 +329,7 @@ function Marketing({ p }: { p: Project }) {
           </div>
         </div>
         {editable && (
-          <Button variant="primary" disabled={!allDone} onClick={() => run((c) => act.handOff(c, p.id), "Uzatildi — SMM va targetologga bildirishnoma ketdi")}>
+          <Button variant="primary" disabled={!allDone} onClick={() => run("handOff", [p.id], "Uzatildi — SMM va targetologga bildirishnoma ketdi")}>
             {p.handedOffAt ? "Qayta uzatish" : "SMM menejer va targetologga uzatish →"}
           </Button>
         )}
@@ -352,14 +351,14 @@ function Marketing({ p }: { p: Project }) {
                     <Textarea rows={5} value={drafts[b.id]} onChange={(e) => setDrafts({ ...drafts, [b.id]: e.target.value })} />
                     <div className="mt-2 flex flex-wrap justify-end gap-2">
                       {changed && (
-                        <Button size="sm" onClick={() => run((c) => act.saveDoc(c, p.id, b.id, drafts[b.id], doc.status), "Saqlandi")}>
+                        <Button size="sm" onClick={() => run("saveDoc", [p.id, b.id, drafts[b.id], doc.status], "Saqlandi")}>
                           Saqlash
                         </Button>
                       )}
                       <Button
                         size="sm"
                         variant={doc.status === "done" ? "ghost" : "primary"}
-                        onClick={() => run((c) => act.saveDoc(c, p.id, b.id, drafts[b.id], doc.status === "done" ? "progress" : "done"), "Status yangilandi")}
+                        onClick={() => run("saveDoc", [p.id, b.id, drafts[b.id], doc.status === "done" ? "progress" : "done"], "Status yangilandi")}
                       >
                         {doc.status === "done" ? "Jarayonga qaytarish" : "✓ Tayyor"}
                       </Button>
@@ -483,8 +482,9 @@ function Reports({ p }: { p: Project }) {
                 disabled={!f.fileLink && !f.reach}
                 onClick={() =>
                   run(
-                    (c) =>
-                      act.submitReport(c, {
+                    "submitReport",
+                    [
+                      {
                         projectId: p.id,
                         periodIndex: f.periodIndex,
                         fileLink: f.fileLink,
@@ -492,7 +492,8 @@ function Reports({ p }: { p: Project }) {
                         followers: Number(f.followers) || 0,
                         leads: Number(f.leads) || 0,
                         summary: f.summary,
-                      }),
+                      },
+                    ],
                     "Hisobot topshirildi — marketolog va moliyaga xabar ketdi",
                   )
                 }

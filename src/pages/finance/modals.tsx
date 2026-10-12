@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { AmountInput, Banner, Button, Field, Input, Modal, Select, userOptions } from "../../components/ui";
-import * as act from "../../lib/actions";
 import { fmtMoney, fmtUsd } from "../../lib/dates";
 import { WORK_LABELS, accountOf, billPaid, employeeBalance, invoiceOutstanding, invoiceOutstandingUsd, payrollStaff } from "../../lib/finance";
 import { useErp, useLookup } from "../../lib/store";
@@ -121,8 +120,9 @@ export function TxModal({ dir, onClose }: { dir: "in" | "out"; onClose: () => vo
 
   const save = () => {
     const ok = run(
-      (c) =>
-        act.addTransaction(c, {
+      "addTransaction",
+      [
+        {
           date: m.date,
           accountId: m.accountId,
           dir,
@@ -131,7 +131,8 @@ export function TxModal({ dir, onClose }: { dir: "in" | "out"; onClose: () => vo
           articleId,
           projectId: projectId || undefined,
           note,
-        }),
+        },
+      ],
       dir === "in" ? "Kirim qayd etildi" : "Chiqim qayd etildi",
     );
     if (ok) onClose();
@@ -183,7 +184,7 @@ export function TransferModal({ onClose }: { onClose: () => void }) {
   const a = Number(amountFrom) || 0;
   const amountTo = cf === ct ? a : cf === "UZS" ? Math.round((a / r) * 100) / 100 : Math.round(a * r);
   const save = () => {
-    if (run((c) => act.addTransfer(c, { from, to, amountFrom: a, amountTo, rate: cf !== ct ? r : undefined, date, note }), "O'tkazma bajarildi")) onClose();
+    if (run("addTransfer", [{ from, to, amountFrom: a, amountTo, rate: cf !== ct ? r : undefined, date, note }], "O'tkazma bajarildi")) onClose();
   };
   return (
     <Modal
@@ -259,8 +260,10 @@ function UsdInvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClose: (
   const save = () => {
     if (
       run(
-        (c) =>
-          act.recordClientPayment(c, invoice.id, {
+        "recordClientPayment",
+        [
+          invoice.id,
+          {
             amount: value,
             date,
             accountId,
@@ -268,7 +271,8 @@ function UsdInvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClose: (
             fxRate: usdAcc ? undefined : fx,
             markupPct: usdAcc ? undefined : mk,
             note,
-          }),
+          },
+        ],
         "To'lov qabul qilindi",
       )
     )
@@ -322,12 +326,7 @@ function UzsInvoicePayModal({ invoice, onClose }: { invoice: Invoice; onClose: (
   const m = useMoneyFields("acc_bank").withDefault(left);
   const [note, setNote] = useState("");
   const save = () => {
-    if (
-      run(
-        (c) => act.recordClientPayment(c, invoice.id, { amount: m.value, date: m.date, accountId: m.accountId, rate: m.rateNum, note }),
-        "To'lov qabul qilindi",
-      )
-    )
+    if (run("recordClientPayment", [invoice.id, { amount: m.value, date: m.date, accountId: m.accountId, rate: m.rateNum, note }], "To'lov qabul qilindi"))
       onClose();
   };
   return (
@@ -359,7 +358,7 @@ export function ExtraInvoiceModal({ onClose }: { onClose: () => void }) {
   const [dueDate, setDueDate] = useState(today);
   const [note, setNote] = useState("Qo'shimcha syomka");
   const save = () => {
-    if (run((c) => act.createExtraInvoice(c, { projectId, amount: Number(amount), issueDate, dueDate, note }), "Faktura chiqarildi")) onClose();
+    if (run("createExtraInvoice", [{ projectId, amount: Number(amount), issueDate, dueDate, note }], "Faktura chiqarildi")) onClose();
   };
   return (
     <Modal
@@ -404,7 +403,8 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
     const n = note || (kind === "advance" ? "Avans" : "Ish haqi");
     if (
       run(
-        (c) => act.payEmployee(c, { userId: uid, amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note: n, advance: kind === "advance" }),
+        "payEmployee",
+        [{ userId: uid, amount: value, date: m.date, accountId: m.accountId, rate: m.rateNum, note: n, advance: kind === "advance" }],
         "To'lov qayd etildi — xodimga xabar ketdi",
       )
     )
@@ -453,7 +453,7 @@ export function ManualAccrualModal({ userId, onClose }: { userId?: string; onClo
   const [date, setDate] = useState(today);
   const [title, setTitle] = useState("");
   const save = () => {
-    if (run((c) => act.addManualAccrual(c, { userId: uid, kind, amount: Number(amount), projectId, date, title }), "Hisoblash qo'shildi")) onClose();
+    if (run("addManualAccrual", [{ userId: uid, kind, amount: Number(amount), projectId, date, title }], "Hisoblash qo'shildi")) onClose();
   };
   return (
     <Modal
@@ -511,12 +511,7 @@ export function BillModal({ onClose }: { onClose: () => void }) {
   const [note, setNote] = useState("");
   const [projectId, setProjectId] = useState("");
   const save = () => {
-    if (
-      run(
-        (c) => act.addBill(c, { vendorId, articleId, amount: Number(amount), date, dueDate, note, projectId: projectId || undefined }),
-        "Xarajat hujjati qo'shildi",
-      )
-    )
+    if (run("addBill", [{ vendorId, articleId, amount: Number(amount), date, dueDate, note, projectId: projectId || undefined }], "Xarajat hujjati qo'shildi"))
       onClose();
   };
   return (
@@ -562,7 +557,7 @@ export function PayBillModal({ bill, onClose }: { bill: Bill; onClose: () => voi
   const left = bill.amount - billPaid(state, bill);
   const m = useMoneyFields("acc_bank").withDefault(left);
   const save = () => {
-    if (run((c) => act.payBill(c, bill.id, { amount: m.value, date: m.date, accountId: m.accountId, rate: m.rateNum }), "To'landi")) onClose();
+    if (run("payBill", [bill.id, { amount: m.value, date: m.date, accountId: m.accountId, rate: m.rateNum }], "To'landi")) onClose();
   };
   return (
     <Modal

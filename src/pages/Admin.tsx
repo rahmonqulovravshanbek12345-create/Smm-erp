@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { Badge, Banner, Button, Card, CardHeader, Field, Input, Modal, PageHeader, Select } from "../components/ui";
-import * as act from "../lib/actions";
 import { fmtMoney } from "../lib/dates";
 import { ROLE_DUTIES, ROLE_LABELS } from "../lib/labels";
 import { ACCESS_LABELS, MATRIX_VIEW, access } from "../lib/permissions";
 import { alertsFor } from "../lib/rules";
 import { userLoad } from "../lib/staff";
-import { newId, useErp } from "../lib/store";
+import { useErp } from "../lib/store";
 import { sendTelegram, telegramText } from "../lib/telegram";
 import type { Role, User } from "../lib/types";
 
@@ -36,10 +35,7 @@ export function Admin() {
   const setChatForAll = () => {
     const id = sharedChat.trim();
     if (!id) return showToast("⚠ Chat ID kiriting");
-    run((c) => {
-      for (const u of c.s.users) u.telegramChatId = id;
-      c.log("Barcha xodimlarga bitta Telegram chat ID qo'yildi (demo)", "/admin");
-    }, `Chat ID ${state.users.length} ta xodimga qo'yildi`);
+    run("setChatIdForAll", [id], `Chat ID ${state.users.length} ta xodimga qo'yildi`);
   };
 
   // Haqiqiy tizimda server har kuni ertalab yuboradi; demo'da tugma bilan ko'rsatiladi.
@@ -86,15 +82,7 @@ export function Admin() {
                         aria-label={`${u.name}: rol`}
                         value={u.role}
                         disabled={u.id === me.id}
-                        onChange={(e) =>
-                          run((c) => {
-                            const x = c.s.users.find((y) => y.id === u.id);
-                            if (x?.role === "rahbar" && e.target.value !== "rahbar" && c.s.users.filter((y) => y.role === "rahbar" && y.active).length <= 1)
-                              throw new Error("Oxirgi faol rahbarning rolini o'zgartirib bo'lmaydi");
-                            if (x) x.role = e.target.value as Role;
-                            c.log(`${u.name}: rol → ${ROLE_LABELS[e.target.value as Role]}`, "/admin");
-                          }, "Rol o'zgartirildi")
-                        }
+                        onChange={(e) => run("setUserRole", [u.id, e.target.value as Role], "Rol o'zgartirildi")}
                         options={ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
                         className="!w-44 !py-1 !text-xs"
                       />
@@ -105,13 +93,7 @@ export function Admin() {
                         defaultValue={u.telegramChatId ?? ""}
                         aria-label={`${u.name}: Telegram chat ID`}
                         placeholder="masalan 123456789"
-                        onBlur={(e) =>
-                          e.target.value !== (u.telegramChatId ?? "") &&
-                          run((c) => {
-                            const x = c.s.users.find((y) => y.id === u.id);
-                            if (x) x.telegramChatId = e.target.value.trim() || undefined;
-                          }, "Chat ID saqlandi")
-                        }
+                        onBlur={(e) => e.target.value !== (u.telegramChatId ?? "") && run("setUserChatId", [u.id, e.target.value], "Chat ID saqlandi")}
                         className="!w-44 !py-1 !text-xs"
                       />
                     </td>
@@ -124,11 +106,7 @@ export function Admin() {
                           Arxivlash
                         </Button>
                       ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => run((c) => act.restoreUser(c, u.id), `${u.name} arxivdan qaytarildi`)}
-                          aria-label={`${u.name}: qaytarish`}
-                        >
+                        <Button size="sm" onClick={() => run("restoreUser", [u.id], `${u.name} arxivdan qaytarildi`)} aria-label={`${u.name}: qaytarish`}>
                           Qaytarish
                         </Button>
                       )}
@@ -153,12 +131,7 @@ export function Admin() {
             <Button
               variant="primary"
               disabled={!nu.name.trim()}
-              onClick={() =>
-                run((c) => {
-                  c.s.users.push({ id: newId("u"), name: nu.name.trim(), role: nu.role, active: true, hiredAt: c.today });
-                  c.log(`Yangi xodim: ${nu.name.trim()} (${ROLE_LABELS[nu.role]})`, "/admin");
-                }, "Xodim qo'shildi") && setNu({ ...nu, name: "" })
-              }
+              onClick={() => run("addUser", [{ name: nu.name, role: nu.role }], "Xodim qo'shildi") && setNu({ ...nu, name: "" })}
             >
               Qo'shish
             </Button>
@@ -169,15 +142,7 @@ export function Admin() {
           <CardHeader title="Telegram bot" sub="Bildirishnomalar tizim ichida va Telegram orqali" />
           <div className="space-y-3 p-4">
             <label className="flex items-center gap-2 text-sm text-label">
-              <input
-                type="checkbox"
-                checked={tg.enabled}
-                onChange={(e) =>
-                  run((c) => {
-                    c.s.settings.telegram.enabled = e.target.checked;
-                  }, "Saqlandi")
-                }
-              />
+              <input type="checkbox" checked={tg.enabled} onChange={(e) => run("setTelegramEnabled", [e.target.checked], "Saqlandi")} />
               Telegram bildirishnomalarini yoqish
             </label>
             <Field label="Bot tokeni (@BotFather'dan)" hint="Bo'sh qoldirilsa, xabarlar «demo» rejimida faqat tizimda ko'rsatiladi">
@@ -185,11 +150,7 @@ export function Admin() {
                 type="password"
                 defaultValue={tg.botToken}
                 placeholder="123456:ABC-DEF…"
-                onBlur={(e) =>
-                  run((c) => {
-                    c.s.settings.telegram.botToken = e.target.value.trim();
-                  }, "Token saqlandi")
-                }
+                onBlur={(e) => e.target.value.trim() !== tg.botToken && run("setTelegramToken", [e.target.value], "Token saqlandi")}
               />
             </Field>
             <Banner tone="amber">
@@ -231,9 +192,7 @@ export function Admin() {
               <Input
                 defaultValue={state.settings.companyName}
                 onBlur={(e) =>
-                  run((c) => {
-                    c.s.settings.companyName = e.target.value.trim() || c.s.settings.companyName;
-                  }, "Saqlandi")
+                  e.target.value.trim() && e.target.value.trim() !== state.settings.companyName && run("setCompanyName", [e.target.value], "Saqlandi")
                 }
               />
             </Field>
@@ -252,12 +211,7 @@ export function Admin() {
                 <Field key={k} label={label} className={k === "address" ? "sm:col-span-2" : ""}>
                   <Input
                     defaultValue={state.settings.requisites[k]}
-                    onBlur={(e) =>
-                      e.target.value !== state.settings.requisites[k] &&
-                      run((c) => {
-                        c.s.settings.requisites[k] = e.target.value.trim();
-                      }, "Rekvizit saqlandi")
-                    }
+                    onBlur={(e) => e.target.value !== state.settings.requisites[k] && run("setRequisite", [k, e.target.value], "Rekvizit saqlandi")}
                   />
                 </Field>
               ))}
@@ -269,9 +223,7 @@ export function Admin() {
                   type="number"
                   defaultValue={state.settings.usdRate}
                   onBlur={(e) =>
-                    run((c) => {
-                      c.s.settings.usdRate = Math.max(1, Number(e.target.value) || c.s.settings.usdRate);
-                    }, "Kurs saqlandi")
+                    Number(e.target.value) !== state.settings.usdRate && run("setUsdRate", [Number(e.target.value), today, "manual"], "Kurs saqlandi")
                   }
                 />
               </Field>
@@ -281,11 +233,7 @@ export function Admin() {
                   min={1}
                   max={28}
                   defaultValue={state.settings.payday}
-                  onBlur={(e) =>
-                    run((c) => {
-                      c.s.settings.payday = Math.min(28, Math.max(1, Number(e.target.value) || 10));
-                    }, "Saqlandi")
-                  }
+                  onBlur={(e) => Number(e.target.value) !== state.settings.payday && run("setPayday", [Number(e.target.value)], "Saqlandi")}
                 />
               </Field>
               <Field label="Kechikish jarimasi, %" hint="0 — o'chirilgan">
@@ -294,11 +242,7 @@ export function Admin() {
                   min={0}
                   max={100}
                   defaultValue={state.settings.latePenaltyPct}
-                  onBlur={(e) =>
-                    run((c) => {
-                      c.s.settings.latePenaltyPct = Math.min(100, Math.max(0, Number(e.target.value) || 0));
-                    }, "Saqlandi")
-                  }
+                  onBlur={(e) => Number(e.target.value) !== state.settings.latePenaltyPct && run("setLatePenalty", [Number(e.target.value)], "Saqlandi")}
                 />
               </Field>
             </div>
@@ -387,7 +331,7 @@ function ArchiveBody({ u, onClose }: { u: User; onClose: () => void }) {
   const hasWork = load.projects.length > 0 || load.openTasks.length > 0;
   const save = () => {
     const to = peers.find((x) => x.id === rep);
-    if (run((c) => act.archiveUser(c, u.id, rep || undefined), to ? `${u.name} arxivlandi — ishlari ${to.name}ga o'tdi` : `${u.name} arxivlandi`)) onClose();
+    if (run("archiveUser", [u.id, rep || undefined], to ? `${u.name} arxivlandi — ishlari ${to.name}ga o'tdi` : `${u.name} arxivlandi`)) onClose();
   };
   return (
     <Modal
