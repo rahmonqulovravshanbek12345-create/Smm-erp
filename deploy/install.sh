@@ -5,8 +5,8 @@
 set -euo pipefail
 
 REPO=rahmonqulovravshanbek12345-create/Smm-erp
-NODE_VER=22.22.0
-NODE_SHA256=9aa8e9d2298ab68c600bd6fb86a6c13bce11a4eca1ba9b39d79fa021755d7c37
+NODE_VER=22.23.3
+NODE_SHA256=df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de
 APP=/opt/smm-erp
 ENVF=/etc/smm-erp/env
 
@@ -48,16 +48,20 @@ systemctl enable --now unattended-upgrades >/dev/null 2>&1 || true
 ok "yoqildi"
 
 say "3/9 Node.js $NODE_VER (rasmiy, imzo xeshi tekshiriladi)"
-if [ ! -x "/opt/node-$NODE_VER/bin/node" ]; then
-  tmp=$(mktemp -d)
-  curl -fsSL "https://nodejs.org/dist/v$NODE_VER/node-v$NODE_VER-linux-x64.tar.xz" -o "$tmp/node.tar.xz"
-  echo "$NODE_SHA256  $tmp/node.tar.xz" | sha256sum -c --quiet - || die "Node.js fayli buzilgan yoki soxta (xesh mos emas)"
-  mkdir -p "/opt/node-$NODE_VER"
-  tar -xJf "$tmp/node.tar.xz" -C "/opt/node-$NODE_VER" --strip-components=1
-  rm -rf "$tmp"
+# Avtomatik yangilagich ancha yangi versiya o'rnatgan bo'lsa — eskisiga qaytarilmaydi
+NODE_CUR=$(/opt/node/bin/node --version 2>/dev/null || echo v0)
+if [ "$(printf '%s\n%s\n' "$NODE_CUR" "v$NODE_VER" | sort -V | tail -n1)" = "v$NODE_VER" ] && [ "$NODE_CUR" != "v$NODE_VER" ]; then
+  if [ ! -x "/opt/node-$NODE_VER/bin/node" ]; then
+    tmp=$(mktemp -d)
+    curl -fsSL "https://nodejs.org/dist/v$NODE_VER/node-v$NODE_VER-linux-x64.tar.xz" -o "$tmp/node.tar.xz"
+    echo "$NODE_SHA256  $tmp/node.tar.xz" | sha256sum -c --quiet - || die "Node.js fayli buzilgan yoki soxta (xesh mos emas)"
+    mkdir -p "/opt/node-$NODE_VER"
+    tar -xJf "$tmp/node.tar.xz" -C "/opt/node-$NODE_VER" --strip-components=1 --no-same-owner
+    rm -rf "$tmp"
+  fi
+  ln -sfn "/opt/node-$NODE_VER" /opt/node
 fi
-ln -sfn "/opt/node-$NODE_VER" /opt/node
-ok "$(/opt/node/bin/node --version)"
+ok "$(/opt/node/bin/node --version) (xavfsizlik yangilanishlari har kuni avtomatik o'rnatiladi)"
 
 say "4/9 Ilova foydalanuvchisi va baza"
 id smmerp >/dev/null 2>&1 || useradd --system --home-dir /var/lib/smm-erp --create-home --shell /usr/sbin/nologin smmerp
@@ -104,7 +108,7 @@ STATIC_DIR=$APP/current/public
 HOST=127.0.0.1
 PORT=3000
 COOKIE_SECURE=1
-REQUIRE_2FA_ROLES=admin,rahbar,moliya,marketolog
+REQUIRE_2FA_ROLES=all
 LOG_LEVEL=info
 X
   umask 022
@@ -119,9 +123,16 @@ say "7/9 Xizmatlar"
 install -m 644 "$APP/current/deploy/smm-erp.service" /etc/systemd/system/smm-erp.service
 install -m 644 "$APP/current/deploy/smm-erp-backup.service" /etc/systemd/system/smm-erp-backup.service
 install -m 644 "$APP/current/deploy/smm-erp-backup.timer" /etc/systemd/system/smm-erp-backup.timer
+install -m 644 "$APP/current/deploy/smm-erp-node-update.service" /etc/systemd/system/smm-erp-node-update.service
+install -m 644 "$APP/current/deploy/smm-erp-node-update.timer" /etc/systemd/system/smm-erp-node-update.timer
 install -m 755 "$APP/current/deploy/smm-erp" /usr/local/bin/smm-erp
+install -d /etc/fail2ban/filter.d /etc/fail2ban/jail.d /var/log/nginx
+touch /var/log/nginx/access.log
+install -m 644 "$APP/current/deploy/fail2ban-filter.conf" /etc/fail2ban/filter.d/smm-erp-login.conf
+install -m 644 "$APP/current/deploy/fail2ban-jail.conf" /etc/fail2ban/jail.d/smm-erp.conf
 systemctl daemon-reload
 systemctl enable --now smm-erp-backup.timer >/dev/null
+systemctl enable --now smm-erp-node-update.timer >/dev/null
 systemctl enable smm-erp >/dev/null
 systemctl restart smm-erp
 for i in $(seq 1 30); do
@@ -150,6 +161,7 @@ ufw allow "${SSH_PORT:-22}/tcp" >/dev/null
 ufw allow 'Nginx Full' >/dev/null 2>&1 || { ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null; }
 ufw --force enable >/dev/null
 systemctl enable --now fail2ban >/dev/null 2>&1 || true
+systemctl reload fail2ban >/dev/null 2>&1 || systemctl restart fail2ban >/dev/null 2>&1 || true
 ok "faqat SSH, HTTP va HTTPS ochiq"
 
 say "9/9 HTTPS sertifikat"

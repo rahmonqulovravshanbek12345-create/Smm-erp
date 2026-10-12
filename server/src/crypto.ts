@@ -3,7 +3,8 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 
 // ---------- Parollar ----------
 
-const N = 2 ** 15;
+/** scrypt: 64 MB xotira, ~0,1 soniya (eski 2^15 xeshlar kirishda avtomatik yangilanadi). */
+const N = 2 ** 16;
 const R = 8;
 const P = 1;
 const KEYLEN = 64;
@@ -28,6 +29,9 @@ export async function verifyPassword(password: string, stored: string): Promise<
   const key = await scryptAsync(password, Buffer.from(salt, "base64"), Number(n), Number(r), Number(p));
   return key.length === expected.length && timingSafeEqual(key, expected);
 }
+
+/** Xesh eski (kuchsizroq) parametrlar bilan yaratilganmi — muvaffaqiyatli kirishda qayta xeshlanadi. */
+export const needsRehash = (stored: string) => !stored.startsWith(`scrypt$${N}$${R}$${P}$`);
 
 /** Login topilmaganda ham bir xil vaqt sarflanadi — javob tezligidan login borligini bilib bo'lmaydi. */
 let dummy: Promise<string> | null = null;

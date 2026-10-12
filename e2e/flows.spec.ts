@@ -260,6 +260,23 @@ test("Server: Telegram — token serverda saqlanadi, brauzerga chiqmaydi; xabarl
   expect(p.errors).toEqual([]);
 });
 
+test("Server: sekin tarmoqda ham kiritilgan token avval saqlanadi, keyin tekshiriladi", async ({ page }) => {
+  test.skip(!SERVER, "Faqat serverli tizim uchun");
+  const p = await watch(page);
+  await openAs(page, "u_boss", "/integratsiyalar");
+  // Saqlash so'rovlari sekin yetib boradi (CI yoki sekin internet) — tekshiruv ulardan o'zib ketmasligi kerak
+  await page.route("**/api/action", async (r) => {
+    await new Promise((res) => setTimeout(res, 1500));
+    await r.continue();
+  });
+  await page.getByPlaceholder("EAAB…").fill("EAABsekin");
+  await page.getByPlaceholder("EAAB…").blur();
+  await page.getByRole("button", { name: "Ulanishni tekshirish" }).click();
+  await expect(page.locator("main")).toContainText("token tekshirildi (Test Business)");
+  expect((await state(page)).settings.integrations.meta.token).toBe("EAABsekin");
+  expect(p.errors).toEqual([]);
+});
+
 test("Server: Integratsiyalar — Meta va Markaziy bank so'rovlari serverdan (brauzer tashqariga chiqmaydi)", async ({ page }) => {
   test.skip(!SERVER, "Faqat serverli tizim uchun");
   const p = await watch(page);

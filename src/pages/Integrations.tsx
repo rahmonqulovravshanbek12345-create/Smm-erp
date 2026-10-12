@@ -26,6 +26,8 @@ export function Integrations() {
   const test = async () => {
     setBusy("test");
     try {
+      // Hozirgina kiritilgan token avval serverda saqlansin, keyin tekshirilsin
+      if (SERVER_MODE) await session?.flush();
       const name = SERVER_MODE ? (await api<{ name: string }>("/api/integrations/meta/test", {})).name : await testMetaToken(meta);
       if (SERVER_MODE) {
         showToast(`Meta: ulanish ishlayapti — ${name}`);
@@ -44,6 +46,7 @@ export function Integrations() {
     if (SERVER_MODE) {
       setBusy("sync");
       try {
+        await session?.flush();
         const r = await api<StateResponse & { count: number; errors: string[] }>("/api/integrations/meta/sync", {});
         session?.adopt(r);
         showToast(
@@ -74,6 +77,7 @@ export function Integrations() {
     setBusy("cbu");
     if (SERVER_MODE) {
       try {
+        await session?.flush();
         const r = await api<{ rate: number }>("/api/integrations/cbu/pull", {});
         showToast(`1 USD = ${fmtNum(r.rate)} so'm`);
       } catch (e) {

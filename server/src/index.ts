@@ -21,7 +21,8 @@ async function main() {
   const cfg = loadConfig();
   const db = createPool(cfg.DATABASE_URL);
   await migrate(db);
-  const store = new StateStore(db);
+  const sealer = makeSealer(cfg.SECRET_KEY);
+  const store = new StateStore(db, { sealer, warn: (m) => process.stderr.write(`OGOHLANTIRISH: ${m}\n`) });
   await store.load();
 
   const say = (m: string) => process.stdout.write(`${m}\n`);
@@ -35,7 +36,7 @@ async function main() {
     case "serve": {
       const notifier = createNotifier(store);
       const integrations = createIntegrations(store);
-      const app = await buildApp({ cfg, db, store, sealer: makeSealer(cfg.SECRET_KEY), notifier, integrations });
+      const app = await buildApp({ cfg, db, store, sealer, notifier, integrations });
       if (!store.ready) app.log.warn("Tizim hali sozlanmagan: `smm-erp init <login> <ism>` buyrug'ini bajaring");
       await app.listen({ host: cfg.HOST, port: cfg.PORT });
       const stopJobs = cfg.JOBS ? startJobs({ store, db, integrations, notifier, tz: cfg.TZ, log: (m, e) => app.log.error({ err: e }, m) }) : () => undefined;

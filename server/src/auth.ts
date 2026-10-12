@@ -1,10 +1,17 @@
 // Kirish: login + parol (+ 2FA), noto'g'ri urinishlarda bloklash, sessiyalar va qurilmalar.
-import { burnPasswordTime, newToken, sha256, verifyPassword, verifyTotp, type Sealer } from "./crypto";
+import { burnPasswordTime, hashPassword, needsRehash, newToken, sha256, verifyPassword, verifyTotp, type Sealer } from "./crypto";
 import type { Db } from "./db";
 
 export const SESSION_DAYS = 30;
 /** Shuncha kun ishlatilmagan sessiya o'chadi. */
 export const IDLE_DAYS = 14;
+
+/** Sessiya muddati: pul va tizim sozlamalariga kiradigan rollar uchun qisqaroq (7 kun, 1 kun harakatsizlik). */
+export function sessionLife(role: string): { days: number; idleMinutes: number } {
+  return role === "admin" || role === "rahbar" || role === "moliya"
+    ? { days: 7, idleMinutes: 24 * 60 }
+    : { days: SESSION_DAYS, idleMinutes: IDLE_DAYS * 24 * 60 };
+}
 const TOTP_STAGE_MIN = 5;
 const MAX_FAILS = 5;
 const LOCK_MIN = 15;
@@ -28,6 +35,7 @@ export interface Session {
   created_at: Date;
   last_seen: Date;
   expires_at: Date;
+  idle_minutes: number;
 }
 
 export const normLogin = (v: string) => v.trim().toLowerCase();
@@ -111,22 +119,31 @@ export async function checkPassword(db: Db, login: string, password: string): Pr
     await burnPasswordTime(password);
     return null;
   }
-  return (await verifyPassword(password, cred.pass_hash)) ? cred : null;
+  if (!(await verifyPassword(password, cred.pass_hash))) return null;
+  if (needsRehash(cred.pass_hash)) {
+    const pass_hash = await hashPassword(password);
+    await db.query("UPDATE credentials SET pass_hash = $2 WHERE user_id = $1", [cred.user_id, pass_hash]);
+    return { ...cred, pass_hash };
+  }
+  return cred;
 }
 
 // ---------- Sessiyalar ----------
 
-export async function createSession(db: Db, userId: string, stage: Session["stage"], ip: string, ua: string): Promise<string> {
+export async function createSession(
+  db: Db,
+  userId: string,
+  stage: Session["stage"],
+  ip: string,
+  ua: string,
+  life = { days: SESSION_DAYS, idleMinutes: IDLE_DAYS * 24 * 60 },
+): Promise<string> {
   const token = newToken();
-  const minutes = stage === "totp" ? TOTP_STAGE_MIN : SESSION_DAYS * 24 * 60;
-  await db.query("INSERT INTO sessions (id, user_id, stage, expires_at, ip, user_agent) VALUES ($1, $2, $3, now() + make_interval(mins => $4), $5, $6)", [
-    sha256(token),
-    userId,
-    stage,
-    minutes,
-    ip.slice(0, 64),
-    ua.slice(0, 300),
-  ]);
+  const minutes = stage === "totp" ? TOTP_STAGE_MIN : life.days * 24 * 60;
+  await db.query(
+    "INSERT INTO sessions (id, user_id, stage, expires_at, ip, user_agent, idle_minutes) VALUES ($1, $2, $3, now() + make_interval(mins => $4), $5, $6, $7)",
+    [sha256(token), userId, stage, minutes, ip.slice(0, 64), ua.slice(0, 300), life.idleMinutes],
+  );
   return token;
 }
 
@@ -136,7 +153,7 @@ export async function getSession(db: Db, token: string | undefined): Promise<Ses
   const s = rows[0];
   if (!s) return null;
   const now = Date.now();
-  if (s.expires_at.getTime() <= now || now - s.last_seen.getTime() > IDLE_DAYS * 86_400_000) {
+  if (s.expires_at.getTime() <= now || now - s.last_seen.getTime() > s.idle_minutes * 60_000) {
     await db.query("DELETE FROM sessions WHERE id = $1", [s.id]);
     return null;
   }
@@ -156,7 +173,7 @@ export async function revokeUser(db: Db, userId: string, exceptId?: string): Pro
 }
 
 export async function pruneSessions(db: Db): Promise<void> {
-  await db.query("DELETE FROM sessions WHERE expires_at < now() OR last_seen < now() - make_interval(days => $1)", [IDLE_DAYS]);
+  await db.query("DELETE FROM sessions WHERE expires_at < now() OR last_seen < now() - make_interval(mins => idle_minutes)");
   await db.query("DELETE FROM login_attempts WHERE updated_at < now() - interval '2 days' AND (locked_until IS NULL OR locked_until < now())");
 }
 

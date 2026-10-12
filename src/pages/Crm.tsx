@@ -6,7 +6,7 @@ import { diffDays, fmtDate, fmtDateShort, fmtDateTime, fmtMoney, relDays } from 
 import { LEAD_SOURCES, LEAD_STAGES, SERVICES, leadStageMeta } from "../lib/labels";
 import { serviceKindOf } from "../lib/services";
 import { PROPOSAL_STATUS, acceptedIds, acceptedProposalOf, defaultPicks, proposalValue, proposalView, servicesFromProposal, tariffOf } from "../lib/tariffs";
-import { canEdit } from "../lib/permissions";
+import { canEdit, canReassignLead } from "../lib/permissions";
 import { useErp, useLookup } from "../lib/store";
 import type { Lead, LeadStage } from "../lib/types";
 import { ProposalModal } from "./Proposals";
@@ -267,7 +267,7 @@ function LeadModal({ lead, onClose, onStage }: { lead?: Lead; onClose: () => voi
         <Field label="Mas'ul operator">
           <Select
             value={f.operatorId}
-            disabled={!editable}
+            disabled={!editable || (Boolean(lead) && !canReassignLead(me.role))}
             onChange={(e) => set("operatorId", e.target.value)}
             options={userOptions(look.usersByRole("operator"))}
           />

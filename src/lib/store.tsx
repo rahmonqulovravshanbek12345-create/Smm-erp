@@ -29,6 +29,8 @@ export interface Session {
   refresh: () => Promise<void>;
   /** Server javobidagi holatni qo'llash. */
   adopt: (r: { version: number; state: ErpState }) => void;
+  /** Navbatdagi barcha o'zgarishlar serverda saqlanguncha kutish (masalan, kiritilgan tokenni tekshirishdan oldin). */
+  flush: () => Promise<void>;
 }
 
 export interface Store {

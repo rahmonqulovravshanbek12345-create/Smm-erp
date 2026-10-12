@@ -1,0 +1,8 @@
+[Unit]
+Description=SMM ERP: Node.js xavfsizlik yangilanishi (imzo tekshiriladi, ishlamasa — orqaga qaytadi)
+After=network-online.target smm-erp.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/smm-erp/current/deploy/node-update.sh

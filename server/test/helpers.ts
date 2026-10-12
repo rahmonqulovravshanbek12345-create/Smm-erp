@@ -26,11 +26,13 @@ let ipSeq = 1;
 /** Har bir test o'z «IP manzili» bilan (so'rov cheklovlari bir-biriga xalaqit bermasin). */
 export const freshIp = () => `10.0.${Math.floor(ipSeq / 250)}.${(ipSeq++ % 250) + 1}`;
 
-export async function setup(o: { require2fa?: string; secure?: boolean; staticDir?: string } = {}): Promise<Ctx> {
+export async function setup(o: { require2fa?: string; secure?: boolean; staticDir?: string; quotaMb?: number } = {}): Promise<Ctx> {
   const db = createPool(process.env.TEST_DATABASE_URL ?? "postgres://erp:erptest@127.0.0.1:55432/erp_test");
   await db.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
   await migrate(db);
-  const store = new StateStore(db);
+  const secret = Buffer.alloc(32, 7).toString("base64");
+  const sealer = makeSealer(secret);
+  const store = new StateStore(db, { sealer });
   await store.create(demoState());
   const sent: Ctx["sent"] = [];
   const notifier = createNotifier(store, async (_t, chatId, text) => {
@@ -47,17 +49,18 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
     HOST: "127.0.0.1",
     PORT: 0,
     APP_ORIGIN: ORIGIN,
-    SECRET_KEY: Buffer.alloc(32, 7).toString("base64"),
+    SECRET_KEY: secret,
     STATIC_DIR: o.staticDir ?? FIXTURES,
     COOKIE_SECURE: o.secure ?? true,
     REQUIRE_2FA_ROLES: (o.require2fa ?? "").split(",").filter(Boolean),
     TRUST_PROXY: "127.0.0.1",
+    USER_DAILY_WRITE_MB: o.quotaMb ?? 5,
     RATE_LIMITS: true,
     JOBS: false,
     LOG_LEVEL: "silent",
     TZ: "Asia/Tashkent",
   };
-  const app = await buildApp({ cfg, db, store, sealer: makeSealer(cfg.SECRET_KEY), notifier, integrations });
+  const app = await buildApp({ cfg, db, store, sealer, notifier, integrations });
   await app.ready();
   return {
     app,

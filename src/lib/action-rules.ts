@@ -1,6 +1,6 @@
 // Kim qaysi amalni bajara oladi — serverda har bir so'rovda tekshiriladi (sahifadagi tugmalar bilan bir xil qoidalar).
 // Brauzerdagi cheklov qulaylik uchun; haqiqiy himoya — shu yer: tugmasi yo'q amalni so'rov yuborib ham bajarib bo'lmaydi.
-import { access, canEdit, canEditFinance } from "./permissions";
+import { access, canEdit, canEditFinance, canPayUser, canReassignLead } from "./permissions";
 import { DEMO_ONLY, type ActionArgs, type ActionName } from "./registry";
 import type { ErpState, Project, Role, User } from "./types";
 
@@ -45,7 +45,8 @@ const targetologOn = (me: User, p: Project | undefined) => Boolean(p) && (me.rol
 
 const RULES: { [N in ActionName]: Rule<N> } = {
   // CRM
-  saveLead: crm,
+  // Mavjud lidning mas'ul operatorini faqat rahbariyat almashtiradi
+  saveLead: (me, s, [d]) => crm(me) && (!d.id || canReassignLead(me.role) || s.leads.find((l) => l.id === d.id)?.operatorId === d.operatorId),
   addContact: crm,
   moveLead: crm,
   createProposal: crm,
@@ -97,16 +98,16 @@ const RULES: { [N in ActionName]: Rule<N> } = {
   setInvoiceDue: fin,
   recordClientPayment: fin,
   createExtraInvoice: fin,
-  addTransaction: fin,
+  addTransaction: (me, _s, [d]) => fin(me) && canPayUser(me, d.userId),
   addTransfer: fin,
-  deleteTransaction: fin,
+  deleteTransaction: (me, s, [id]) => fin(me) && canPayUser(me, s.transactions.find((t) => t.id === id)?.userId),
   addBill: fin,
   payBill: fin,
-  payEmployee: fin,
-  addManualAccrual: fin,
-  approveAccruals: fin,
-  deleteAccrual: fin,
-  savePayProfile: fin,
+  payEmployee: (me, _s, [d]) => fin(me) && canPayUser(me, d.userId),
+  addManualAccrual: (me, _s, [d]) => fin(me) && canPayUser(me, d.userId),
+  approveAccruals: (me, s, [ids]) => fin(me) && s.accruals.every((a) => !ids.includes(a.id) || canPayUser(me, a.userId)),
+  deleteAccrual: (me, s, [id]) => fin(me) && canPayUser(me, s.accruals.find((a) => a.id === id)?.userId),
+  savePayProfile: (me, _s, [d]) => fin(me) && canPayUser(me, d.userId),
   setBudget: fin,
   saveAccount: fin,
   saveVendor: fin,

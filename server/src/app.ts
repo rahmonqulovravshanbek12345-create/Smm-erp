@@ -30,7 +30,7 @@ import {
   recordTotpFailure,
   rememberDevice,
   revokeUser,
-  SESSION_DAYS,
+  sessionLife,
   type Credential,
   type Session,
 } from "./auth";
@@ -40,7 +40,7 @@ import { audit, type Db } from "./db";
 import type { Integrations } from "./integrations";
 import type { Notifier } from "./notifier";
 import { parseArgs } from "./schemas";
-import { UserError, type StateStore } from "./store";
+import { QuotaError, UserError, type StateStore } from "./store";
 
 export interface Deps {
   cfg: Config;
@@ -104,8 +104,9 @@ export async function buildApp(d: Deps) {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", ...scriptHashes(html)],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        // Shrift sahifaning ichida (data:) — tashqi shrift serverlariga so'rov ketmaydi
+        fontSrc: ["'self'", "data:"],
         imgSrc: ["'self'", "data:", "blob:"],
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
@@ -156,7 +157,12 @@ export async function buildApp(d: Deps) {
   const ipOf = (req: FastifyRequest) => req.ip ?? "";
   const uaOf = (req: FastifyRequest) => String(req.headers["user-agent"] ?? "").slice(0, 300);
   const cookieOpts = (maxAgeDays: number) => ({ path: "/", httpOnly: true, secure, sameSite: "strict" as const, maxAge: maxAgeDays * 86_400 });
-  const setSession = (reply: FastifyReply, token: string, days = SESSION_DAYS) => reply.setCookie(SID, token, cookieOpts(days));
+  const setSession = (reply: FastifyReply, token: string, days: number) => reply.setCookie(SID, token, cookieOpts(days));
+  /** To'liq sessiya: muddati rolga qarab. */
+  const fullSession = async (req: FastifyRequest, reply: FastifyReply, user: User) => {
+    const life = sessionLife(user.role);
+    setSession(reply, await createSession(db, user.id, "full", ipOf(req), uaOf(req), life), life.days);
+  };
   const deviceOf = (req: FastifyRequest, reply: FastifyReply) => {
     let dev = req.cookies[DID];
     if (!dev || !/^[A-Za-z0-9_-]{20,64}$/.test(dev)) {
@@ -187,6 +193,14 @@ export async function buildApp(d: Deps) {
     if (!sess || sess.stage !== "full" || !user?.active || !cred) {
       if (sess && (!user?.active || !cred)) await revokeUser(db, sess.user_id);
       httpError(reply, 401, "Tizimga kiring");
+      return null;
+    }
+    // Muddat joriy rol bo'yicha (rol o'zgarsa yoki sessiya eski qoidalar bilan ochilgan bo'lsa ham)
+    const life = sessionLife(user.role);
+    const now = Date.now();
+    if (now - sess.created_at.getTime() > life.days * 86_400_000 || now - sess.last_seen.getTime() > life.idleMinutes * 60_000) {
+      await deleteSession(db, sess.id);
+      httpError(reply, 401, "Sessiya muddati tugadi — qaytadan kiring");
       return null;
     }
     const blocked: AuthInfo["blocked"] = cred.must_change ? "password" : needs2fa(user) && !cred.totp_enabled ? "2fa" : null;
@@ -231,14 +245,16 @@ export async function buildApp(d: Deps) {
     if (!body.success) return httpError(reply, 400, "Login va parolni kiriting");
     if (!(await ensureReady())) return httpError(reply, 503, "Tizim hali sozlanmagan");
     const login = normLogin(body.data.login);
+    // Jurnalga faqat mavjud login yoziladi: xodim adashib login maydoniga parolini yozsa, u jurnalga tushmasin
+    const shown = async () => ((await credentialByLogin(db, login)) ? login.slice(0, 64) : "(mavjud emas)");
     const fail = async (reason: string) => {
       await recordFailure(db, login, ipOf(req));
-      await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: login.slice(0, 64), reason } });
+      await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: await shown(), reason } });
       return httpError(reply, 401, "Login yoki parol noto'g'ri");
     };
     const wait = await lockedFor(db, login, ipOf(req));
     if (wait > 0) {
-      await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: login.slice(0, 64), reason: "locked" } });
+      await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: await shown(), reason: "locked" } });
       return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
     }
     const cred = await checkPassword(db, login, body.data.password);
@@ -251,7 +267,7 @@ export async function buildApp(d: Deps) {
       setSession(reply, await createSession(db, user.id, "totp", ipOf(req), uaOf(req)), 1);
       return { need2fa: true };
     }
-    setSession(reply, await createSession(db, user.id, "full", ipOf(req), uaOf(req)));
+    await fullSession(req, reply, user);
     await afterLogin(req, reply, user, cred);
     return { ok: true };
   });
@@ -272,7 +288,7 @@ export async function buildApp(d: Deps) {
     }
     // Oraliq sessiya o'rniga yangi to'liq sessiya (sessiya ID'si almashtiriladi)
     await deleteSession(db, sess.id);
-    setSession(reply, await createSession(db, user.id, "full", ipOf(req), uaOf(req)));
+    await fullSession(req, reply, user);
     await afterLogin(req, reply, user, cred);
     return { ok: true };
   });
@@ -283,7 +299,8 @@ export async function buildApp(d: Deps) {
       await deleteSession(db, sess.id);
       await audit(db, { userId: sess.user_id, ip: ipOf(req), kind: "logout", ok: true });
     }
-    reply.clearCookie(SID, { path: "/" });
+    // __Host- cookie faqat Secure belgisi bilan o'chadi — o'rnatilgandagi bilan bir xil sozlamalar
+    reply.clearCookie(SID, { path: "/", httpOnly: true, secure, sameSite: "strict" });
     return { ok: true };
   });
 
@@ -300,6 +317,9 @@ export async function buildApp(d: Deps) {
     if (!a) return;
     const body = z.strictObject({ current: z.string().max(200), next: z.string().max(200) }).safeParse(req.body);
     if (!body.success) return httpError(reply, 400, "Parollarni kiriting");
+    // O'g'irlangan sessiya bilan joriy parolni tanlab bo'lmasin — kirishdagi blok bu yerda ham amal qiladi
+    const wait = await lockedFor(db, a.cred.login, ipOf(req));
+    if (wait > 0) return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
     if (!(await verifyPassword(body.data.current, a.cred.pass_hash))) {
       await recordFailure(db, a.cred.login, ipOf(req));
       await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "password-change", ok: false });
@@ -351,6 +371,8 @@ export async function buildApp(d: Deps) {
     const a = await authenticate(req, reply);
     if (!a) return;
     if (needs2fa(a.user)) return httpError(reply, 400, "Sizning rolingiz uchun ikki bosqichli kirish majburiy");
+    const wait = await lockedFor(db, a.cred.login, ipOf(req));
+    if (wait > 0) return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
     const body = z.strictObject({ password: z.string().max(200), code: z.string().max(12) }).safeParse(req.body);
     if (!body.success || !(await verifyPassword(body.data.password, a.cred.pass_hash)) || !(await checkTotp(db, sealer, a.cred, body.data.code))) {
       await recordFailure(db, a.cred.login, ipOf(req));
@@ -401,6 +423,7 @@ export async function buildApp(d: Deps) {
       const r = await store.run(name, parsed.args, a.user.id, {
         ids: body.data.ids,
         check: (me, s) => denyReason(name, me, s, parsed.args),
+        quotaBytes: a.user.role === "admin" ? undefined : cfg.USER_DAILY_WRITE_MB * 1024 * 1024,
       });
       await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "action", action: name, ok: true, version: r.version, detail: auditArgs(name, parsed.args) });
       d.notifier.deliver(r.outbox);
@@ -411,7 +434,7 @@ export async function buildApp(d: Deps) {
     } catch (e) {
       if (!(e instanceof UserError)) throw e;
       await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "action", action: name, ok: false, detail: { error: e.message } });
-      const code = e.message === "Bu amal uchun ruxsatingiz yo'q" || e.message.startsWith("Bu amal serverli") ? 403 : 422;
+      const code = e instanceof QuotaError ? 429 : e.message === "Bu amal uchun ruxsatingiz yo'q" || e.message.startsWith("Bu amal serverli") ? 403 : 422;
       return httpError(reply, code, e.message);
     }
   });

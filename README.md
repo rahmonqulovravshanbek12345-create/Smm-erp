@@ -3,7 +3,7 @@
 Lid kelganidan oylik hisobot va to'lovgacha bo'lgan butun jarayon bitta tizimda. Ikki ko'rinishda yig'iladi:
 
 - **Haqiqiy tizim (server)** — `npm run build:server` + `server/`: PostgreSQL bazasi, login/parol va 2FA, har bir xodimga
-  faqat ruxsat etilgan ma'lumot, barcha amallar serverda tekshiriladi. Serverga o'rnatish: [deploy/README.md](deploy/README.md).
+  faqat ruxsat etilgan ma'lumot, barcha amallar serverda tekshiriladi. Serverga o'rnatish: [DEPLOY.md](DEPLOY.md), xavfsizlik: [SECURITY.md](SECURITY.md).
 - **Demo** — `npm run build`: server kerak emas, bitta `index.html`, ma'lumotlar brauzerda (namunaviy ma'lumotlar bilan).
 
 ## Nimalar bor
