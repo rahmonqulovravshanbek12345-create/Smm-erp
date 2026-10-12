@@ -11,6 +11,8 @@ const common = {
   // CommonJS kutubxonalar uchun require
   banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
   logLevel: "warning",
+  // Server — haqiqiy tizim (agentlik nomi va h.k. brauzerdagi server versiyasi bilan bir xil)
+  define: { "import.meta.env.VITE_SERVER": '"1"' },
 };
 
 await build({ ...common, entryPoints: ["src/index.ts"], outfile: "dist/server.mjs", sourcemap: "linked", legalComments: "linked" });
