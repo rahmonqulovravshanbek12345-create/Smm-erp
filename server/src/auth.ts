@@ -44,29 +44,49 @@ export async function credentialByUser(db: Db, userId: string): Promise<Credenti
 }
 
 // ---------- Noto'g'ri urinishlar ----------
+// Blok «login + IP» juftligiga qo'yiladi: begona odam boshqa joydan xato parol terib, haqiqiy xodimni
+// bloklab qo'ya olmaydi. Ko'p IP'dan tarqoq hujumga qarshi — login bo'yicha umumiy yumshoq cheklov
+// (soatiga 30 xato → 15 daqiqa). Login topilmasa ham xuddi shunday hisoblanadi (kim borligini bilib bo'lmasin).
+
+const keyOf = (login: string, ip: string) => `${normLogin(login).slice(0, 64)}|${ip.slice(0, 64)}`;
+const globalKey = (login: string) => `${normLogin(login).slice(0, 64)}|*`;
+const GLOBAL_MAX = 30;
 
 /** Bloklangan bo'lsa — necha daqiqa qolgani. */
-export async function lockedFor(db: Db, login: string): Promise<number> {
-  const { rows } = await db.query<{ locked_until: Date | null }>("SELECT locked_until FROM login_attempts WHERE login = $1", [normLogin(login)]);
-  const until = rows[0]?.locked_until;
+export async function lockedFor(db: Db, login: string, ip: string): Promise<number> {
+  const { rows } = await db.query<{ until: Date | null }>("SELECT max(locked_until) AS until FROM login_attempts WHERE login = ANY($1)", [
+    [keyOf(login, ip), globalKey(login)],
+  ]);
+  const until = rows[0]?.until;
   if (!until || until.getTime() <= Date.now()) return 0;
   return Math.ceil((until.getTime() - Date.now()) / 60_000);
 }
 
-/** Har 5 ta xatodan keyin blok: 15 daqiqa, keyin 30, 60… (24 soatgacha). */
-export async function recordFailure(db: Db, login: string): Promise<void> {
+/** Shu IP'dan har 5 ta xatodan keyin blok: 15 daqiqa, keyin 30, 60… (24 soatgacha). */
+export async function recordFailure(db: Db, login: string, ip: string): Promise<void> {
   await db.query(
     `INSERT INTO login_attempts (login, failed, updated_at) VALUES ($1, 1, now())
      ON CONFLICT (login) DO UPDATE SET failed = login_attempts.failed + 1, updated_at = now(),
        locked_until = CASE WHEN (login_attempts.failed + 1) % $2 = 0
          THEN now() + make_interval(mins => LEAST($3 * power(2, (login_attempts.failed + 1) / $2 - 1), 1440)::int)
          ELSE login_attempts.locked_until END`,
-    [normLogin(login).slice(0, 64), MAX_FAILS, LOCK_MIN],
+    [keyOf(login, ip), MAX_FAILS, LOCK_MIN],
+  );
+  await db.query(
+    `INSERT INTO login_attempts (login, failed, updated_at) VALUES ($1, 1, now())
+     ON CONFLICT (login) DO UPDATE SET
+       failed = CASE WHEN login_attempts.updated_at < now() - interval '1 hour' THEN 1 ELSE login_attempts.failed + 1 END,
+       updated_at = now(),
+       locked_until = CASE WHEN login_attempts.updated_at >= now() - interval '1 hour' AND (login_attempts.failed + 1) % $2 = 0
+         THEN now() + make_interval(mins => $3) ELSE login_attempts.locked_until END`,
+    [globalKey(login), GLOBAL_MAX, LOCK_MIN],
   );
 }
 
-export async function clearFailures(db: Db, login: string): Promise<void> {
-  await db.query("DELETE FROM login_attempts WHERE login = $1", [normLogin(login)]);
+/** Muvaffaqiyatli kirishda — shu IP'dagi hisoblagich; IP berilmasa (admin/CLI) — loginning hamma bloklari. */
+export async function clearFailures(db: Db, login: string, ip?: string): Promise<void> {
+  if (ip !== undefined) await db.query("DELETE FROM login_attempts WHERE login = ANY($1)", [[keyOf(login, ip), globalKey(login)]]);
+  else await db.query("DELETE FROM login_attempts WHERE split_part(login, '|', 1) = $1", [normLogin(login).slice(0, 64)]);
 }
 
 /** Login va parolni tekshiradi. Login topilmasa ham bir xil vaqt va bir xil javob. */

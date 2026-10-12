@@ -1,7 +1,7 @@
 import { type Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { readFile } from "node:fs/promises";
-import { openAs, state, watch } from "./helpers";
+import { openAs, state, watch, SERVER } from "./helpers";
 
 const dialog = (page: Page) => page.locator("[role=dialog]");
 
@@ -104,6 +104,7 @@ test("Montaj qabul qilinadi → ishbay hisoblanadi → moliya to'laydi → xodim
 });
 
 test("Telegram: barcha xodimlarga bitta chat, xabarda qabul qiluvchi ko'rsatiladi", async ({ page }) => {
+  test.skip(SERVER, "Demo rejimi: brauzer Telegram'ga o'zi yuboradi (serverli varianti pastda)");
   const p = await watch(page);
   const sent: { chat_id: string; text: string }[] = [];
   await page.route("https://api.telegram.org/**", async (route) => {
@@ -135,6 +136,7 @@ test("Telegram: barcha xodimlarga bitta chat, xabarda qabul qiluvchi ko'rsatilad
 });
 
 test("Integratsiyalar: Meta Ads va Markaziy bank (soxta API bilan)", async ({ page }) => {
+  test.skip(SERVER, "Demo rejimi: so'rovlar brauzerdan (serverli varianti pastda)");
   const p = await watch(page);
   await page.route("https://graph.facebook.com/**", (route) => {
     const u = new URL(route.request().url());
@@ -223,4 +225,61 @@ test("Rad etishda sabab majburiy (forma bo'sh yuborilmaydi)", async ({ page }) =
   await dialog(page).getByRole("button", { name: "Tasdiqlash" }).click();
   const s = await state(page);
   expect(s.leads.find((l: { id: string }) => l.id === "l_5")).toMatchObject({ stage: "unfit", rejectReason: "Narx qimmat" });
+});
+
+test("Server: Telegram — token serverda saqlanadi, brauzerga chiqmaydi; xabarlar serverdan ketadi", async ({ page }) => {
+  test.skip(!SERVER, "Faqat serverli tizim uchun");
+  const p = await watch(page);
+  const TOKEN = "123456:TEST_token-for_e2e_only_000000";
+  await openAs(page, "u_admin", "/admin");
+  await page.getByPlaceholder("123456:ABC-DEF…").fill(TOKEN);
+  await page.getByPlaceholder("123456:ABC-DEF…").blur();
+  for (const name of ["Tizim administratori", "Rustam Ergashev", "Shoxrux Qodirov"]) {
+    const input = page.getByLabel(`${name}: Telegram chat ID`);
+    await input.fill("555777");
+    await input.blur();
+  }
+  await expect.poll(async () => (await state(page)).users.filter((u: { telegramChatId?: string }) => u.telegramChatId === "555777").length).toBe(3);
+  await page.getByRole("button", { name: "Menga test xabar yuborish" }).click();
+  await expect(page.getByText("Test xabar yuborildi")).toBeVisible();
+  const sent = async () => ((await (await page.request.get("./__test/sent")).json()) as { sent: { chatId: string; text: string }[] }).sent;
+  expect((await sent())[0]).toMatchObject({ chatId: "555777" });
+  expect((await sent())[0]!.text).toContain("👤 Tizim administratori · Admin");
+
+  // Token brauzerga hech qachon kelmaydi — faqat «••••» va oxirgi 4 belgi
+  const raw = await page.evaluate(async () => (await fetch("./api/state?v=-1")).text());
+  expect(raw).not.toContain("TEST_token");
+  await page.reload();
+  await expect(page.getByPlaceholder("123456:ABC-DEF…")).toHaveValue(/^•+0000$/);
+  expect((await state(page)).settings.telegram.botToken).toBe(TOKEN);
+
+  await openAs(page, "u_smm1", "/montaj");
+  await page.getByRole("button", { name: "✓ Qabul" }).first().click();
+  await expect.poll(async () => (await sent()).length, { timeout: 8000 }).toBeGreaterThanOrEqual(2);
+  expect((await sent()).slice(1).every((m) => m.text.includes("· Montajyor"))).toBe(true);
+  expect(p.errors).toEqual([]);
+});
+
+test("Server: Integratsiyalar — Meta va Markaziy bank so'rovlari serverdan (brauzer tashqariga chiqmaydi)", async ({ page }) => {
+  test.skip(!SERVER, "Faqat serverli tizim uchun");
+  const p = await watch(page);
+  await openAs(page, "u_boss", "/integratsiyalar");
+  const acc = page.getByLabel("Sharq Mebel: reklama kabineti ID");
+  await acc.fill("act_99887766");
+  await acc.blur();
+  await page.getByPlaceholder("EAAB…").fill("EAABtest");
+  await page.getByPlaceholder("EAAB…").blur();
+  await page.getByRole("button", { name: "Ulanishni tekshirish" }).click();
+  await expect(page.locator("main")).toContainText("token tekshirildi (Test Business)");
+  await page.getByRole("button", { name: "Hozir sinxronlash" }).click();
+  await expect(page.locator("main")).toContainText("Meta Ads: Sharq Mebel —");
+  await page.getByRole("button", { name: "Markaziy bankdan yangilash" }).click();
+  await expect(page.locator("main")).toContainText("1 USD = 12 778 so'm");
+  const s = await state(page);
+  expect(s.settings.usdRate).toBe(12777.77);
+  expect(s.settings.integrations.meta.token).toBe("EAABtest");
+  expect(s.targetReports.some((r: { projectId: string; source: string }) => r.projectId === "p_mebel" && r.source === "meta")).toBe(true);
+  // Brauzer Meta yoki Markaziy bankka o'zi murojaat qilmadi
+  expect(p.external).toEqual([]);
+  expect(p.errors).toEqual([]);
 });

@@ -3,7 +3,7 @@
 import { type Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { check } from "../src/lib/audit-check";
-import { openAs, settle, state, watch } from "./helpers";
+import { openAs, settle, state, watch, setClock } from "./helpers";
 
 const dialog = (page: Page) => page.locator("[role=dialog]");
 test.use({ actionTimeout: 15_000 });
@@ -20,14 +20,14 @@ async function audit(page: Page, label: string) {
 }
 
 async function setDay(page: Page, iso: string) {
-  await page.clock.setSystemTime(new Date(`${iso}T10:00:00`));
+  await setClock(page, new Date(`${iso}T10:00:00`));
 }
 
 test("To'liq hayot sikli: lid → shartnoma → to'lov → kontent → syomka → montaj → tasdiq → joylash → reklama → keyingi oy → ish haqi → yopish", async ({
   page,
 }) => {
   test.setTimeout(300_000);
-  await page.clock.install({ time: new Date("2026-11-02T10:00:00") });
+  await setClock(page, new Date("2026-11-02T10:00:00"), true);
   const p = await watch(page);
   // Har yangi kunda ilova Markaziy bank kursini avtomatik so'raydi — testda soxta javob
   await page.route("https://cbu.uz/**", (route) =>

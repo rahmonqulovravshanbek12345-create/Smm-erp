@@ -201,7 +201,7 @@ export async function buildApp(d: Deps) {
 
   /** Kirish muvaffaqiyatli bo'lganda: yangi qurilma bo'lsa — xodimning Telegram'iga ogohlantirish. */
   async function afterLogin(req: FastifyRequest, reply: FastifyReply, user: User, cred: Credential) {
-    await clearFailures(db, cred.login);
+    await clearFailures(db, cred.login, ipOf(req));
     await db.query("UPDATE credentials SET last_login_at = now() WHERE user_id = $1", [user.id]);
     const fresh = await rememberDevice(db, user.id, deviceOf(req, reply));
     await audit(db, { userId: user.id, ip: ipOf(req), kind: "login", ok: true, detail: { newDevice: fresh, ua: uaOf(req) } });
@@ -218,17 +218,17 @@ export async function buildApp(d: Deps) {
 
   const LoginBody = z.strictObject({ login: z.string().max(64), password: z.string().max(200) });
 
-  app.post("/api/auth/login", rl(10, "5 minutes"), async (req, reply) => {
+  app.post("/api/auth/login", rl(30, "5 minutes"), async (req, reply) => {
     const body = LoginBody.safeParse(req.body);
     if (!body.success) return httpError(reply, 400, "Login va parolni kiriting");
     if (!store.ready) return httpError(reply, 503, "Tizim hali sozlanmagan");
     const login = normLogin(body.data.login);
     const fail = async (reason: string) => {
-      await recordFailure(db, login);
+      await recordFailure(db, login, ipOf(req));
       await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: login.slice(0, 64), reason } });
       return httpError(reply, 401, "Login yoki parol noto'g'ri");
     };
-    const wait = await lockedFor(db, login);
+    const wait = await lockedFor(db, login, ipOf(req));
     if (wait > 0) {
       await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: login.slice(0, 64), reason: "locked" } });
       return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
@@ -239,7 +239,7 @@ export async function buildApp(d: Deps) {
     if (!user?.active) return fail("inactive");
     if (cred.totp_enabled) {
       // Parol to'g'ri, lekin hali 2FA kodi kerak — 5 daqiqalik oraliq sessiya
-      await clearFailures(db, login);
+      await clearFailures(db, login, ipOf(req));
       setSession(reply, await createSession(db, user.id, "totp", ipOf(req), uaOf(req)), 1);
       return { need2fa: true };
     }
@@ -248,16 +248,16 @@ export async function buildApp(d: Deps) {
     return { ok: true };
   });
 
-  app.post("/api/auth/totp", rl(10, "5 minutes"), async (req, reply) => {
+  app.post("/api/auth/totp", rl(30, "5 minutes"), async (req, reply) => {
     const body = z.strictObject({ code: z.string().max(12) }).safeParse(req.body);
     const sess = await getSession(db, req.cookies[SID]);
     if (!sess || sess.stage !== "totp") return httpError(reply, 401, "Qaytadan kiring");
     const cred = await credentialByUser(db, sess.user_id);
     const user = userIn(store.current().state, sess.user_id);
     if (!cred || !user?.active) return httpError(reply, 401, "Qaytadan kiring");
-    if (await lockedFor(db, cred.login)) return httpError(reply, 429, "Juda ko'p noto'g'ri urinish — keyinroq urinib ko'ring");
+    if (await lockedFor(db, cred.login, ipOf(req))) return httpError(reply, 429, "Juda ko'p noto'g'ri urinish — keyinroq urinib ko'ring");
     if (!body.success || !(await checkTotp(db, sealer, cred, body.data.code))) {
-      await recordFailure(db, cred.login);
+      await recordFailure(db, cred.login, ipOf(req));
       await audit(db, { userId: user.id, ip: ipOf(req), kind: "login-2fa", ok: false });
       return httpError(reply, 401, "Kod noto'g'ri");
     }
@@ -286,13 +286,13 @@ export async function buildApp(d: Deps) {
     return meInfo(a);
   });
 
-  app.post("/api/auth/password", rl(10, "5 minutes"), async (req, reply) => {
+  app.post("/api/auth/password", rl(30, "5 minutes"), async (req, reply) => {
     const a = await authenticate(req, reply, { allowBlocked: true });
     if (!a) return;
     const body = z.strictObject({ current: z.string().max(200), next: z.string().max(200) }).safeParse(req.body);
     if (!body.success) return httpError(reply, 400, "Parollarni kiriting");
     if (!(await verifyPassword(body.data.current, a.cred.pass_hash))) {
-      await recordFailure(db, a.cred.login);
+      await recordFailure(db, a.cred.login, ipOf(req));
       await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "password-change", ok: false });
       return httpError(reply, 400, "Joriy parol noto'g'ri");
     }
@@ -322,7 +322,7 @@ export async function buildApp(d: Deps) {
     return { secret, uri, svg: renderSVG(uri, { border: 2 }) };
   });
 
-  app.post("/api/auth/2fa/enable", rl(10, "5 minutes"), async (req, reply) => {
+  app.post("/api/auth/2fa/enable", rl(30, "5 minutes"), async (req, reply) => {
     const a = await authenticate(req, reply, { allowBlocked: true });
     if (!a) return;
     const body = z.strictObject({ code: z.string().max(12) }).safeParse(req.body);
@@ -344,7 +344,7 @@ export async function buildApp(d: Deps) {
     if (needs2fa(a.user)) return httpError(reply, 400, "Sizning rolingiz uchun ikki bosqichli kirish majburiy");
     const body = z.strictObject({ password: z.string().max(200), code: z.string().max(12) }).safeParse(req.body);
     if (!body.success || !(await verifyPassword(body.data.password, a.cred.pass_hash)) || !(await checkTotp(db, sealer, a.cred, body.data.code))) {
-      await recordFailure(db, a.cred.login);
+      await recordFailure(db, a.cred.login, ipOf(req));
       return httpError(reply, 400, "Parol yoki kod noto'g'ri");
     }
     await db.query("UPDATE credentials SET totp_secret = NULL, totp_enabled = false, updated_at = now() WHERE user_id = $1", [a.user.id]);
@@ -488,7 +488,7 @@ export async function buildApp(d: Deps) {
     }>(
       `SELECT c.user_id, c.login, c.must_change, c.totp_enabled, c.last_login_at,
               (SELECT count(*) FROM sessions s WHERE s.user_id = c.user_id AND s.stage = 'full') AS sessions,
-              (SELECT locked_until FROM login_attempts l WHERE l.login = c.login) AS locked_until
+              (SELECT max(locked_until) FROM login_attempts l WHERE split_part(l.login, '|', 1) = c.login) AS locked_until
          FROM credentials c`,
     );
     return {

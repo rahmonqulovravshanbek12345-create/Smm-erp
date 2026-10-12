@@ -58,7 +58,8 @@ export async function openAs(page: Page, user: UserId | (string & {}), hash = ""
     expect(r.ok(), `kirish: ${user} — ${await r.text()}`).toBe(true);
     await page.goto(`./?u=${user}${hash ? `#${hash}` : ""}`);
     await expect(page.locator("#root")).not.toBeEmpty();
-    await expect(page.locator("aside, header").first()).toBeVisible();
+    // Ilova shu xodim bilan ochildi (kirish ekrani emas)
+    await page.waitForFunction((u) => document.documentElement.dataset.me === u, user);
     return;
   }
   await page.goto("./");
@@ -108,4 +109,14 @@ export async function settle(page: Page) {
       timeout: 5000,
     },
   );
+}
+
+/** Brauzer soatini o'rnatadi (serverli tizimda — server «bugun»ini ham). `install` — birinchi marta. */
+export async function setClock(page: Page, time: Date, install = false) {
+  if (install) await page.clock.install({ time });
+  else await page.clock.setSystemTime(time);
+  if (SERVER) {
+    const r = await page.request.post("./__test/clock", { data: { time: time.toISOString(), reseed: install }, headers: { "x-erp": "1" } });
+    expect(r.ok()).toBe(true);
+  }
 }

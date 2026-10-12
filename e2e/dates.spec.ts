@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { openAs, watch, type UserId } from "./helpers";
+import { openAs, watch, type UserId, setClock } from "./helpers";
 
 // Demo boshqa sanalarda ochilganda ham (oy oxiri, yil almashishi, fevral) hisob-kitob sahifalari buzilmasligi kerak.
 const DATES = ["2026-12-31", "2027-01-31", "2027-03-01"];
@@ -28,7 +28,7 @@ const ROLES: UserId[] = ["u_boss", "u_mol"];
 
 for (const date of DATES) {
   test(`bugun = ${date}: asosiy sahifalar buzilmaydi`, async ({ page }) => {
-    await page.clock.install({ time: new Date(`${date}T10:00:00`) });
+    await setClock(page, new Date(`${date}T10:00:00`), true);
     const p = await watch(page);
     for (const uid of ROLES) {
       await openAs(page, uid);

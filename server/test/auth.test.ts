@@ -23,27 +23,40 @@ describe("Login va parol", () => {
     expect(a.cookies.find((x) => x.name === "__Host-erp")).toBeUndefined();
   });
 
-  it("5 ta xatodan keyin login bloklanadi — to'g'ri parol bilan ham kirib bo'lmaydi", async () => {
+  it("bitta joydan 5 ta xato — shu joydan bloklanadi; boshqa joydan haqiqiy xodim kira oladi", async () => {
     await giveLogin(t.db, "u_dz", "nilufar");
+    const attacker = client(t.app);
     for (let i = 0; i < 5; i++) {
-      // Har urinish boshqa IP'dan — blok IP'ga emas, loginga qo'yiladi
-      const r = await client(t.app).req("POST", "/api/auth/login", { login: "nilufar", password: `xato-parol-${i}` });
+      const r = await attacker.req("POST", "/api/auth/login", { login: "nilufar", password: `xato-parol-${i}` });
       expect(r.statusCode).toBe(401);
     }
-    const r = await client(t.app).req("POST", "/api/auth/login", { login: "nilufar", password: PASS });
+    const r = await attacker.req("POST", "/api/auth/login", { login: "nilufar", password: PASS });
     expect(r.statusCode).toBe(429);
     expect(r.json().error).toMatch(/daqiqadan keyin/);
+    // Hujumchi haqiqiy xodimni bloklab qo'ya olmaydi
+    expect((await client(t.app).req("POST", "/api/auth/login", { login: "nilufar", password: PASS })).statusCode).toBe(200);
     // Mavjud bo'lmagan login ham xuddi shunday bloklanadi (kim borligini bilib bo'lmaydi)
-    for (let i = 0; i < 5; i++) await client(t.app).req("POST", "/api/auth/login", { login: "hech-kim", password: `xato-${i}-parol` });
-    expect((await client(t.app).req("POST", "/api/auth/login", { login: "hech-kim", password: PASS })).statusCode).toBe(429);
+    const c = client(t.app);
+    for (let i = 0; i < 5; i++) await c.req("POST", "/api/auth/login", { login: "hech-kim", password: `xato-${i}-parol` });
+    expect((await c.req("POST", "/api/auth/login", { login: "hech-kim", password: PASS })).statusCode).toBe(429);
+  });
+
+  it("ko'p IP'dan tarqoq hujum (soatiga 30 xato) — login 15 daqiqaga yopiladi", async () => {
+    await giveLogin(t.db, "u_sy", "otabek");
+    for (let i = 0; i < 30; i++) await client(t.app).req("POST", "/api/auth/login", { login: "otabek", password: `xato-parol-${i}` });
+    const r = await client(t.app).req("POST", "/api/auth/login", { login: "otabek", password: PASS });
+    expect(r.statusCode).toBe(429);
+    // Admin blokni olib tashlay oladi (CLI: unlock) — bu yerda to'g'ridan-to'g'ri
+    await t.db.query("DELETE FROM login_attempts WHERE split_part(login, '|', 1) = 'otabek'");
+    expect((await client(t.app).req("POST", "/api/auth/login", { login: "otabek", password: PASS })).statusCode).toBe(200);
   });
 
   it("bitta IP'dan juda ko'p urinish — IP cheklanadi", async () => {
     const c = client(t.app);
     const codes: number[] = [];
-    for (let i = 0; i < 12; i++) codes.push((await c.req("POST", "/api/auth/login", { login: `user${i}`, password: "xato-parol-1" })).statusCode);
-    expect(codes.slice(0, 10).every((x) => x === 401)).toBe(true);
-    expect(codes.slice(10)).toEqual([429, 429]);
+    for (let i = 0; i < 32; i++) codes.push((await c.req("POST", "/api/auth/login", { login: `user${i}`, password: "xato-parol-1" })).statusCode);
+    expect(codes.slice(0, 30).every((x) => x === 401)).toBe(true);
+    expect(codes.slice(30)).toEqual([429, 429]);
   });
 
   it("sessiya cookie: HttpOnly, Secure, SameSite=Strict, __Host-", async () => {

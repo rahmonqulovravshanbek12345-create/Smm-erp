@@ -17,6 +17,8 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${PORT}/`,
     viewport: { width: 1440, height: 900 },
+    // Server Toshkent vaqtida ishlaydi — brauzer ham (yarim tunda «bugun» farq qilmasin)
+    timezoneId: "Asia/Tashkent",
     acceptDownloads: true,
     trace: "retain-on-failure",
     launchOptions: !process.env.CI && existsSync(localChromium) ? { executablePath: localChromium } : {},

@@ -2,7 +2,7 @@
 // Faqat testlarda ishlatiladi — ishlab chiqarish paketiga kirmaydi. /__test/* yo'llari faqat shu yerda.
 process.env.TZ ||= "Asia/Tashkent";
 
-import { todayISO } from "../../src/lib/dates";
+import { setClockOffset, todayISO } from "../../src/lib/dates";
 import { buildSeed } from "../../src/lib/seed";
 import { syncAll } from "../../src/lib/store-sync";
 import { buildApp } from "../src/app";
@@ -22,7 +22,8 @@ async function main() {
   const sent: { chatId: string; text: string }[] = [];
   const passHash = await hashPassword(PASS);
 
-  async function reset() {
+  async function reset(offsetMs = 0) {
+    setClockOffset(offsetMs);
     await db.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
     await migrate(db);
     const today = todayISO();
@@ -60,6 +61,16 @@ async function main() {
     return { ok: true };
   });
   app.get("/__test/sent", async () => ({ sent }));
+  // Brauzer soati siljitilganda (page.clock) server «bugun»i ham shunga tenglashadi
+  app.post("/__test/clock", async (req) => {
+    const body = req.body as { time?: string; reseed?: boolean };
+    const t = Date.parse(String(body.time ?? ""));
+    const offset = Number.isFinite(t) ? t - Date.now() : 0;
+    // Test boshida soat o'rnatilsa — demo kabi, ma'lumotlar o'sha sanaga nisbatan qayta quriladi
+    if (body.reseed) await reset(offset);
+    else setClockOffset(offset);
+    return { ok: true, today: todayISO() };
+  });
   // To'liq (saralanmagan) holat — testlar server haqiqatini tekshirishi uchun
   app.get("/__test/state", async () => store.current());
   await app.listen({ host: cfg.HOST, port: cfg.PORT });

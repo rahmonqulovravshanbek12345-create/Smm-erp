@@ -1,8 +1,9 @@
 import { expect, test } from "./fixtures";
-import { watch } from "./helpers";
+import { watch, SERVER } from "./helpers";
 
 // GitHub Pages: sayt https://<user>.github.io/Smm-erp/ ostida — lokal server aynan shu prefiks bilan beradi.
 test.describe("GitHub Pages moslashuvi", () => {
+  test.skip(SERVER, "Faqat demo (GitHub Pages) versiyasi uchun");
   test("prefiks ostida ochiladi, barcha resurslar shu prefiksdan yuklanadi", async ({ page }) => {
     const p = await watch(page);
     const requested: string[] = [];
