@@ -80,7 +80,7 @@ function schemeText(p: PayProfile): string {
 }
 
 function Balances({ onPay, editable }: { onPay: (id: string) => void; editable: boolean }) {
-  const { state, today } = useErp();
+  const { state, today, me } = useErp();
   const month = monthKey(today);
   const rows = payrollStaff(state)
     .map((u) => {
@@ -144,7 +144,7 @@ function Balances({ onPay, editable }: { onPay: (id: string) => void; editable: 
                   >
                     Akt
                   </A>
-                  {editable && led.balance > 0.5 && (
+                  {editable && led.balance > 0.5 && canPayUser(me, u.id) && (
                     <Button size="sm" onClick={() => onPay(u.id)}>
                       To'lash
                     </Button>

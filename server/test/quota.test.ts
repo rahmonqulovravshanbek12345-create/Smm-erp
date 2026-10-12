@@ -42,6 +42,8 @@ describe("M2: xodim bo'yicha kunlik ma'lumot kvotasi", () => {
     expect(t.store.bytes - start).toBeLessThan(0.5 * 1024 * 1024 + 100_000);
     const r = await action(smm, "createTask", [task(pid, 99)]);
     expect(r.json().error).toMatch(/chegarasiga yetdingiz/);
+    // Ma'lumotni ko'paytirmaydigan ish (bildirishnomalarni o'qish) — kvota tugasa ham mumkin
+    expect((await action(smm, "markAllRead", [])).statusCode).toBe(200);
   });
 
   it("boshqa xodimlar ishlashda davom etadi, admin cheklanmaydi", async () => {

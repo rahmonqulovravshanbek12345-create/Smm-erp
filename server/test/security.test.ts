@@ -239,3 +239,47 @@ describe("L12: rahbariyat va moliya sessiyasi qisqaroq", () => {
     expect((await o.req("GET", "/api/state")).statusCode).toBe(200);
   });
 });
+
+describe("Mustaqil tekshiruvdan keyin", () => {
+  it("noto'g'ri SECRET_KEY bilan ishlagan server tokenlarni o'chirib yubormaydi — to'g'ri kalit qaytsa, tokenlar tiklanadi", async () => {
+    const { StateStore } = await import("../src/store");
+    const { makeSealer } = await import("../src/crypto");
+    const tg = t.store.current().state.settings.telegram.botToken;
+    const meta = t.store.current().state.settings.integrations.meta.token;
+    expect(tg).not.toBe("");
+    const wrong = new StateStore(t.db, { sealer: makeSealer(Buffer.alloc(32, 99).toString("base64")) });
+    await wrong.load();
+    expect(wrong.current().state.settings.telegram.botToken).toBe("");
+    // Noto'g'ri kalit bilan oddiy ish va jadval ishlari bazaga yozadi
+    await wrong.run("markAllRead", [], "u_admin");
+    await wrong.system((s) => {
+      s.settings.usdMarkupPct = 3;
+    });
+    await t.store.load();
+    expect(t.store.current().state.settings.telegram.botToken).toBe(tg);
+    expect(t.store.current().state.settings.integrations.meta.token).toBe(meta);
+    // Admin tokenni ataylab o'chirsa — o'chadi (eski ochilmagan token qaytib kelmaydi)
+    await wrong.load();
+    await wrong.run("setTelegramToken", [""], "u_admin");
+    await t.store.load();
+    expect(t.store.current().state.settings.telegram.botToken).toBe("");
+    expect(t.store.current().state.settings.integrations.meta.token).toBe(meta);
+  });
+
+  it("rahbariyat muddati eski (uzun) sessiyaga ham qo'llanadi", async () => {
+    const b = await loginAs(t.app, "boss");
+    await t.db.query("UPDATE sessions SET idle_minutes = 20160, last_seen = now() - interval '25 hours' WHERE user_id = 'u_boss'");
+    expect((await b.req("GET", "/api/state")).statusCode).toBe(401);
+  });
+
+  it("moliya xodimi o'ziga qilingan to'lov yozuvini o'chira olmaydi", async () => {
+    const mol = await loginAs(t.app, "moliya");
+    const boss2 = await loginAs(t.app, "boss");
+    expect(
+      (await action(boss2, "payEmployee", [{ userId: "u_mol", amount: 500_000, date: "2026-10-02", accountId: "acc_bank", note: "Sinov" }])).statusCode,
+    ).toBe(200);
+    const tx = t.store.current().state.transactions.find((x) => x.userId === "u_mol" && x.amount === 500_000)!;
+    expect((await action(mol, "deleteTransaction", [tx.id])).statusCode).toBe(403);
+    expect(t.store.current().state.transactions.some((x) => x.id === tx.id)).toBe(true);
+  });
+});

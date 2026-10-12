@@ -4,7 +4,7 @@ import { A, Badge, Button, Card, CardHeader, Empty, PageHeader, Stat } from "../
 import { diffDays, fmtDate, fmtMoney } from "../../lib/dates";
 import { billPaid, payables, receivables } from "../../lib/finance";
 import { ROLE_LABELS } from "../../lib/labels";
-import { canEditFinance } from "../../lib/permissions";
+import { canEditFinance, canPayUser } from "../../lib/permissions";
 import { useErp } from "../../lib/store";
 import type { Bill } from "../../lib/types";
 import { FinNav, Money, Note, TableWrap, td, tdr, th, thr } from "./common";
@@ -160,7 +160,7 @@ export function Receivables() {
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <Money v={e.balance} strong />
-                    {editable && (
+                    {editable && canPayUser(me, e.user.id) && (
                       <Button size="sm" onClick={() => setPayUser(e.user.id)}>
                         To'lash
                       </Button>

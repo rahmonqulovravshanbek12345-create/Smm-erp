@@ -394,7 +394,7 @@ export function ExtraInvoiceModal({ onClose }: { onClose: () => void }) {
 export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose: () => void }) {
   const { state, run, me } = useErp();
   const staff = payrollStaff(state).filter((u) => canPayUser(me, u.id));
-  const [uid, setUid] = useState(userId ?? staff[0]?.id ?? "");
+  const [uid, setUid] = useState((userId && staff.some((u) => u.id === userId) ? userId : staff[0]?.id) ?? "");
   const balance = employeeBalance(state, uid);
   const m = useMoneyFields("acc_bank").withDefault(Math.max(0, balance));
   const [kind, setKind] = useState<"pay" | "advance">("pay");
@@ -447,7 +447,7 @@ export function PayEmployeeModal({ userId, onClose }: { userId?: string; onClose
 export function ManualAccrualModal({ userId, onClose }: { userId?: string; onClose: () => void }) {
   const { state, run, today, me } = useErp();
   const staff = state.users.filter((u) => u.role !== "admin" && u.active && canPayUser(me, u.id));
-  const [uid, setUid] = useState(userId ?? staff[0]?.id ?? "");
+  const [uid, setUid] = useState((userId && staff.some((u) => u.id === userId) ? userId : staff[0]?.id) ?? "");
   const [kind, setKind] = useState<"bonus" | "penalty" | "manual">("bonus");
   const [amount, setAmount] = useState("");
   const [projectId, setProjectId] = useState("");

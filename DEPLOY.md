@@ -93,6 +93,8 @@ sudo smm-erp offsite-setup
 
 Zaxira ichida baza nusxasi va `/etc/smm-erp/env` (`SECRET_KEY`) bor: kalitsiz 2FA va tokenlarni tiklab bo'lmaydi. Ro'yxat: `sudo smm-erp offsite-list`.
 
+> **Tavsiya:** bulut kaliti faqat **yozish** huquqiga ega bo'lsin, o'chirish huquqi bo'lmasin. Backblaze B2 kalitida faqat `writeFiles` va `listFiles` ni belgilang, eski fayllarni o'chirishni bucket'ning «Lifecycle» qoidasiga (masalan, 90 kun) topshiring. Shunda server buzilgan taqdirda ham bulutdagi nusxalarni o'chirib bo'lmaydi.
+
 ## 8. Telegram va Meta
 
 - **Telegram:** @BotFather'da bot yarating. Tokenni **faqat** Admin → Telegram sahifasiga kiriting, chatga yozmang. Har bir xodim botga `/start` yuboradi, admin ularning chat ID raqamlarini kiritadi. Sinov tugmasi xabar kelishini tekshiradi.
@@ -121,6 +123,20 @@ Admin → Xodimlar bo'limida xodim qo'shiladi va unga login beriladi. Ekranda va
 
 Kuzatish: `systemctl list-timers | grep smm-erp` (zaxira va Node.js taymerlari), `systemctl --failed` (ishlamay qolgan xizmat). Ma'lumot hajmi 50 MB dan oshsa, adminga tizimda va Telegramda ogohlantirish keladi.
 
+- **Xodim «kunlik chegaraga yetdingiz» deb yozsa:** u bir kunda juda ko'p ma'lumot (standart 5 MB) qo'shgan. Avval Admin → Xavfsizlik jurnalida nima qo'shilganini tekshiring. Ish haqiqiy bo'lsa: `sudo smm-erp restart` (hisoblagichlar nolga tushadi) yoki chegarani `USER_DAILY_WRITE_MB` bilan oshiring.
+- **Butun ofis saytga kira olmay qolsa:** bitta IP'dan 10 daqiqada 20 marta noto'g'ri parol kiritilsa, fail2ban o'sha IP'ni 1 soatga bloklaydi. Ochish uchun: `sudo fail2ban-client set smm-erp-login unbanip <IP>`. Ofis IP'si doimiy bo'lsa, uni `/etc/fail2ban/jail.d/smm-erp.conf` ga `ignoreip = 127.0.0.1/8 ::1 <ofis-IP>` qatori bilan qo'shing.
+- **Node.js yangilanishi ishlamasa:** yangilagich eski versiyaga qaytadi va o'sha versiyani qayta o'rnatmaydi. Sababni tuzatgach, `sudo smm-erp node-update --force` bilan qayta urinib ko'ring.
+
+## Bu versiyadan oldin o'rnatilgan serverni yangilash
+
+Server 2026-yil 12-oktabrdan oldingi versiya bilan o'rnatilgan bo'lsa, undagi eski `update` buyrug'i yangi xavfsizlik qismlarini o'rnatmaydi: Node.js yangilagichi, fail2ban qoidasi, 2FA hamma uchun. Shuning uchun bir marta o'rnatish buyrug'ini qayta ishga tushiring:
+
+```bash
+curl -fsSL https://github.com/rahmonqulovravshanbek12345-create/Smm-erp/releases/latest/download/install.sh | sudo bash
+```
+
+Buyruqni qayta ishga tushirish xavfsiz: ma'lumot, `/etc/smm-erp/env`, sertifikat va adminlar o'zgarmaydi, faqat ilova va tizim fayllari yangilanadi. So'ng `/etc/smm-erp/env` dagi `REQUIRE_2FA_ROLES=` qatorini `REQUIRE_2FA_ROLES=all` ga o'zgartiring va `sudo systemctl restart smm-erp` bajaring.
+
 ## Tiklash
 
 **Shu serverda** (masalan, xato o'zgarishdan keyin):
@@ -137,6 +153,7 @@ sudo smm-erp restore /var/backups/smm-erp/erp-YYYY-MM-DD-HHMM-kunlik.dump
 3. Faylni ochish kaliti bilan oching:
    ```bash
    nano /root/kalit.txt                          # AGE-SECRET-KEY-… qatorini joylang
+   mkdir -p /root/tiklash
    age -d -i /root/kalit.txt erp-….tar.age | tar -x -C /root/tiklash
    shred -u /root/kalit.txt
    ```

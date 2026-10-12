@@ -6,6 +6,7 @@ import { buildBlank } from "../../src/lib/blank";
 import { normalizeState } from "../../src/lib/normalize";
 import { apply, type ActionArgs, type ActionName, type ActionResult } from "../../src/lib/registry";
 import { syncAll } from "../../src/lib/store-sync";
+import { isMasked } from "../../src/lib/redact";
 import type { ErpState, User } from "../../src/lib/types";
 import type { Sealer } from "./crypto";
 import type { Db } from "./db";
@@ -23,20 +24,21 @@ export class QuotaError extends UserError {}
 // shifrlangan (AES-256-GCM) holda turadi: zaxira yoki baza sizib chiqsa ham tokenlar ochilmaydi.
 
 const ENC = "enc:";
+type SecretKey = "tg" | "meta";
 type Secrets = { telegram?: { botToken?: unknown }; integrations?: { meta?: { token?: unknown } } };
 
-function mapSecrets<T>(data: T, fn: (v: string) => string): T {
+function mapSecrets<T>(data: T, fn: (v: string, key: SecretKey) => string): T {
   const st = (data as { settings?: Secrets }).settings;
   if (!st) return data;
   const tg = st.telegram;
   const meta = st.integrations?.meta;
-  const conv = (v: unknown) => (typeof v === "string" && v ? fn(v) : v);
+  const conv = (v: unknown, key: SecretKey) => (typeof v === "string" ? fn(v, key) : v);
   return {
     ...data,
     settings: {
       ...st,
-      ...(tg ? { telegram: { ...tg, botToken: conv(tg.botToken) } } : {}),
-      ...(st.integrations && meta ? { integrations: { ...st.integrations, meta: { ...meta, token: conv(meta.token) } } } : {}),
+      ...(tg ? { telegram: { ...tg, botToken: conv(tg.botToken, "tg") } } : {}),
+      ...(st.integrations && meta ? { integrations: { ...st.integrations, meta: { ...meta, token: conv(meta.token, "meta") } } } : {}),
     },
   };
 }
@@ -63,6 +65,8 @@ export class StateStore {
   private size = 0;
   /** Xodimlar bugun qo'shgan ma'lumot hajmi (bayt) — bir xodim tizimni to'ldirib tashlay olmasin. */
   private usage = new Map<string, { day: string; bytes: number }>();
+  /** Ochilmagan (boshqa SECRET_KEY bilan shifrlangan) tokenlar: o'chib ketmasligi uchun bazaga o'zgarmasdan qaytariladi. */
+  private stuck: Partial<Record<SecretKey, string>> = {};
 
   constructor(
     private db: Db,
@@ -71,18 +75,27 @@ export class StateStore {
 
   private seal(s: ErpState): ErpState {
     const sealer = this.o.sealer;
-    return sealer ? mapSecrets(s, (v) => (v.startsWith(ENC) ? v : ENC + sealer.seal(v))) : s;
+    if (!sealer) return s;
+    return mapSecrets(s, (v, key) => {
+      // Token ochilmagan va hech kim yangisini kiritmagan — asl shifrlangan qiymat saqlanib qoladi
+      if (!v) return this.stuck[key] ?? "";
+      return v.startsWith(ENC) ? v : ENC + sealer.seal(v);
+    });
   }
 
   private unseal<T>(data: T): T {
     const sealer = this.o.sealer;
-    return mapSecrets(data, (v) => {
+    this.stuck = {};
+    return mapSecrets(data, (v, key) => {
       if (!v.startsWith(ENC)) return v;
       try {
         if (!sealer) throw new Error("kalit yo'q");
         return sealer.open(v.slice(ENC.length));
       } catch {
-        this.o.warn?.("Shifrlangan token ochilmadi (SECRET_KEY o'zgarganmi?) — Integratsiyalar/Admin sahifasida qayta kiriting");
+        this.stuck[key] = v;
+        this.o.warn?.(
+          "Shifrlangan token ochilmadi (SECRET_KEY o'zgarganmi?) — to'g'ri kalit qaytarilsa, token tiklanadi; yoki Integratsiyalar/Admin sahifasida qayta kiriting",
+        );
         return "";
       }
     });
@@ -100,7 +113,8 @@ export class StateStore {
     if (!s) throw new Error("Bazadagi holat buzilgan — zaxiradan tiklang");
     this.state = s;
     this.version = Number(row.version);
-    this.size = Buffer.byteLength(JSON.stringify(row.data));
+    // Hajm bazaga yoziladigan ko'rinishda o'lchanadi (keyingi amallar o'sishi to'g'ri hisoblansin)
+    this.size = Buffer.byteLength(JSON.stringify(this.seal(s)));
     return true;
   }
 
@@ -132,11 +146,12 @@ export class StateStore {
     return job;
   }
 
-  private async persist(next: ErpState, prevVersion: number): Promise<number> {
+  private async persist(next: ErpState, prevVersion: number, guard?: (bytes: number) => void): Promise<number> {
     const version = prevVersion + 1;
     const json = JSON.stringify(this.seal(next));
     // Himoya: holat haddan tashqari kattalashsa (masalan, kimdir ulkan matnlar yuborsa) — saqlanmaydi
     if (json.length > MAX_STATE_BYTES) throw new UserError("Ma'lumot hajmi chegaradan oshdi — adminga murojaat qiling");
+    guard?.(Buffer.byteLength(json));
     const r = await this.db.query("UPDATE app_state SET data = $1, version = $2, updated_at = now() WHERE id = 1 AND version = $3", [
       json,
       version,
@@ -167,8 +182,6 @@ export class StateStore {
       if (!me?.active) throw new UserError("Akkaunt faol emas");
       const denied = o.check?.(me, s);
       if (denied) throw new UserError(denied);
-      if (o.quotaBytes !== undefined && this.usedToday(userId) >= o.quotaBytes)
-        throw new QuotaError("Bugungi ma'lumot kiritish chegarasiga yetdingiz — ertaga davom eting yoki adminga murojaat qiling");
       const before = this.size;
       const today = todayISO();
       const { ctx, outbox } = makeCtx(s, me, { today, now: nowHM() });
@@ -180,8 +193,18 @@ export class StateStore {
         if (e instanceof Error && e.constructor === Error) throw new UserError(e.message);
         throw e;
       }
+      // Admin tokenni ataylab o'zgartirsa yoki o'chirsa — ochilmagan eski token endi saqlanmaydi
+      if (name === "setTelegramToken") delete this.stuck.tg;
+      if (name === "saveMetaSettings") {
+        const t = (args as unknown as [{ token?: string }])[0]?.token;
+        if (t !== undefined && !isMasked(t)) delete this.stuck.meta;
+      }
       syncAll(s, today);
-      const v = await this.persist(s, version);
+      // Kvota tugagan xodim ma'lumotni ko'paytiradigan amal qila olmaydi (bildirishnomani o'qish kabilar — mumkin)
+      const v = await this.persist(s, version, (bytes) => {
+        if (o.quotaBytes !== undefined && this.usedToday(userId) >= o.quotaBytes && bytes > before)
+          throw new QuotaError("Bugungi ma'lumot kiritish chegarasiga yetdingiz — ertaga davom eting yoki adminga murojaat qiling");
+      });
       const grew = this.size - before;
       if (grew > 0) this.usage.set(userId, { day: today, bytes: this.usedToday(userId) + grew });
       return { value, state: s, version: v, outbox };

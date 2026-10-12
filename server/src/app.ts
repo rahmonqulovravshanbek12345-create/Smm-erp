@@ -195,6 +195,14 @@ export async function buildApp(d: Deps) {
       httpError(reply, 401, "Tizimga kiring");
       return null;
     }
+    // Muddat joriy rol bo'yicha (rol o'zgarsa yoki sessiya eski qoidalar bilan ochilgan bo'lsa ham)
+    const life = sessionLife(user.role);
+    const now = Date.now();
+    if (now - sess.created_at.getTime() > life.days * 86_400_000 || now - sess.last_seen.getTime() > life.idleMinutes * 60_000) {
+      await deleteSession(db, sess.id);
+      httpError(reply, 401, "Sessiya muddati tugadi — qaytadan kiring");
+      return null;
+    }
     const blocked: AuthInfo["blocked"] = cred.must_change ? "password" : needs2fa(user) && !cred.totp_enabled ? "2fa" : null;
     if (blocked && !o.allowBlocked) {
       httpError(reply, 403, blocked === "password" ? "Avval parolni almashtiring" : "Avval ikki bosqichli kirishni yoqing", { blocked });

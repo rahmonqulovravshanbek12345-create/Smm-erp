@@ -11,6 +11,10 @@ KEYS=/opt/smm-erp/current/deploy/node-release-keys.gpg
 # Node.js'ning GitHub'dagi rasmiy omboridan olinadi: soxtalashtirish uchun ikkala manbani buzish kerak bo'ladi
 KEYS_FALLBACK=https://raw.githubusercontent.com/nodejs/release-keys/HEAD/gpg/pubring.kbx
 APP_HEALTH=http://127.0.0.1:3000/healthz
+# Ilova ishlamagan versiya eslab qolinadi — har kuni qayta urinib, ilovani to'xtatib turmasin
+FAILED=/var/lib/smm-erp-node/failed-version
+FORCE=0
+[ "${1:-}" = "--force" ] && FORCE=1
 
 log() { printf '%s\n' "$*"; }
 die() { printf '✗ %s\n' "$*" >&2; exit 1; }
@@ -33,6 +37,10 @@ latest=$(curl -fsS --max-time 60 "$BASE/index.json" |
 newest=$(printf '%s\n%s\n' "$cur" "$latest" | sort -V | tail -n1)
 if [ "$newest" = "$cur" ]; then
   log "Node.js $cur — eng yangi (${MAJOR}.x)"
+  exit 0
+fi
+if [ "$FORCE" = 0 ] && [ "$(cat "$FAILED" 2>/dev/null)" = "$latest" ]; then
+  log "Node.js $latest bilan ilova avval ishga tushmagan — o'tkazib yuborildi (qayta urinish: sudo smm-erp node-update --force)"
   exit 0
 fi
 ver=${latest#v}
@@ -66,6 +74,7 @@ systemctl restart smm-erp
 for _ in $(seq 1 30); do
   if curl -fsS --max-time 2 "$APP_HEALTH" >/dev/null 2>&1; then
     log "✓ Node.js $latest o'rnatildi"
+    rm -f "$FAILED"
     # Oldingi versiya qaytish uchun qoladi, undan eskilari o'chiriladi
     for d in /opt/node-*; do
       [ "$d" = "$dest" ] || [ "$d" = "$prev" ] || rm -rf "$d"
@@ -78,4 +87,12 @@ log "Yangi Node.js bilan ilova ishga tushmadi — oldingi versiyaga qaytilmoqda"
 ln -sfn "$prev" /opt/node
 systemctl restart smm-erp
 rm -rf "$dest"
+install -d -m 755 "$(dirname "$FAILED")"
+echo "$latest" >"$FAILED"
+ok=0
+for _ in $(seq 1 30); do
+  curl -fsS --max-time 2 "$APP_HEALTH" >/dev/null 2>&1 && { ok=1; break; }
+  sleep 1
+done
+[ "$ok" = 1 ] || log "DIQQAT: oldingi Node.js bilan ham ilova javob bermayapti — sudo smm-erp logs" >&2
 die "Node.js yangilash bekor qilindi ($cur ishlayapti)"

@@ -17,6 +17,8 @@ find "$DIR" -name 'erp-*.dump' -mtime +30 -delete
 echo "Zaxira: $f ($(du -h "$f" | cut -f1))"
 
 [ -f "$OFFSITE" ] || exit 0
+# Yangilash va tiklashdan oldingi nusxa — mahalliy nusxa yetarli (bulut ishlamay qolsa ham favqulodda tiklash to'xtamasin)
+case "$TAG" in yangilashdan-oldin | tiklashdan-oldin) exit 0 ;; esac
 RECIPIENT='' REMOTE=''
 while IFS='=' read -r k v; do
   case "$k" in RECIPIENT) RECIPIENT=$v ;; REMOTE) REMOTE=$v ;; esac

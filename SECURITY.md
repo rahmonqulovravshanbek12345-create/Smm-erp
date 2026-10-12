@@ -62,6 +62,30 @@ Har bir High va Medium topilma uchun hujumni takrorlaydigan avtomatik test bor. 
 
 Audit davomida xavfsizlikka aloqasi yo'q bitta xato ham topildi: telefon ekrani belgisi (`fd-touch-icon.png`) reliz paketiga kirmagan edi. Tuzatildi, endi fayl yetishmasa paket yig'ilmaydi.
 
+## Tuzatishlarning mustaqil tekshiruvi
+
+Barcha tuzatishlar alohida tekshiruvchiga qayta ko'rib chiqtirildi. U 15 ta kamchilik topdi: 1 High, 3 Medium, 11 Low. Auth chetlab o'tish, token sizib chiqishi yoki migratsiya xatosi topilmadi. Hammasi tuzatildi:
+
+- **High:** interaktiv `offsite-setup` ishlamas edi (age-keygen mavjud faylga yozmaydi).
+- **Medium:**
+  - bulutga yuborish xatosi favqulodda tiklash va yangilashni to'xtatardi — endi ular uchun faqat mahalliy nusxa olinadi;
+  - noto'g'ri `SECRET_KEY` tokenlarni abadiy o'chirardi — endi ochilmagan token o'zgarmasdan saqlanadi va to'g'ri kalit qaytsa tiklanadi;
+  - eski o'rnatishlar yangi himoyalarni olmasdi — DEPLOY.md'ga yangilash tartibi qo'shildi.
+- **Low:**
+  - moliya xodimiga doim rad etiladigan «To'lash» tugmasi ko'rinardi;
+  - moliya xodimi o'ziga qilingan to'lov yozuvini o'chira olardi;
+  - fail2ban 429 javoblarini ham sanab, butun ofis IP'sini bloklab qo'yishi mumkin edi;
+  - harden-ssh `MaxAuthTries` ni kamaytirardi va qattiqroq `PermitRootLogin no` sozlamasini bo'shatishi mumkin edi;
+  - Node yangilagichi ishlamagan versiyani har kuni qayta urinardi;
+  - tiklash va yangilash bir vaqtda ishlashi mumkin edi;
+  - ilova yangilanishi orqaga qaytganda yangi fayllar qolib ketardi;
+  - kvota hisobi qayta ishga tushgandan keyin noto'g'ri boshlanardi va kvota tugagach bildirishnomalarni o'qish ham bloklanardi;
+  - eski sessiyalarga yangi muddat qo'llanmasdi;
+  - eski Safari'da vaqt chegarasi xato berardi;
+  - DEPLOY.md'dagi tiklash qadamida `mkdir` yetishmasdi.
+
+CI'da ham bitta xato topildi: token kiritilib, darhol «Ulanishni tekshirish» bosilsa, tekshiruv tokenni saqlash so'rovidan o'zib ketardi. Tuzatildi, sekin tarmoqni taqlid qiluvchi doimiy test qo'shildi. Test tuzatishsiz yiqiladi.
+
 ## Tekshirilgan va muammo topilmagan
 
 - **Injection:** barcha SQL so'rovlar parametrli. Serverda buyruq ishga tushirish (`child_process`) yo'q. Fayl yo'llari foydalanuvchidan olinmaydi.
@@ -85,12 +109,14 @@ Quyidagilar kod bilan to'liq hal qilinmaydi. Mijozga topshirishda tushuntirilish
 7. **DDoS.** Faqat so'rov cheklovlari bor. Kuchli hujum bo'lsa, Cloudflare kabi himoya xizmati kerak bo'ladi.
 8. **Ma'lumot hajmi.** Butun ma'lumot bitta hujjatda saqlanadi. Taxminan 100 MB dan keyin tizim sekinlashadi (50 MB da adminga ogohlantirish keladi). Eski bildirishnoma va tarix avtomatik qisqartiriladi.
 9. **CSP'da `style-src 'unsafe-inline'`.** Bitta faylli yig'ish uchun kerak. Skriptlar baribir faqat xesh bilan ishlaydi, shuning uchun xavfi past.
+10. **Bulutdagi zaxira.** Server buzilsa, bulut kaliti bilan nusxalarni o'chirish mumkin. Kalitga faqat yozish huquqini bering (DEPLOY.md, 7-qadam).
+11. **Kvota xotirada hisoblanadi.** Server qayta ishga tushganda kunlik hisoblagich nolga tushadi. Bu ataylab shunday: admin `sudo smm-erp restart` bilan xodimni blokdan chiqara oladi.
 
 ## Tekshiruvni takrorlash
 
 ```bash
 npm run check                       # tiplar, lint, format, 192 unit test
-npx vitest run -c server/vitest.config.ts   # 54 server testi (hujum testlari ham), TEST_DATABASE_URL kerak
+npx vitest run -c server/vitest.config.ts   # 57 server testi (hujum testlari ham), TEST_DATABASE_URL kerak
 npm run e2e && npm run e2e:server   # brauzer testlari: demo va serverli versiya
 node scripts/check-node.mjs         # Node.js versiyasi xavfsizlik relizlaridan orqada emasmi
 npm audit --omit=dev                # runtime bog'liqliklari

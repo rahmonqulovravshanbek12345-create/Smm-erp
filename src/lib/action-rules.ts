@@ -100,7 +100,7 @@ const RULES: { [N in ActionName]: Rule<N> } = {
   createExtraInvoice: fin,
   addTransaction: (me, _s, [d]) => fin(me) && canPayUser(me, d.userId),
   addTransfer: fin,
-  deleteTransaction: fin,
+  deleteTransaction: (me, s, [id]) => fin(me) && canPayUser(me, s.transactions.find((t) => t.id === id)?.userId),
   addBill: fin,
   payBill: fin,
   payEmployee: (me, _s, [d]) => fin(me) && canPayUser(me, d.userId),

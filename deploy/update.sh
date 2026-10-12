@@ -86,8 +86,31 @@ done
 echo "Yangi versiya ishga tushmadi — eski versiyaga qaytilmoqda" >&2
 journalctl -u smm-erp -n 20 --no-pager >&2 || true
 ln -sfn "$PREV" "$APP/current"
-install -m 644 "$PREV/deploy/smm-erp.service" /etc/systemd/system/smm-erp.service
+# Eski versiyaning barcha tizim fayllari qaytariladi (yangisining buyrug'i yoki taymeri qolib ketmasin)
+for u in smm-erp.service smm-erp-backup.service smm-erp-backup.timer smm-erp-node-update.service smm-erp-node-update.timer; do
+  if [ -f "$PREV/deploy/$u" ]; then
+    install -m 644 "$PREV/deploy/$u" "/etc/systemd/system/$u"
+  else
+    systemctl disable --now "$u" >/dev/null 2>&1 || true
+    rm -f "/etc/systemd/system/$u"
+  fi
+done
+install -m 755 "$PREV/deploy/smm-erp" /usr/local/bin/smm-erp
+install -m 644 "$PREV/deploy/nginx-limits.conf" /etc/nginx/conf.d/smm-erp-limits.conf
+install -m 644 "$PREV/deploy/nginx-proxy.conf" /etc/nginx/smm-erp-proxy.conf
+if [ -f "$PREV/deploy/fail2ban-filter.conf" ]; then
+  install -m 644 "$PREV/deploy/fail2ban-filter.conf" /etc/fail2ban/filter.d/smm-erp-login.conf
+  install -m 644 "$PREV/deploy/fail2ban-jail.conf" /etc/fail2ban/jail.d/smm-erp.conf
+else
+  rm -f /etc/fail2ban/filter.d/smm-erp-login.conf /etc/fail2ban/jail.d/smm-erp.conf
+fi
 systemctl daemon-reload
+nginx -t >/dev/null 2>&1 && systemctl reload nginx
+systemctl reload fail2ban >/dev/null 2>&1 || true
 systemctl restart smm-erp
 rm -rf "$DEST"
-die "Yangilash bekor qilindi, eski versiya ($(basename "$PREV")) ishlayapti"
+for _ in $(seq 1 30); do
+  curl -fsS --max-time 2 http://127.0.0.1:3000/healthz >/dev/null 2>&1 && die "Yangilash bekor qilindi, eski versiya ($(basename "$PREV")) ishlayapti"
+  sleep 1
+done
+die "Yangilash bekor qilindi va eski versiyaga qaytildi, lekin ilova javob bermayapti — sudo smm-erp logs"

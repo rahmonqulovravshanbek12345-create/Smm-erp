@@ -1,6 +1,7 @@
 // Tashqi integratsiyalar: Meta Marketing API (kunlik target hisobotlari) va Markaziy bank kursi.
 // Demo'da so'rovlar brauzerdan yuboriladi; haqiqiy tizimda server har kuni ertalab o'zi bajaradi.
 import { addDays, diffDays } from "./dates";
+import { timeoutSignal } from "./net";
 import type { ErpState, Integrations, Project, TargetReport } from "./types";
 
 export type MetaRow = Omit<TargetReport, "id" | "authorId">;
@@ -62,7 +63,7 @@ async function getJson(url: string): Promise<{ data?: InsightRow[]; paging?: { n
   let res: Response;
   try {
     // Javob kelmasa — 20 soniyadan keyin to'xtatiladi (osilib qolgan so'rov boshqa ishlarni ushlab turmasin)
-    res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    res = await fetch(url, { signal: timeoutSignal(20_000) });
   } catch {
     throw new Error("Meta serveriga ulanib bo'lmadi (internet yoki brauzer cheklovi)");
   }
@@ -149,7 +150,7 @@ export async function syncMeta(s: ErpState, today: string, only?: { projectId: s
 export async function fetchCbuRate(date?: string): Promise<{ rate: number; date: string }> {
   let res: Response;
   try {
-    res = await fetch(`https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/${date ? `${date}/` : ""}`, { signal: AbortSignal.timeout(20_000) });
+    res = await fetch(`https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/${date ? `${date}/` : ""}`, { signal: timeoutSignal(20_000) });
   } catch {
     throw new Error("Markaziy bank saytiga ulanib bo'lmadi");
   }

@@ -22,8 +22,9 @@ case "${1:-}" in
     need_tools
     recipient=${SMM_ERP_OFFSITE_RECIPIENT:-}
     if [ -z "$recipient" ]; then
-      k=$(mktemp)
-      age-keygen -o "$k" 2>/dev/null
+      kd=$(mktemp -d)
+      k="$kd/kalit.txt"
+      age-keygen -o "$k" 2>/dev/null || die "Kalit yaratilmadi (age-keygen)"
       recipient=$(age-keygen -y "$k")
       cat <<X
 
@@ -36,6 +37,7 @@ $(grep '^AGE-SECRET-KEY-' "$k")
 ════════════════════════════════════════════════════════════════════════
 X
       shred -u "$k" 2>/dev/null || rm -f "$k"
+      rmdir "$kd"
       read -r -p "Kalitni saqlab qo'ydingizmi? (ha/yo'q): " a </dev/tty
       [ "$a" = "ha" ] || die "Bekor qilindi — kalit saqlanmagani uchun sozlash to'xtatildi"
     fi
