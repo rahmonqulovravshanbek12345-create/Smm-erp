@@ -437,17 +437,18 @@ function Logo({ small }: { small?: boolean }) {
       <BrandMark small={small} />
       <span className="leading-tight">
         <span className={`block font-bold tracking-tight text-label ${small ? "text-[16px]" : "text-[17px]"}`}>{BRAND}</span>
-        <span className="flex items-center gap-1.5 text-[12px] font-medium text-label2">
-          Agentlik ERP
-          {!SERVER_MODE && (
+        {/* Haqiqiy tizimda faqat agentlik nomi; demo'da izoh va «demo» belgisi */}
+        {!SERVER_MODE && (
+          <span className="flex items-center gap-1.5 text-[12px] font-medium text-label2">
+            Agentlik ERP
             <span
               className="rounded-full bg-orange/15 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-orange"
               title="Namunaviy ma'lumotlar bilan demo versiya"
             >
               demo
             </span>
-          )}
-        </span>
+          </span>
+        )}
       </span>
     </A>
   );

@@ -11,7 +11,7 @@ import "./index.css";
 
 // Haqiqiy tizimda brauzer yorlig'ida agentlik nomi va logotipi
 if (SERVER_MODE) {
-  document.title = `${BRAND} — ERP`;
+  document.title = BRAND;
   document.querySelector<HTMLLinkElement>("link[rel=icon]")?.setAttribute("href", FD_ICON_HREF);
   document.querySelector<HTMLLinkElement>("link[rel=apple-touch-icon]")?.setAttribute("href", "fd-touch-icon.png");
 }
