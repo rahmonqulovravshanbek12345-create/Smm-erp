@@ -27,6 +27,8 @@ const Env = z.object({
     ),
   /** Nginx ortida: haqiqiy IP X-Forwarded-For dan olinadi (faqat shu manzildagi proksiga ishoniladi). */
   TRUST_PROXY: z.string().default("127.0.0.1"),
+  /** So'rov cheklovlari (parolni taxmin qilishga qarshi). Faqat avtomatik brauzer testlarida o'chiriladi. */
+  RATE_LIMITS: bool.default(true),
   /** Jadval bo'yicha ishlar (kurs, Meta, eslatmalar). Testlarda o'chiriladi. */
   JOBS: bool.default(true),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),

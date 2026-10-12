@@ -1,0 +1,8 @@
+[Unit]
+Description=SMM ERP: kunlik zaxira nusxa (PostgreSQL)
+Requires=postgresql.service
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/smm-erp/current/deploy/backup.sh

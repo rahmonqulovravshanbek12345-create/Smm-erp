@@ -14,7 +14,8 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
-    "build:server": "tsc --noEmit && VITE_SERVER=1 vite build --outDir dist-server --emptyOutDir"
+    "build:server": "tsc --noEmit && VITE_SERVER=1 vite build --outDir dist-server --emptyOutDir",
+    "e2e:server": "(cd server && node build.mjs --e2e) && E2E_SERVER=1 playwright test -c playwright.server.config.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

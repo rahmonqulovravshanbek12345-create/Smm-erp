@@ -1,6 +1,7 @@
 // To'liq hayot sikli: bitta mijoz bilan ishlashning hamma bosqichi — har rol o'z oynasidan, haqiqiy tugmalar orqali,
 // bir necha oy davomida. Har bosqichdan keyin moliyaviy invariantlar (mustaqil tekshiruv) bajariladi.
-import { expect, test, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { check } from "../src/lib/audit-check";
 import { openAs, settle, state, watch } from "./helpers";
 

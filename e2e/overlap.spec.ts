@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { openAs, settle, watch, type UserId } from "./helpers";
 
 /** Sahifadagi yozuvlar bir-birining ustiga chiqib ketmaganini tekshiradi (ko'rinadigan qismlari bo'yicha). */

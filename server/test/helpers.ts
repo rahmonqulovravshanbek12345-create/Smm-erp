@@ -52,6 +52,7 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
     COOKIE_SECURE: o.secure ?? true,
     REQUIRE_2FA_ROLES: (o.require2fa ?? "").split(",").filter(Boolean),
     TRUST_PROXY: "127.0.0.1",
+    RATE_LIMITS: true,
     JOBS: false,
     LOG_LEVEL: "silent",
     TZ: "Asia/Tashkent",

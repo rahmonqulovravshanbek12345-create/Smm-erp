@@ -123,11 +123,14 @@ export async function buildApp(d: Deps) {
     if (!reply.hasHeader("Cache-Control")) reply.header("Cache-Control", "no-store");
   });
   await app.register(rateLimit, {
-    global: true,
+    global: cfg.RATE_LIMITS,
     max: 600,
     timeWindow: "1 minute",
     errorResponseBuilder: (_req, ctx) => ({ statusCode: 429, error: `Juda ko'p so'rov — ${Math.ceil(ctx.ttl / 1000)} soniyadan keyin urinib ko'ring` }),
   });
+
+  /** Yo'l bo'yicha so'rov cheklovi (faqat avtomatik testlarda o'chiriladi). */
+  const rl = (max: number, timeWindow: string) => ({ config: { rateLimit: cfg.RATE_LIMITS ? { max, timeWindow } : false } });
 
   // ---------- Umumiy himoya ----------
 
@@ -215,7 +218,7 @@ export async function buildApp(d: Deps) {
 
   const LoginBody = z.strictObject({ login: z.string().max(64), password: z.string().max(200) });
 
-  app.post("/api/auth/login", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (req, reply) => {
+  app.post("/api/auth/login", rl(10, "5 minutes"), async (req, reply) => {
     const body = LoginBody.safeParse(req.body);
     if (!body.success) return httpError(reply, 400, "Login va parolni kiriting");
     if (!store.ready) return httpError(reply, 503, "Tizim hali sozlanmagan");
@@ -245,7 +248,7 @@ export async function buildApp(d: Deps) {
     return { ok: true };
   });
 
-  app.post("/api/auth/totp", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (req, reply) => {
+  app.post("/api/auth/totp", rl(10, "5 minutes"), async (req, reply) => {
     const body = z.strictObject({ code: z.string().max(12) }).safeParse(req.body);
     const sess = await getSession(db, req.cookies[SID]);
     if (!sess || sess.stage !== "totp") return httpError(reply, 401, "Qaytadan kiring");
@@ -283,7 +286,7 @@ export async function buildApp(d: Deps) {
     return meInfo(a);
   });
 
-  app.post("/api/auth/password", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (req, reply) => {
+  app.post("/api/auth/password", rl(10, "5 minutes"), async (req, reply) => {
     const a = await authenticate(req, reply, { allowBlocked: true });
     if (!a) return;
     const body = z.strictObject({ current: z.string().max(200), next: z.string().max(200) }).safeParse(req.body);
@@ -319,7 +322,7 @@ export async function buildApp(d: Deps) {
     return { secret, uri, svg: renderSVG(uri, { border: 2 }) };
   });
 
-  app.post("/api/auth/2fa/enable", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (req, reply) => {
+  app.post("/api/auth/2fa/enable", rl(10, "5 minutes"), async (req, reply) => {
     const a = await authenticate(req, reply, { allowBlocked: true });
     if (!a) return;
     const body = z.strictObject({ code: z.string().max(12) }).safeParse(req.body);
@@ -335,7 +338,7 @@ export async function buildApp(d: Deps) {
     return { ok: true };
   });
 
-  app.post("/api/auth/2fa/disable", { config: { rateLimit: { max: 10, timeWindow: "5 minutes" } } }, async (req, reply) => {
+  app.post("/api/auth/2fa/disable", rl(10, "5 minutes"), async (req, reply) => {
     const a = await authenticate(req, reply);
     if (!a) return;
     if (needs2fa(a.user)) return httpError(reply, 400, "Sizning rolingiz uchun ikki bosqichli kirish majburiy");
@@ -366,7 +369,7 @@ export async function buildApp(d: Deps) {
     ids: z.array(z.string().max(40)).max(500).optional(),
   });
 
-  app.post("/api/action", { config: { rateLimit: { max: 240, timeWindow: "1 minute" } } }, async (req, reply) => {
+  app.post("/api/action", rl(240, "1 minute"), async (req, reply) => {
     const a = await authenticate(req, reply);
     if (!a) return;
     const body = ActionBody.safeParse(req.body);
@@ -430,7 +433,7 @@ export async function buildApp(d: Deps) {
       .optional(),
   });
 
-  app.post("/api/integrations/meta/sync", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req, reply) => {
+  app.post("/api/integrations/meta/sync", rl(20, "1 minute"), async (req, reply) => {
     const a = await authenticate(req, reply);
     if (!a) return;
     const body = MetaSyncBody.safeParse(req.body ?? {});
@@ -444,7 +447,7 @@ export async function buildApp(d: Deps) {
     return { ok: true, count: r.count, errors: r.errors, demo: r.demo, version: store.current().version, state: redactFor(store.current().state, me) };
   });
 
-  app.post("/api/integrations/telegram/test", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (req, reply) => {
+  app.post("/api/integrations/telegram/test", rl(5, "1 minute"), async (req, reply) => {
     const a = await authenticate(req, reply);
     if (!a) return;
     if (a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
@@ -453,7 +456,7 @@ export async function buildApp(d: Deps) {
     return { ok: true };
   });
 
-  app.post("/api/integrations/telegram/digest", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (req, reply) => {
+  app.post("/api/integrations/telegram/digest", rl(5, "1 minute"), async (req, reply) => {
     const a = await authenticate(req, reply);
     if (!a) return;
     if (a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
@@ -501,7 +504,7 @@ export async function buildApp(d: Deps) {
     };
   });
 
-  app.post("/api/admin/credentials", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
+  app.post("/api/admin/credentials", rl(30, "1 minute"), async (req, reply) => {
     const a = await adminOnly(req, reply);
     if (!a) return;
     const body = z.strictObject({ userId: z.string().max(64), login: z.string().max(64) }).safeParse(req.body);

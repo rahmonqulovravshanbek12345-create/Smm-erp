@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { USERS, horizontalOverflow, openAs, watch, type UserId } from "./helpers";
 
 // Har bir rol uchun: menyudagi har bir sahifa ochiladi, sarlavha bor, xato yo'q, ruxsatsiz sahifaga yo'naltirilmaydi.

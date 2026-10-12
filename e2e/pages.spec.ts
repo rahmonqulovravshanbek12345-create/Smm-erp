@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { watch } from "./helpers";
 
 // GitHub Pages: sayt https://<user>.github.io/Smm-erp/ ostida — lokal server aynan shu prefiks bilan beradi.

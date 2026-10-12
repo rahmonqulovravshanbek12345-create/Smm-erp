@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { openAs, watch, type UserId } from "./helpers";
 
 // Demo boshqa sanalarda ochilganda ham (oy oxiri, yil almashishi, fevral) hisob-kitob sahifalari buzilmasligi kerak.

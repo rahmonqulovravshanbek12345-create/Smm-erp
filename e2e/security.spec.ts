@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { STORAGE_KEY, openAs, state, watch } from "./helpers";
 
 test("buzilgan demo ma'lumot oq ekran emas: zaxiraga olinadi va demo qayta ochiladi", async ({ page }) => {

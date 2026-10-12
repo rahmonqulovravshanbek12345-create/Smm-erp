@@ -10,6 +10,11 @@ import type { ErpState } from "./types";
 
 const POLL_MS = 15_000;
 
+/** Saqlanish holati sahifada belgilanadi (<html data-sync="busy|idle">) — testlar va kelajakda «saqlanmoqda…» belgisi uchun. */
+const markSync = (pending: number) => {
+  document.documentElement.dataset.sync = pending > 0 ? "busy" : "idle";
+};
+
 /** JSON massivida undefined → null bo'lib qoladi: oxiridagi bo'sh argumentlar olib tashlanadi. */
 function trimArgs(args: readonly unknown[]): unknown[] {
   const out = [...args];
@@ -113,6 +118,7 @@ export function ServerStoreProvider({
       if (toastText) showToast(toastText);
       // Amallar tartib bilan yuboriladi (keyingisi oldingisiga bog'liq bo'lishi mumkin)
       inflight.current++;
+      markSync(inflight.current);
       const job = queue.current.then(async () => {
         try {
           const r = await api<ActionResponse>("/api/action", { name, args: trimArgs(args), ids });
@@ -125,6 +131,8 @@ export function ServerStoreProvider({
           fail(e);
           // Server qabul qilmadi — brauzerdagi o'zgarish bekor qilinadi
           if (inflight.current === 0) await refresh(true);
+        } finally {
+          markSync(inflight.current);
         }
       });
       queue.current = job;
@@ -139,6 +147,9 @@ export function ServerStoreProvider({
   }, [onSignedOut]);
 
   const me = state.users.find((u) => u.id === state.currentUserId) ?? state.users[0]!;
+  useEffect(() => {
+    document.documentElement.dataset.me = me.id;
+  }, [me.id]);
   const session = useMemo(
     () => ({
       login: meInfo.login,
