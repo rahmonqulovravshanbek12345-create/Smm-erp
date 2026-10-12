@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { BrandMark } from "./components/BrandMark";
 import { Icon, IconChip, type ChipColor, type IconName } from "./components/icons";
 import { A, Avatar, IconButton, Modal, navigate, usePath } from "./components/ui";
 import { SERVER_MODE } from "./lib/api";
+import { BRAND } from "./lib/brand";
 import { PasswordForm, TwoFactorForm } from "./components/Security";
 import { ROLE_LABELS } from "./lib/labels";
 import { canView, homeFor, type Module } from "./lib/permissions";
@@ -432,13 +434,9 @@ export function App() {
 function Logo({ small }: { small?: boolean }) {
   return (
     <A href="/" className="flex items-center gap-3">
-      <span
-        className={`flex items-center justify-center rounded-[12px] bg-gradient-to-br from-[#5856D6] via-[#007AFF] to-[#5AC8FA] text-white shadow-[0_6px_16px_-6px_rgb(0_122_255/0.7),inset_0_1px_0_rgb(255_255_255/0.35)] ${small ? "h-9 w-9" : "h-11 w-11"}`}
-      >
-        <Icon name="sparkle" size={small ? 18 : 22} strokeWidth={2} />
-      </span>
+      <BrandMark small={small} />
       <span className="leading-tight">
-        <span className={`block font-bold tracking-tight text-label ${small ? "text-[16px]" : "text-[17px]"}`}>SMM Studio</span>
+        <span className={`block font-bold tracking-tight text-label ${small ? "text-[16px]" : "text-[17px]"}`}>{BRAND}</span>
         <span className="flex items-center gap-1.5 text-[12px] font-medium text-label2">
           Agentlik ERP
           {!SERVER_MODE && (

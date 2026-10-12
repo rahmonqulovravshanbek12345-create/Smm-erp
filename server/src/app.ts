@@ -9,6 +9,7 @@ import Fastify, { LogController, type FastifyReply, type FastifyRequest } from "
 import { renderSVG } from "uqr";
 import { z } from "zod";
 import { denyReason } from "../../src/lib/action-rules";
+import { BRAND } from "../../src/lib/brand";
 import { canEdit } from "../../src/lib/permissions";
 import { redactFor, withoutSecrets } from "../../src/lib/redact";
 import { ACTIONS, type ActionName } from "../../src/lib/registry";
@@ -64,7 +65,7 @@ declare module "fastify" {
   }
 }
 
-const ISSUER = "Friday ERP";
+const ISSUER = BRAND;
 
 /** index.html ichidagi skriptlar xeshi — CSP faqat aynan shu skriptlarga ruxsat beradi (begona skript ishlamaydi). */
 function scriptHashes(html: string): string[] {
@@ -591,7 +592,7 @@ export async function buildApp(d: Deps) {
     if (req.headers["if-none-match"] === htmlEtag) return reply.code(304).send();
     return html;
   });
-  for (const f of ["apple-touch-icon.png", "og.jpg"]) {
+  for (const f of ["apple-touch-icon.png", "fd-touch-icon.png", "og.jpg"]) {
     let buf: Buffer | null = null;
     try {
       buf = readFileSync(join(cfg.STATIC_DIR, f));

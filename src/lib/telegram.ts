@@ -1,5 +1,6 @@
 // Telegram Bot API orqali xabar yuborish. Telegram bitta chatga sekundiga ~1 xabardan ko'pini
 // cheklaydi (guruhga — daqiqasiga 20), shuning uchun xabarlar navbat bilan, oraliq bilan ketadi.
+import { BRAND } from "./brand";
 import { ROLE_LABELS } from "./labels";
 import type { User } from "./types";
 
@@ -34,5 +35,5 @@ export function sendTelegram(token: string, chatId: string, text: string): Promi
 
 /** Xabar matni: kimga ekanligi yoziladi — bir nechta xodim bitta chatni ulaganda ham tushunarli. */
 export function telegramText(to: User, text: string): string {
-  return `🔔 SMM ERP\n👤 ${to.name} · ${ROLE_LABELS[to.role]}\n\n${text}`;
+  return `🔔 ${BRAND}\n👤 ${to.name} · ${ROLE_LABELS[to.role]}\n\n${text}`;
 }

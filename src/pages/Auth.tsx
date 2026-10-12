@@ -1,10 +1,11 @@
 // Serverli tizimga kirish: login + parol → (2FA kodi) → birinchi kirishda yangi parol → (majburiy rollar uchun) 2FA sozlash.
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { App } from "../App";
-import { Icon } from "../components/icons";
+import { BrandMark } from "../components/BrandMark";
 import { CodeInput, PasswordForm, TwoFactorForm, useSubmit } from "../components/Security";
 import { Banner, Button, Field, Input } from "../components/ui";
 import { ApiError, api, type MeInfo, type StateResponse } from "../lib/api";
+import { BRAND } from "../lib/brand";
 import { ServerStoreProvider } from "../lib/server-store";
 
 type Phase =
@@ -75,11 +76,9 @@ function Screen({ title, sub, children }: { title: string; sub?: ReactNode; chil
       <div className="wallpaper" />
       <main className="glass-strong w-full max-w-[400px] animate-pop rounded-[28px] p-6 sm:p-8">
         <div className="mb-6 flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-gradient-to-br from-[#5856D6] via-[#007AFF] to-[#5AC8FA] text-white">
-            <Icon name="sparkle" size={22} strokeWidth={2} />
-          </span>
+          <BrandMark />
           <span className="leading-tight">
-            <span className="block text-[17px] font-bold tracking-tight text-label">SMM Studio</span>
+            <span className="block text-[17px] font-bold tracking-tight text-label">{BRAND}</span>
             <span className="block text-[12px] font-medium text-label2">Agentlik ERP</span>
           </span>
         </div>
