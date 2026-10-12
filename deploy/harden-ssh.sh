@@ -38,7 +38,7 @@ had=0
 [ -f "$CONF" ] && { cp "$CONF" "$CONF.bak"; had=1; }
 install -m 644 "$tmp" "$CONF"
 rm -f "$tmp"
-mkdir -p /run/sshd
+install -d -m 755 -o root -g root /run/sshd
 if ! sshd -t; then
   if [ "$had" = 1 ]; then mv "$CONF.bak" "$CONF"; else rm -f "$CONF"; fi
   die "SSH sozlamasida xato — o'zgarish bekor qilindi"

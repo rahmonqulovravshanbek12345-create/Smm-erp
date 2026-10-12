@@ -4,7 +4,8 @@
 # imzosi va SHA-256 xeshi bilan tekshiriladi; yangi versiyada ilova ishga tushmasa — eskisiga qaytiladi.
 set -euo pipefail
 MAJOR=22
-BASE=https://nodejs.org/dist
+# Faqat sinov uchun boshqa manzil berilishi mumkin (imzo baribir rasmiy kalitlar bilan tekshiriladi)
+BASE=${SMM_ERP_NODE_DIST:-https://nodejs.org/dist}
 KEYS=/opt/smm-erp/current/deploy/node-release-keys.gpg
 # Ilova bilan birga kelgan kalitlar eskirsa (Node.js yangi reliz egasini qo'shsa) — kalitlar
 # Node.js'ning GitHub'dagi rasmiy omboridan olinadi: soxtalashtirish uchun ikkala manbani buzish kerak bo'ladi
