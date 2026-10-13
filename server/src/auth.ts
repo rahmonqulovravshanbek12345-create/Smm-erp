@@ -63,6 +63,24 @@ const totpKey = (login: string) => `${normLogin(login).slice(0, 64)}|2fa`;
 const GLOBAL_MAX = 30;
 const TOTP_MAX = 10;
 
+const chains = new Map<string, Promise<unknown>>();
+/**
+ * Bir login uchun «blokni tekshirish → taxmin → xatoni yozish» ketma-ketligi navbat bilan bajariladi.
+ * Aks holda ko'p IP'dan bir vaqtda kelgan so'rovlar hisoblagich hali 0 bo'lganda hammasi tekshiruvdan o'tib ketardi.
+ * (Server bitta jarayon — navbat xotirada; bloklash hisoblagichlari bazada qoladi.)
+ */
+export function withLoginLock<T>(login: string, fn: () => Promise<T>): Promise<T> {
+  const key = normLogin(login).slice(0, 64);
+  const prev = chains.get(key) ?? Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.catch(() => undefined);
+  chains.set(key, tail);
+  void tail.then(() => {
+    if (chains.get(key) === tail) chains.delete(key);
+  });
+  return run;
+}
+
 /** Bloklangan bo'lsa — necha daqiqa qolgani. */
 export async function lockedFor(db: Db, login: string, ip: string): Promise<number> {
   const { rows } = await db.query<{ until: Date | null }>("SELECT max(locked_until) AS until FROM login_attempts WHERE login = ANY($1)", [
@@ -147,7 +165,7 @@ export async function createSession(
   return token;
 }
 
-export async function getSession(db: Db, token: string | undefined): Promise<Session | null> {
+export async function getSession(db: Db, token: string | undefined, touch = true): Promise<Session | null> {
   if (!token || token.length > 100) return null;
   const { rows } = await db.query<Session>("SELECT * FROM sessions WHERE id = $1", [sha256(token)]);
   const s = rows[0];
@@ -158,7 +176,7 @@ export async function getSession(db: Db, token: string | undefined): Promise<Ses
     return null;
   }
   // Faollik vaqti 5 daqiqada bir marta yangilanadi (har so'rovda bazaga yozmaslik uchun)
-  if (now - s.last_seen.getTime() > 5 * 60_000) await db.query("UPDATE sessions SET last_seen = now() WHERE id = $1", [s.id]);
+  if (touch && now - s.last_seen.getTime() > 5 * 60_000) await db.query("UPDATE sessions SET last_seen = now() WHERE id = $1", [s.id]);
   return s;
 }
 

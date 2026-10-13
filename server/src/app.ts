@@ -25,6 +25,7 @@ import {
   deleteSession,
   getSession,
   lockedFor,
+  withLoginLock,
   normLogin,
   recordFailure,
   recordTotpFailure,
@@ -252,24 +253,26 @@ export async function buildApp(d: Deps) {
       await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: await shown(), reason } });
       return httpError(reply, 401, "Login yoki parol noto'g'ri");
     };
-    const wait = await lockedFor(db, login, ipOf(req));
-    if (wait > 0) {
-      await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: await shown(), reason: "locked" } });
-      return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
-    }
-    const cred = await checkPassword(db, login, body.data.password);
-    if (!cred) return fail("password");
-    const user = userIn(store.current().state, cred.user_id);
-    if (!user?.active) return fail("inactive");
-    if (cred.totp_enabled) {
-      // Parol to'g'ri, lekin hali 2FA kodi kerak — 5 daqiqalik oraliq sessiya.
-      // Xato hisoblagichlari bu yerda TOZALANMAYDI: aks holda parolni bilgan odam qayta kirib, kodlarni cheksiz tanlardi.
-      setSession(reply, await createSession(db, user.id, "totp", ipOf(req), uaOf(req)), 1);
-      return { need2fa: true };
-    }
-    await fullSession(req, reply, user);
-    await afterLogin(req, reply, user, cred);
-    return { ok: true };
+    return withLoginLock(login, async () => {
+      const wait = await lockedFor(db, login, ipOf(req));
+      if (wait > 0) {
+        await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: await shown(), reason: "locked" } });
+        return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
+      }
+      const cred = await checkPassword(db, login, body.data.password);
+      if (!cred) return fail("password");
+      const user = userIn(store.current().state, cred.user_id);
+      if (!user?.active) return fail("inactive");
+      if (cred.totp_enabled) {
+        // Parol to'g'ri, lekin hali 2FA kodi kerak — 5 daqiqalik oraliq sessiya.
+        // Xato hisoblagichlari bu yerda TOZALANMAYDI: aks holda parolni bilgan odam qayta kirib, kodlarni cheksiz tanlardi.
+        setSession(reply, await createSession(db, user.id, "totp", ipOf(req), uaOf(req)), 1);
+        return { need2fa: true };
+      }
+      await fullSession(req, reply, user);
+      await afterLogin(req, reply, user, cred);
+      return { ok: true };
+    });
   });
 
   app.post("/api/auth/totp", rl(30, "5 minutes"), async (req, reply) => {
@@ -279,18 +282,20 @@ export async function buildApp(d: Deps) {
     const cred = await credentialByUser(db, sess.user_id);
     const user = userIn(store.current().state, sess.user_id);
     if (!cred || !user?.active) return httpError(reply, 401, "Qaytadan kiring");
-    if (await lockedFor(db, cred.login, ipOf(req))) return httpError(reply, 429, "Juda ko'p noto'g'ri urinish — keyinroq urinib ko'ring");
-    if (!body.success || !(await checkTotp(db, sealer, cred, body.data.code))) {
-      await recordFailure(db, cred.login, ipOf(req));
-      await recordTotpFailure(db, cred.login);
-      await audit(db, { userId: user.id, ip: ipOf(req), kind: "login-2fa", ok: false });
-      return httpError(reply, 401, "Kod noto'g'ri");
-    }
-    // Oraliq sessiya o'rniga yangi to'liq sessiya (sessiya ID'si almashtiriladi)
-    await deleteSession(db, sess.id);
-    await fullSession(req, reply, user);
-    await afterLogin(req, reply, user, cred);
-    return { ok: true };
+    return withLoginLock(cred.login, async () => {
+      if (await lockedFor(db, cred.login, ipOf(req))) return httpError(reply, 429, "Juda ko'p noto'g'ri urinish — keyinroq urinib ko'ring");
+      if (!body.success || !(await checkTotp(db, sealer, cred, body.data.code))) {
+        await recordFailure(db, cred.login, ipOf(req));
+        await recordTotpFailure(db, cred.login);
+        await audit(db, { userId: user.id, ip: ipOf(req), kind: "login-2fa", ok: false });
+        return httpError(reply, 401, "Kod noto'g'ri");
+      }
+      // Oraliq sessiya o'rniga yangi to'liq sessiya (sessiya ID'si almashtiriladi)
+      await deleteSession(db, sess.id);
+      await fullSession(req, reply, user);
+      await afterLogin(req, reply, user, cred);
+      return { ok: true };
+    });
   });
 
   app.post("/api/auth/logout", async (req, reply) => {
@@ -306,7 +311,7 @@ export async function buildApp(d: Deps) {
 
   app.get("/api/me", async (req, reply) => {
     // Kirilmagan bo'lsa — xato emas, oddiy javob (brauzer konsolida «401» shovqini bo'lmasin)
-    if ((await ensureReady()) && !(await getSession(db, req.cookies[SID]))) return { user: null };
+    if ((await ensureReady()) && !(await getSession(db, req.cookies[SID], false))) return { user: null };
     const a = await authenticate(req, reply, { allowBlocked: true });
     if (!a) return;
     return meInfo(a);
@@ -318,13 +323,17 @@ export async function buildApp(d: Deps) {
     const body = z.strictObject({ current: z.string().max(200), next: z.string().max(200) }).safeParse(req.body);
     if (!body.success) return httpError(reply, 400, "Parollarni kiriting");
     // O'g'irlangan sessiya bilan joriy parolni tanlab bo'lmasin — kirishdagi blok bu yerda ham amal qiladi
-    const wait = await lockedFor(db, a.cred.login, ipOf(req));
-    if (wait > 0) return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
-    if (!(await verifyPassword(body.data.current, a.cred.pass_hash))) {
-      await recordFailure(db, a.cred.login, ipOf(req));
-      await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "password-change", ok: false });
-      return httpError(reply, 400, "Joriy parol noto'g'ri");
-    }
+    const refused = await withLoginLock(a.cred.login, async () => {
+      const wait = await lockedFor(db, a.cred.login, ipOf(req));
+      if (wait > 0) return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
+      if (!(await verifyPassword(body.data.current, a.cred.pass_hash))) {
+        await recordFailure(db, a.cred.login, ipOf(req));
+        await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "password-change", ok: false });
+        return httpError(reply, 400, "Joriy parol noto'g'ri");
+      }
+      return null;
+    });
+    if (refused) return refused;
     const problem = passwordProblem(body.data.next, a.cred.login);
     if (problem) return httpError(reply, 400, problem);
     if (body.data.next === body.data.current) return httpError(reply, 400, "Yangi parol eskisidan farq qilsin");
@@ -371,13 +380,17 @@ export async function buildApp(d: Deps) {
     const a = await authenticate(req, reply);
     if (!a) return;
     if (needs2fa(a.user)) return httpError(reply, 400, "Sizning rolingiz uchun ikki bosqichli kirish majburiy");
-    const wait = await lockedFor(db, a.cred.login, ipOf(req));
-    if (wait > 0) return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
-    const body = z.strictObject({ password: z.string().max(200), code: z.string().max(12) }).safeParse(req.body);
-    if (!body.success || !(await verifyPassword(body.data.password, a.cred.pass_hash)) || !(await checkTotp(db, sealer, a.cred, body.data.code))) {
-      await recordFailure(db, a.cred.login, ipOf(req));
-      return httpError(reply, 400, "Parol yoki kod noto'g'ri");
-    }
+    const refused = await withLoginLock(a.cred.login, async () => {
+      const wait = await lockedFor(db, a.cred.login, ipOf(req));
+      if (wait > 0) return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
+      const body = z.strictObject({ password: z.string().max(200), code: z.string().max(12) }).safeParse(req.body);
+      if (!body.success || !(await verifyPassword(body.data.password, a.cred.pass_hash)) || !(await checkTotp(db, sealer, a.cred, body.data.code))) {
+        await recordFailure(db, a.cred.login, ipOf(req));
+        return httpError(reply, 400, "Parol yoki kod noto'g'ri");
+      }
+      return null;
+    });
+    if (refused) return refused;
     await db.query("UPDATE credentials SET totp_secret = NULL, totp_enabled = false, updated_at = now() WHERE user_id = $1", [a.user.id]);
     await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "2fa-disable", ok: true });
     return { ok: true };

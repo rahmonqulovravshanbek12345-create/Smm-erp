@@ -111,3 +111,29 @@ describe("Mijoz to'lovi", () => {
     expect(() => act.recordClientPayment(c, inv.id, { amount: 0, date: TODAY, accountId: "acc_bank", note: "" })).toThrow();
   });
 });
+
+describe("Qayta tekshiruvdan keyingi chegaralar", () => {
+  it("shartnoma/hisob davri sanasi 2020 dan oldin bo'lmaydi", () => {
+    const { c } = makeCtx(demoState(), "u_boss");
+    const p = c.s.projects[0]!;
+    expect(() => act.updateProject(c, p.id, { periodStart: "1000-01-01" })).toThrow();
+  });
+  it("yopilgan loyihaga xizmat qo'shib/o'zgartirib/bekor qilib bo'lmaydi; yopilish sanasi davr boshidan oldin emas", () => {
+    const s = demoState();
+    const { c } = makeCtx(s, "u_boss");
+    const p = s.projects.find((x) => x.id === "p_gym")!;
+    expect(() => act.closeProject(c, p.id, "2019-01-01")).toThrow(/oldin/);
+    act.closeProject(c, p.id, TODAY);
+    const svc = p.services[0]!;
+    expect(() => act.updateService(c, p.id, svc.id, { price: 1 })).toThrow(/yopilgan/);
+    expect(() => act.cancelService(c, p.id, svc.id)).toThrow(/yopilgan/);
+    expect(() => act.addService(c, p.id, { kind: "smm", price: 1_000_000 } as never)).toThrow(/yopilgan/);
+  });
+  it("xizmat turini o'zgartirib bo'lmaydi", () => {
+    const s = demoState();
+    const { c } = makeCtx(s, "u_boss");
+    const p = s.projects.find((x) => x.id === "p_gym")!;
+    const svc = p.services.find((x) => x.status === "active")!;
+    expect(() => act.updateService(c, p.id, svc.id, { kind: (svc.kind === "smm" ? "website" : "smm") as never })).toThrow(/turini/);
+  });
+});

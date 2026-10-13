@@ -329,6 +329,7 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
   if (c.s.projects.some((p) => p.contractNo.trim().toLowerCase() === input.contractNo.trim().toLowerCase()))
     throw new Error(`Shartnoma № ${input.contractNo.trim()} allaqachon bor — boshqa raqam kiriting`);
   if (!isDate(input.contractDate)) throw new Error("Shartnoma sanasini tanlang");
+  if (input.contractDate < MIN_DATE) throw new Error(`Shartnoma sanasi ${MIN_DATE} dan oldin bo'lishi mumkin emas`);
   const usdContract = input.currency === "USD";
   if (usdContract && input.services.some((x) => x.priceUsd === undefined)) throw new Error("Dollardagi shartnoma: har bir xizmat narxini dollarda kiriting");
   input = { ...input, services: input.services.map((x) => priceInput(x, usdContract, c.s.settings.usdRate)) };
@@ -401,6 +402,7 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
 export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { dueDate?: string; prorate?: boolean } = {}) {
   const p = findProject(c, projectId);
   if (!p) return;
+  if (p.status === "closed") throw new Error("Loyiha yopilgan — xizmat qo'shib bo'lmaydi");
   if (isUsd(p) && input.priceUsd === undefined) throw new Error("Dollardagi shartnoma: narxni dollarda kiriting");
   input = priceInput(input, isUsd(p), c.s.settings.usdRate);
   if (input.price > MAX_UZS) throw new Error("Narx juda katta — nollarni tekshiring");
@@ -478,6 +480,8 @@ export function updateService(c: Ctx, projectId: string, serviceId: string, patc
   const p = findProject(c, projectId);
   const svc = p?.services.find((x) => x.id === serviceId);
   if (!p || !svc) return;
+  if (p.status === "closed") throw new Error("Loyiha yopilgan — xizmatni o'zgartirib bo'lmaydi");
+  if (patch.kind !== undefined && patch.kind !== svc.kind) throw new Error("Xizmat turini o'zgartirib bo'lmaydi — yangisini qo'shing");
   if (isUsd(p) && patch.price !== undefined && patch.priceUsd === undefined) throw new Error("Dollardagi shartnoma: narxni dollarda kiriting");
   patch = priceInput(patch, isUsd(p), c.s.settings.usdRate);
   if (patch.price !== undefined && !(patch.price > 0)) throw new Error("Narxni kiriting");
@@ -508,6 +512,7 @@ export function cancelService(c: Ctx, projectId: string, serviceId: string) {
   const p = findProject(c, projectId);
   const svc = p?.services.find((x) => x.id === serviceId);
   if (!p || !svc) return;
+  if (p.status === "closed") throw new Error("Loyiha yopilgan — xizmatni bekor qilib bo'lmaydi");
   if (svc.deliveredAt) throw new Error("Topshirilgan xizmatni bekor qilib bo'lmaydi");
   svc.status = "cancelled";
   svc.cancelledAt = c.today;
@@ -784,6 +789,7 @@ export function updateProject(c: Ctx, id: string, patch: Partial<Project>) {
     if (c.s.invoices.some((i) => i.projectId === p.id && i.kind === "monthly" && !i.voidedAt))
       throw new Error("Oylik fakturalar chiqqan — hisob davri boshini o'zgartirib bo'lmaydi (fakturalar siljib ketadi)");
     if (patch.periodStart && !isDate(patch.periodStart)) throw new Error("Sanani tanlang");
+    if (patch.periodStart && patch.periodStart < MIN_DATE) throw new Error(`Hisob davri boshi ${MIN_DATE} dan oldin bo'lishi mumkin emas`);
     if (patch.periodStart && patch.periodStart > c.today) throw new Error("Hisob davri boshi kelajakda bo'lishi mumkin emas");
     if (patch.periodStart && isDate(p.contractDate) && patch.periodStart < p.contractDate)
       throw new Error(`Hisob davri boshi shartnoma sanasidan (${fmtDate(p.contractDate)}) oldin bo'lishi mumkin emas`);
@@ -1278,6 +1284,9 @@ const isDate = (d?: string) => {
   return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d;
 };
 
+/** Eng erta mumkin bo'lgan shartnoma/hisob sanasi: ming yillik orqaga sanalar syncAll'da minglab faktura yaratmasin. */
+const MIN_DATE = "2020-01-01";
+
 /** Bitta amal uchun maksimal summa (so'm) — xato bilan qo'shimcha nollar yozilishidan himoya. */
 const MAX_UZS = 100_000_000_000;
 
@@ -1568,6 +1577,8 @@ export function closeProject(c: Ctx, projectId: string, date: string) {
     throw new Error(`Avval bir martalik ishlarni topshiring yoki to'xtating: ${open.map((x) => serviceLabel(x.kind)).join(", ")}`);
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > c.today) throw new Error("Yopilish sanasini tanlang (bugundan keyin emas)");
+  const floor = [p.contractDate, p.periodStart].filter(isDate).sort().pop();
+  if (floor && date < floor) throw new Error(`Yopilish sanasi shartnoma/hisob davri boshidan (${fmtDate(floor)}) oldin bo'lishi mumkin emas`);
   p.status = "closed";
   p.closedAt = date;
   p.pauseWork = true;

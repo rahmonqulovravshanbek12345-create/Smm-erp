@@ -4,7 +4,10 @@ import pg from "pg";
 export type Db = pg.Pool;
 
 export function createPool(url: string): Db {
-  return new pg.Pool({ connectionString: url, max: 10, idleTimeoutMillis: 30_000, application_name: "smm-erp" });
+  const pool = new pg.Pool({ connectionString: url, max: 10, idleTimeoutMillis: 30_000, application_name: "smm-erp" });
+  // Bo'sh turgan ulanish uzilsa (baza qayta ishga tushdi) — jarayon qulamasin, pool yangisini ochadi
+  pool.on("error", (e) => console.error("DB: bo'sh ulanish uzildi:", e.message));
+  return pool;
 }
 
 /** Har bir migratsiya bir marta, tranzaksiya ichida qo'llanadi. Faqat oxiriga qo'shiladi, eskilari o'zgartirilmaydi. */

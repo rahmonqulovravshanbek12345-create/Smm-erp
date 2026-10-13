@@ -12,7 +12,7 @@ app() {
 
 case "${1:-help}" in
   status)
-    systemctl --no-pager status smm-erp | head -n 12
+    systemctl --no-pager status smm-erp | head -n 12 || true
     echo; app check
     ;;
   logs) journalctl -u smm-erp -n "${2:-100}" --no-pager ;;
@@ -45,8 +45,18 @@ case "${1:-help}" in
     fi
     old="smmerp_eski_$(date +%Y%m%d%H%M%S)"
     systemctl stop smm-erp
-    runuser -u postgres -- psql -qc "ALTER DATABASE smmerp RENAME TO $old"
-    runuser -u postgres -- psql -qc "ALTER DATABASE smmerp_tiklash RENAME TO smmerp"
+    if ! runuser -u postgres -- psql -qc "ALTER DATABASE smmerp RENAME TO $old"; then
+      systemctl start smm-erp
+      runuser -u postgres -- dropdb --if-exists smmerp_tiklash
+      echo "Bazani almashtirib bo'lmadi (ochiq ulanish bor) — hozirgi ma'lumot o'zgarmadi, ilova qayta ishga tushirildi" >&2
+      exit 1
+    fi
+    if ! runuser -u postgres -- psql -qc "ALTER DATABASE smmerp_tiklash RENAME TO smmerp"; then
+      runuser -u postgres -- psql -qc "ALTER DATABASE $old RENAME TO smmerp"
+      systemctl start smm-erp
+      echo "Almashtirish bajarilmadi — eski baza joyiga qaytarildi" >&2
+      exit 1
+    fi
     systemctl start smm-erp
     echo "Tiklandi: $f (oldingi baza «$old» nomi bilan saqlab qo'yildi)"
     ;;

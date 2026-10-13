@@ -140,6 +140,18 @@ describe("L4: parolni almashtirishda ham blok amal qiladi", () => {
   });
 });
 
+describe("Poyga: bir vaqtdagi urinishlar blokni aylanib o'tmaydi", () => {
+  it("20 ta parallel noto'g'ri parol — 5 tasidan ko'pi tekshirilmaydi", async () => {
+    await giveLogin(t.db, "u_sy", "sotuv9");
+    const c = await loginAs(t.app, "sotuv9");
+    const codes = (
+      await Promise.all(Array.from({ length: 20 }, (_, i) => c.req("POST", "/api/auth/password", { current: `xato-${i}`, next: "Yangi-parol-2026x" })))
+    ).map((r) => r.statusCode);
+    expect(codes.filter((x) => x === 400).length).toBeLessThanOrEqual(5);
+    expect(codes.filter((x) => x === 429).length).toBeGreaterThanOrEqual(15);
+  });
+});
+
 describe("L6: audit jurnali", () => {
   it("TRUNCATE va yaqin yozuvni o'chirish taqiqlangan; 2 yildan eskisini faqat saqlash muddati ishi o'chiradi", async () => {
     await expect(t.db.query("TRUNCATE audit_log")).rejects.toThrow(/faqat qo'shiladi/);

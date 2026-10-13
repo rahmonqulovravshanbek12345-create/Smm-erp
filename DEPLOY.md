@@ -89,7 +89,7 @@ sudo smm-erp offsite-setup
 
 1. Skript **zaxirani ochish kalitini** (`AGE-SECRET-KEY-…`) bir marta ko'rsatadi. Uni ikki joyda saqlang, masalan parollar menejeri va seyfdagi qog'oz. Kalit serverda saqlanmaydi. Kalitsiz zaxirani hech kim, siz ham ocha olmaysiz.
 2. Keyin bulut xotirasi ulanadi (rclone). Eng sodda yo'l **Backblaze B2** (10 GB bepul): B2 sahifasida xususiy (Private) bucket va unga «Application Key» yarating. rclone menyusida `n` → nom (masalan, `zaxira`) → «b2» turini tanlang → keyID va applicationKey'ni kiriting → qolgan savollarga Enter → `q`. Skript so'raganda nomni (`zaxira`) va bucket nomini yozing. **Google Drive** bilan ham ishlaydi: «drive» turini tanlang. «Use auto config?» savoliga `n` deb javob bering, chiqqan `rclone authorize …` buyrug'ini brauzeri bor kompyuterda bajaring.
-3. Sinov uchun darhol bitta zaxira yuboriladi. Keyin har kecha avtomatik yuboriladi, bulutda 90 kun saqlanadi.
+3. Sinov uchun darhol bitta zaxira yuboriladi. Keyin har kecha avtomatik yuboriladi. Bulutdan 90 kundan eskilari o'chirishga uriniladi; **Backblaze B2'da** fayl o'chirilmay «yashirinadi» va joy egallashda davom etadi — bucket sozlamalarida «Lifecycle Rules» → «Keep only the last version of the file» ni yoqing.
 
 Zaxira ichida baza nusxasi va `/etc/smm-erp/env` (`SECRET_KEY`) bor: kalitsiz 2FA va tokenlarni tiklab bo'lmaydi. Ro'yxat: `sudo smm-erp offsite-list`.
 
@@ -124,7 +124,7 @@ Admin → Xodimlar bo'limida xodim qo'shiladi va unga login beriladi. Ekranda va
 Kuzatish: `systemctl list-timers | grep smm-erp` (zaxira va Node.js taymerlari), `systemctl --failed` (ishlamay qolgan xizmat). Ma'lumot hajmi 50 MB dan oshsa, adminga tizimda va Telegramda ogohlantirish keladi.
 
 - **Xodim «kunlik chegaraga yetdingiz» deb yozsa:** u bir kunda juda ko'p ma'lumot (standart 5 MB) qo'shgan. Avval Admin → Xavfsizlik jurnalida nima qo'shilganini tekshiring. Ish haqiqiy bo'lsa: `sudo smm-erp restart` (hisoblagichlar nolga tushadi) yoki chegarani `USER_DAILY_WRITE_MB` bilan oshiring.
-- **Butun ofis saytga kira olmay qolsa:** bitta IP'dan 10 daqiqada 20 marta noto'g'ri parol kiritilsa, fail2ban o'sha IP'ni 1 soatga bloklaydi. Ochish uchun: `sudo fail2ban-client set smm-erp-login unbanip <IP>`. Ofis IP'si doimiy bo'lsa, uni `/etc/fail2ban/jail.d/smm-erp.conf` ga `ignoreip = 127.0.0.1/8 ::1 <ofis-IP>` qatori bilan qo'shing.
+- **Butun ofis saytga kira olmay qolsa:** bitta IP'dan 10 daqiqada 20 marta noto'g'ri parol kiritilsa, fail2ban o'sha IP'ni 1 soatga bloklaydi. Ochish uchun: `sudo fail2ban-client set smm-erp-login unbanip <IP>`. Ofis IP'si doimiy bo'lsa, alohida fayl yarating (`smm-erp.conf` har yangilashda qayta yoziladi, bu fayl esa saqlanadi): `/etc/fail2ban/jail.d/zz-ofis.conf` ichiga `[smm-erp-login]` va `ignoreip = 127.0.0.1/8 ::1 <ofis-IP>` qatorlarini yozing, so'ng `sudo systemctl reload fail2ban` bajaring.
 - **Node.js yangilanishi ishlamasa:** yangilagich eski versiyaga qaytadi va o'sha versiyani qayta o'rnatmaydi. Sababni tuzatgach, `sudo smm-erp node-update --force` bilan qayta urinib ko'ring.
 
 ## Bu versiyadan oldin o'rnatilgan serverni yangilash
@@ -153,6 +153,7 @@ sudo smm-erp restore /var/backups/smm-erp/erp-YYYY-MM-DD-HHMM-kunlik.dump
 3. Faylni ochish kaliti bilan oching:
    ```bash
    nano /root/kalit.txt                          # AGE-SECRET-KEY-… qatorini joylang
+   apt-get install -y age rclone                # yangi serverda yo'q
    mkdir -p /root/tiklash
    age -d -i /root/kalit.txt erp-….tar.age | tar -x -C /root/tiklash
    shred -u /root/kalit.txt
