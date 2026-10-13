@@ -205,7 +205,7 @@ const isActive = (item: NavItem, full: string) => {
   return best?.path === item.path;
 };
 
-// ---------- Mavzu (yorug' / qorong'i / tizim) ----------
+// ---------- Mavzu (yorug' / qorong'i; tanlanmaguncha — qurilma sozlamasi) ----------
 
 type Theme = "system" | "light" | "dark";
 const THEME_KEY = "smm-erp-theme";
@@ -230,6 +230,20 @@ function useTheme(): [Theme, (t: Theme) => void] {
     }
   }, [theme]);
   return [theme, setTheme];
+}
+
+/** Hozir ko'rinib turgan mavzu: «tizim» bo'lsa — qurilmaning joriy sozlamasi. */
+function useEffectiveTheme(theme: Theme): "light" | "dark" {
+  const query = () => (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const [system, setSystem] = useState<"light" | "dark">(query);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mq) return;
+    const on = () => setSystem(mq.matches ? "dark" : "light");
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return theme === "system" ? system : theme;
 }
 
 const WEEKDAYS = ["Yakshanba", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
@@ -504,27 +518,21 @@ function AccountMenu({
   }, [flat, onClose]);
 
   const sorted = users.filter((u) => u.active).sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
-  const themes: { id: Theme; icon: IconName; label: string }[] = [
-    { id: "light", icon: "sun", label: "Yorug'" },
-    { id: "system", icon: "monitor", label: "Tizim" },
-    { id: "dark", icon: "moon", label: "Qorong'i" },
-  ];
+  const shown = useEffectiveTheme(theme);
 
   return (
     <div ref={ref} className={flat ? "" : "glass-strong animate-pop rounded-[22px] p-2"}>
-      <div className="px-2 pb-1.5 pt-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-label3">Mavzu</div>
-      <div className="mb-2 flex gap-1 rounded-[12px] bg-fill p-[3px]">
-        {themes.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTheme(t.id)}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-[9px] py-1.5 text-[13px] font-semibold transition ${theme === t.id ? "bg-elevated text-label shadow-sm" : "text-label2"}`}
-          >
-            <Icon name={t.icon} size={15} />
-            {t.label}
-          </button>
-        ))}
+      <div className="mb-2 flex items-center justify-between px-2 pt-1">
+        <div className="text-[12px] font-semibold uppercase tracking-[0.06em] text-label3">Mavzu</div>
+        <button
+          type="button"
+          onClick={() => setTheme(shown === "dark" ? "light" : "dark")}
+          aria-label={shown === "dark" ? "Yorug' mavzuga o'tish" : "Qorong'i mavzuga o'tish"}
+          title={shown === "dark" ? "Yorug' mavzuga o'tish" : "Qorong'i mavzuga o'tish"}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-fill text-label transition hover:bg-fill/70"
+        >
+          <Icon name={shown === "dark" ? "moon" : "sun"} size={17} />
+        </button>
       </div>
       {session ? (
         <AccountSession users={users} meId={meId} onSecurity={onSecurity} onClose={onClose} />
