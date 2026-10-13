@@ -67,7 +67,7 @@ Sertifikat avtomatik yangilanadi. HTTPS bo'lmasa, tizimga kirib bo'lmaydi, bu at
 
 1. `https://erp.fridayagency.uz` sahifasini oching va admin logini hamda vaqtinchalik parol bilan kiring.
 2. Yangi parol o'rnating: kamida 10 belgi, harf va raqam bo'lsin.
-3. Telefonga Google Authenticator yoki shunga o'xshash ilovani o'rnatib, QR kodni skanerlang. **2FA hamma xodimlar uchun majburiy.**
+3. Telefonga Google Authenticator yoki shunga o'xshash ilovani o'rnatib, QR kodni skanerlang. **2FA hamma xodimlar uchun sozlanadi, lekin kod faqat yangi qurilmada so'raladi** (kirishda «30 kunga eslab qol» belgisi bor; ommaviy kompyuterda belgilamang).
 
 ## 6. SSH'ni faqat kalit bilan qoldirish
 
@@ -170,7 +170,7 @@ Zaxirani yiliga kamida bir marta shu tartibda sinab ko'ring.
 | --------------------- | ------------------ | ----------------------------------------------------------------------------- |
 | `APP_ORIGIN`          | `https://<domen>`  | Sayt manzili (boshqa saytdan so'rovni rad etish uchun)                        |
 | `SECRET_KEY`          | tasodifiy, 32 bayt | 2FA kalitlari va tokenlarni shifrlaydi. **Yo'qolsa, ularni tiklab bo'lmaydi** |
-| `REQUIRE_2FA_ROLES`   | `all`              | 2FA majburiy rollar                                                           |
+| `REQUIRE_2FA_ROLES`   | `all`              | 2FA sozlashi shart bo'lgan rollar (kod faqat yangi qurilmada so'raladi)       |
 | `USER_DAILY_WRITE_MB` | `5`                | Bitta xodim bir kunda qo'sha oladigan ma'lumot hajmi (admin cheklanmaydi)     |
 | `COOKIE_SECURE`       | `1`                | Cookie faqat HTTPS orqali. O'zgartirmang                                      |
 

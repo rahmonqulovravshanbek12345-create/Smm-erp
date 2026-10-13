@@ -186,12 +186,15 @@ export async function deleteSession(db: Db, id: string): Promise<void> {
 
 /** Foydalanuvchining barcha sessiyalari (masalan, parol o'zgarganda yoki arxivlanganda). */
 export async function revokeUser(db: Db, userId: string, exceptId?: string): Promise<number> {
+  // Parol, 2FA yoki «chiqarish» o'zgarganda ishonchli qurilmalar ham bekor bo'ladi — hamma yangi qurilma sifatida kod kiritadi
+  await db.query("DELETE FROM trusted_devices WHERE user_id = $1", [userId]);
   const r = await db.query("DELETE FROM sessions WHERE user_id = $1 AND id <> $2", [userId, exceptId ?? ""]);
   return r.rowCount ?? 0;
 }
 
 export async function pruneSessions(db: Db): Promise<void> {
   await db.query("DELETE FROM sessions WHERE expires_at < now() OR last_seen < now() - make_interval(mins => idle_minutes)");
+  await db.query("DELETE FROM trusted_devices WHERE expires_at < now()");
   await db.query("DELETE FROM login_attempts WHERE updated_at < now() - interval '2 days' AND (locked_until IS NULL OR locked_until < now())");
 }
 
@@ -213,4 +216,21 @@ export async function checkTotp(db: Db, sealer: Sealer, cred: Credential, code: 
 export async function rememberDevice(db: Db, userId: string, device: string): Promise<boolean> {
   const r = await db.query("INSERT INTO known_devices (user_id, device) VALUES ($1, $2) ON CONFLICT DO NOTHING", [userId, sha256(device)]);
   return r.rowCount === 1;
+}
+
+export const TRUSTED_DEVICE_DAYS = 30;
+
+/** Shu qurilmada (cookie) bu xodim 2FA kodini yaqinda kiritgan va «eslab qol» belgilaganmi. */
+export async function isTrustedDevice(db: Db, userId: string, device: string | undefined): Promise<boolean> {
+  if (!device || !/^[A-Za-z0-9_-]{20,64}$/.test(device)) return false;
+  const r = await db.query("SELECT 1 FROM trusted_devices WHERE user_id = $1 AND device = $2 AND expires_at > now()", [userId, sha256(device)]);
+  return (r.rowCount ?? 0) > 0;
+}
+
+export async function trustDevice(db: Db, userId: string, device: string): Promise<void> {
+  await db.query(
+    `INSERT INTO trusted_devices (user_id, device, expires_at) VALUES ($1, $2, now() + make_interval(days => $3))
+     ON CONFLICT (user_id, device) DO UPDATE SET expires_at = EXCLUDED.expires_at, created_at = now()`,
+    [userId, sha256(device), TRUSTED_DEVICE_DAYS],
+  );
 }

@@ -33,6 +33,7 @@ export function ProjectJourney({ project: p }: { project: Project }) {
   const nextInv = state.invoices.filter((i) => i.projectId === p.id && i.kind === "monthly").sort((a, b) => b.periodIndex - a.periodIndex)[0];
   const nextInvSt = nextInv ? invoiceStatus(state, nextInv, today) : null;
   const paidPre = prepayPaid(state, p.id);
+  const hasPrepayInvoice = state.invoices.some((i) => i.projectId === p.id && i.kind === "prepay" && !i.serviceId && !i.voidedAt);
   const content = hasContent(p);
   const quotaTarget = quotaProgress(state, p, today.slice(0, 7))
     .filter((r) => r.key !== "shoot")
@@ -87,10 +88,10 @@ export function ProjectJourney({ project: p }: { project: Project }) {
       detail: `${p.contractNo} · ${fmtDate(p.contractDate)}`,
     },
     {
-      title: "Oldindan to'lov",
+      title: "Boshlang'ich to'lov",
       who: "Moliya",
       state: paidPre ? "done" : "current",
-      detail: paidPre ? `${p.prepayType}% to'langan` : `${p.prepayType}% kutilmoqda — ish to'lovdan keyin`,
+      detail: !hasPrepayInvoice ? "talab qilinmaydi" : paidPre ? "to'langan" : "kutilmoqda (ish to'lovga bog'liq emas, davom etadi)",
     },
     {
       title: "Strategiya",

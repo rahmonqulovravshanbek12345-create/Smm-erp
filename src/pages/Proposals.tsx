@@ -826,7 +826,10 @@ export function ProposalPage({ id }: { id: string }) {
         <Card className="p-5">
           <h2 className="text-[19px] font-bold tracking-tight text-label">Shartlar</h2>
           <ul className="mt-3 space-y-1.5 text-[14px] text-label">
-            <li>• Ish oldindan to'lovdan keyin boshlanadi ({[...new Set(tariffs.map((t) => `${t.name} — ${t.prepayType}%`))].join(", ")}).</li>
+            <li>
+              • Boshlang'ich to'lov shartnomada kelishilgan summada belgilanadi (tariflar bo'yicha tavsiya:{" "}
+              {[...new Set(tariffs.map((t) => `${t.name} — ${t.prepayType}%`))].join(", ")}). Ish shartnoma imzolangan kundan boshlanadi.
+            </li>
             {groups.some((g) => isRecurring(g.kind)) && (
               <li>• Xizmat davri birinchi reklama (post) joylangan kundan hisoblanadi; har oy oxirida bajarilgan ishlar dalolatnomasi va hisobot beriladi.</li>
             )}

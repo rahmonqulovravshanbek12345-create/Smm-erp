@@ -89,8 +89,10 @@ export interface ProjectService {
   kpiCpl?: number;
   /** Performance: reklama kanallari. */
   channels?: string[];
-  /** Bir martalik: oldindan to'lov foizi, qolgani topshirishda. */
+  /** Bir martalik: oldindan to'lov foizi, qolgani topshirishda (eski ma'lumotlar; yangilarida — `prepayAmount`). */
   prepayPct?: 100 | 50;
+  /** Bir martalik: boshlang'ich to'lov SUMMASI (shartnoma valyutasida: so'm yoki dollar). 0 — oldindan to'lov yo'q. Berilsa foizdan ustun. */
+  prepayAmount?: number;
   /** Bir martalik: ijrochi (dizayner, veb-dasturchi, montajyor…). */
   assigneeId?: string;
   /** Bir martalik: ijrochiga shu ish uchun to'lanadigan summa (topshirilganda hisoblanadi). */
@@ -125,8 +127,10 @@ export interface Project {
   tariffId?: string;
   /** Oylik xizmatlar yig'indisi (SMM + target + performance). Xizmatlardan avtomatik hisoblanadi. */
   monthlyFee: number;
-  /** Oylik xizmatlar uchun oldindan to'lov turi. */
+  /** Oylik xizmatlar uchun oldindan to'lov turi (eski ma'lumotlar uchun foiz). */
   prepayType: 100 | 50;
+  /** Oylik xizmatlarning 1-oy boshlang'ich to'lov SUMMASI (shartnoma valyutasida). 0 — oldindan to'lov yo'q. Berilsa foizdan ustun. */
+  prepayAmount?: number;
   /** Mijoz olgan xizmatlar: har birining o'z narxi, mas'uli va holati. */
   services: ProjectService[];
   marketologId: string;

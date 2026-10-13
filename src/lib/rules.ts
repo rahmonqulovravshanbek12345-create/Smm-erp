@@ -1,7 +1,7 @@
 // Avtomatik qoidalar: kechikish, hisob davri, to'lov holati, qarz, ogohlantirishlar.
 import { findQuota } from "./content";
 import { addDays, diffDays, fmtDate, fmtMoney, fmtMonth, monthKey, shiftMonthKey } from "./dates";
-import { invoiceStatus, prepayPaid, projectDebt } from "./finance";
+import { invoiceStatus, projectDebt } from "./finance";
 import { currentPeriod, type Period } from "./period";
 import { hasAds, hasContent, oneTimeServices, serviceLabel, stageIndex } from "./services";
 import type { ErpState, Post, PostStatus, Project, Task, User } from "./types";
@@ -57,11 +57,10 @@ export function isTaskOpen(t: Task): boolean {
   return t.kind === "target" ? !t.launchedAt : t.status !== "accepted";
 }
 
-/** Yangi vazifa ochish mumkinmi: oldindan to'lov kelgan va ish qo'lda to'xtatilmagan bo'lishi kerak. */
-export function workBlockedReason(s: ErpState, p: Project): string | null {
+/** Yangi vazifa ochish mumkinmi: loyiha yopilmagan va ish qo'lda to'xtatilmagan bo'lishi kerak (oldindan to'lov ishni to'xtatmaydi). */
+export function workBlockedReason(_s: ErpState, p: Project): string | null {
   if (p.status === "closed") return "Loyiha yopilgan — yangi ish ochilmaydi.";
   if (p.pauseWork) return "Loyiha sozlamasida ish to'xtatilgan — yangi vazifalar ochilmaydi.";
-  if (!prepayPaid(s, p.id)) return "Oldindan to'lov hali kelmagan — ish to'lovdan keyin boshlanadi.";
   return null;
 }
 

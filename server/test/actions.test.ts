@@ -256,6 +256,21 @@ describe("Mustaqil tekshiruv topgan hujumlar (tuzatilgan)", () => {
     expect(t.store.current().state.invoices.length).toBe(invBefore);
   });
 
+  it("reklama kabinetini faqat shu loyihaning targetologi (va admin) bog'laydi; boshqa loyiha va token sozlamasi — yo'q", async () => {
+    await giveLogin(t.db, "u_tg", "bekzod");
+    const tg = await loginAs(t.app, "bekzod");
+    const s = t.store.current().state;
+    const mine = s.projects.find((p) => p.targetologId === "u_tg")!;
+    const other = s.projects.find((p) => p.targetologId !== "u_tg");
+    expect((await action(tg, "setMetaAccount", [mine.id, "act_1234567890"])).statusCode).toBe(200);
+    expect(t.store.current().state.settings.integrations.meta.accounts[mine.id]).toBe("act_1234567890");
+    if (other) expect((await action(tg, "setMetaAccount", [other.id, "act_1234567890"])).statusCode).toBe(403);
+    // Token va sozlamalarni targetolog o'zgartira olmaydi
+    expect((await action(tg, "saveMetaSettings", [{ apiVersion: "v99.0" }])).statusCode).toBe(403);
+    // Admin hamma loyihaga bog'lay oladi
+    expect((await action(admin, "setMetaAccount", [mine.id, ""])).statusCode).toBe(200);
+  });
+
   it("2FA kodini tanlash: qayta kirib (yoki IP almashtirib) blokni aylanib o'tib bo'lmaydi", async () => {
     const { totpAt } = await import("../src/crypto");
     await giveLogin(t.db, "u_op2", "jasur");

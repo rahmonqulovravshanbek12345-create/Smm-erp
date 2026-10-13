@@ -27,7 +27,6 @@ import {
   serviceLabel,
   serviceHasAds,
   serviceOf,
-  servicePrepayPaid,
   servicesSummary,
   stageIndex,
   linesUsd,
@@ -160,8 +159,10 @@ export interface ProjectInput {
   links: string;
   contractNo: string;
   contractDate: string;
-  /** Oylik xizmatlar uchun oldindan to'lov turi. */
+  /** Oylik xizmatlar uchun oldindan to'lov turi (foiz — faqat summa berilmaganda). */
   prepayType: 100 | 50;
+  /** Oylik xizmatlarning boshlang'ich to'lov summasi (shartnoma valyutasida; 0 mumkin). */
+  prepayAmount?: number;
   prepayDueDate: string;
   remainderDueDate: string;
   marketologId: string;
@@ -229,7 +230,8 @@ function buildService(input: ServiceInput, date: string): ProjectService {
   return {
     ...input,
     id: newId("svc"),
-    prepayPct: once ? (input.prepayPct ?? 50) : undefined,
+    prepayPct: once && input.prepayAmount === undefined ? (input.prepayPct ?? 50) : undefined,
+    prepayAmount: once ? input.prepayAmount : undefined,
     startDate: input.startDate || date,
     stages: once ? stagesFor(input.kind) : undefined,
     status: "active",
@@ -266,25 +268,35 @@ function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue
   const lines = only ?? recurringLines(p, c.s.settings.usdRate);
   const fee = lines.reduce((a, l) => a + l.amount, 0);
   if (fee <= 0) return;
-  const prepay = Math.round((fee * p.prepayType) / 100);
+  // Boshlang'ich to'lov: summa berilgan bo'lsa — shu summa (0 bo'lishi mumkin), aks holda eski foiz. Xizmat qo'shilganda — foiz.
+  const explicit = !only && p.prepayAmount !== undefined;
+  const usdFee = linesUsd(lines);
+  const prepay = explicit
+    ? isUsd(p) && usdFee !== undefined
+      ? Math.round(fee * Math.min(1, usdFee > 0 ? p.prepayAmount! / usdFee : 0))
+      : Math.min(fee, Math.round(p.prepayAmount!))
+    : Math.round((fee * p.prepayType) / 100);
+  const pctNote = explicit ? "" : ` (${p.prepayType}%)`;
   const base = { projectId: p.id, periodIndex: 0, issueDate };
   const preLines = scaleLines(lines, prepay);
   // Qoldiq: dollarda «to'liq − oldindan» (ikkalasini alohida yaxlitlash bir sent ortiqcha chiqarardi)
   const restLines = scaleLines(lines, fee - prepay).map((l, i) =>
     l.usd !== undefined && lines[i]!.usd !== undefined ? { ...l, usd: round2(lines[i]!.usd! - preLines[i]!.usd!) } : l,
   );
-  c.s.invoices.push({
-    ...base,
-    id: newId("inv"),
-    number: nextInvoiceNumber(c.s),
-    kind: "prepay",
-    amount: prepay,
-    lines: preLines,
-    usd: linesUsd(preLines),
-    dueDate: prepayDue || issueDate,
-    note: only ? `1-davr: qo'shilgan xizmat — oldindan to'lov (${p.prepayType}%)` : `Oldindan to'lov (${p.prepayType}%)`,
-  });
-  if (p.prepayType === 50) {
+  if (prepay > 0) {
+    c.s.invoices.push({
+      ...base,
+      id: newId("inv"),
+      number: nextInvoiceNumber(c.s),
+      kind: "prepay",
+      amount: prepay,
+      lines: preLines,
+      usd: linesUsd(preLines),
+      dueDate: prepayDue || issueDate,
+      note: only ? `1-davr: qo'shilgan xizmat — oldindan to'lov${pctNote}` : `Oldindan to'lov${pctNote}`,
+    });
+  }
+  if (prepay < fee) {
     c.s.invoices.push({
       ...base,
       id: newId("inv"),
@@ -293,17 +305,22 @@ function recurringStartInvoices(c: Ctx, p: Project, issueDate: string, prepayDue
       amount: fee - prepay,
       lines: restLines,
       usd: linesUsd(restLines),
-      dueDate: remainderDue,
-      note: "Qoldiq to'lov (50%)",
+      dueDate: remainderDue || prepayDue || issueDate,
+      note: explicit ? "Qoldiq to'lov" : `Qoldiq to'lov (${100 - p.prepayType}%)`,
     });
   }
 }
 
 /** Bir martalik xizmat: oldindan to'lov fakturasi. Qolgani topshirilganda chiqariladi. */
-function serviceStartInvoice(c: Ctx, p: Project, svc: ProjectService, issueDate: string, dueDate: string): Invoice {
+function serviceStartInvoice(c: Ctx, p: Project, svc: ProjectService, issueDate: string, dueDate: string): Invoice | undefined {
+  const usdSvc = isUsd(p) && svc.priceUsd !== undefined;
+  const explicit = svc.prepayAmount !== undefined;
+  // Summa berilgan bo'lsa — shu summa (0 bo'lishi mumkin: oldindan to'lov fakturasi chiqmaydi), aks holda eski foiz
   const pct = svc.prepayPct ?? 50;
-  const amount = Math.round((svc.price * pct) / 100);
-  const usd = isUsd(p) && svc.priceUsd !== undefined ? round2((svc.priceUsd * pct) / 100) : undefined;
+  const frac = explicit ? Math.min(1, (usdSvc ? svc.priceUsd! : svc.price) > 0 ? svc.prepayAmount! / (usdSvc ? svc.priceUsd! : svc.price) : 0) : pct / 100;
+  const amount = explicit && !usdSvc ? Math.round(svc.prepayAmount!) : Math.round(svc.price * frac);
+  const usd = usdSvc ? (explicit ? round2(svc.prepayAmount!) : round2(svc.priceUsd! * frac)) : undefined;
+  if (explicit && amount <= 0) return undefined;
   const inv: Invoice = {
     id: newId("inv"),
     number: nextInvoiceNumber(c.s),
@@ -316,7 +333,7 @@ function serviceStartInvoice(c: Ctx, p: Project, svc: ProjectService, issueDate:
     ...(usd !== undefined ? { usd } : {}),
     issueDate,
     dueDate: dueDate || issueDate,
-    note: `${serviceLabel(svc.kind)}: oldindan to'lov (${pct}%)`,
+    note: `${serviceLabel(svc.kind)}: oldindan to'lov${explicit ? "" : ` (${pct}%)`}`,
   };
   c.s.invoices.push(inv);
   return inv;
@@ -333,6 +350,14 @@ export function createProject(c: Ctx, input: ProjectInput, leadId?: string): str
   const usdContract = input.currency === "USD";
   if (usdContract && input.services.some((x) => x.priceUsd === undefined)) throw new Error("Dollardagi shartnoma: har bir xizmat narxini dollarda kiriting");
   input = { ...input, services: input.services.map((x) => priceInput(x, usdContract, c.s.settings.usdRate)) };
+  for (const x of input.services) checkPrepayAmount(x.prepayAmount, usdContract ? x.priceUsd : x.price, serviceLabel(x.kind));
+  if (input.prepayAmount !== undefined) {
+    const lines = input.services.filter((x) => isRecurring(x.kind));
+    const feeBase = usdContract ? lines.reduce((a, x) => a + (x.priceUsd ?? 0), 0) : lines.reduce((a, x) => a + x.price, 0);
+    // Reklama byudjetidan foiz (performance) oylik summaga keyin qo'shiladi — yuqori chegara faqat qat'iy narxlarga
+    if (lines.length && !lines.some((x) => x.kind === "performance" && x.adPct)) checkPrepayAmount(input.prepayAmount, feeBase, "Oylik xizmatlar");
+    else checkPrepayAmount(input.prepayAmount, undefined, "Oylik xizmatlar");
+  }
   if (input.services.some((x) => x.price > MAX_UZS)) throw new Error("Xizmat narxi juda katta — nollarni tekshiring");
   if (!input.services.length) throw new Error("Kamida bitta xizmatni qo'shing");
   input.services.forEach(validateService);
@@ -405,6 +430,7 @@ export function addService(c: Ctx, projectId: string, input: ServiceInput, o: { 
   if (p.status === "closed") throw new Error("Loyiha yopilgan — xizmat qo'shib bo'lmaydi");
   if (isUsd(p) && input.priceUsd === undefined) throw new Error("Dollardagi shartnoma: narxni dollarda kiriting");
   input = priceInput(input, isUsd(p), c.s.settings.usdRate);
+  checkPrepayAmount(input.prepayAmount, isUsd(p) ? input.priceUsd : input.price, serviceLabel(input.kind));
   if (input.price > MAX_UZS) throw new Error("Narx juda katta — nollarni tekshiring");
   validateService(input);
   // Reklama yoki SMM xizmatiga mas'ul xodim bo'lmasa — birinchi faol xodim tayinlanadi (keyin o'zgartirish mumkin)
@@ -482,6 +508,8 @@ export function updateService(c: Ctx, projectId: string, serviceId: string, patc
   if (!p || !svc) return;
   if (p.status === "closed") throw new Error("Loyiha yopilgan — xizmatni o'zgartirib bo'lmaydi");
   if (patch.kind !== undefined && patch.kind !== svc.kind) throw new Error("Xizmat turini o'zgartirib bo'lmaydi — yangisini qo'shing");
+  if (patch.prepayAmount !== undefined && patch.prepayAmount !== svc.prepayAmount)
+    throw new Error("Boshlang'ich to'lov summasini o'zgartirib bo'lmaydi — faktura allaqachon chiqarilgan (Moliyada fakturani tahrirlang)");
   if (isUsd(p) && patch.price !== undefined && patch.priceUsd === undefined) throw new Error("Dollardagi shartnoma: narxni dollarda kiriting");
   patch = priceInput(patch, isUsd(p), c.s.settings.usdRate);
   if (patch.price !== undefined && !(patch.price > 0)) throw new Error("Narxni kiriting");
@@ -561,9 +589,6 @@ export function advanceServiceStage(c: Ctx, projectId: string, serviceId: string
   if (svc.status !== "active") throw new Error("Xizmat to'xtatilgan");
   const i = stageIndex(svc);
   if (i >= svc.stages.length) return;
-  if (i >= 1 && !servicePrepayPaid(c.s, svc.id, (inv) => invoiceSettled(c.s, inv))) {
-    throw new Error("Oldindan to'lov hali kelmagan — ish to'lovdan keyin davom etadi");
-  }
   svc.stages[i]!.doneAt = c.today;
   const label = serviceLabel(svc.kind);
   const last = i === svc.stages.length - 1;
@@ -1286,6 +1311,13 @@ const isDate = (d?: string) => {
 
 /** Eng erta mumkin bo'lgan shartnoma/hisob sanasi: ming yillik orqaga sanalar syncAll'da minglab faktura yaratmasin. */
 const MIN_DATE = "2020-01-01";
+
+/** Boshlang'ich to'lov summasi: 0 dan xizmat narxigacha (shartnoma valyutasida). */
+function checkPrepayAmount(amount: number | undefined, base: number | undefined, label: string) {
+  if (amount === undefined) return;
+  if (!Number.isFinite(amount) || amount < 0) throw new Error(`${label}: boshlang'ich to'lov manfiy bo'lishi mumkin emas`);
+  if (base !== undefined && amount > base + 0.005) throw new Error(`${label}: boshlang'ich to'lov xizmat narxidan ko'p bo'lishi mumkin emas`);
+}
 
 /** Bitta amal uchun maksimal summa (so'm) — xato bilan qo'shimcha nollar yozilishidan himoya. */
 const MAX_UZS = 100_000_000_000;

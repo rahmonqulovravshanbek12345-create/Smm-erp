@@ -371,7 +371,14 @@ export function Admin() {
       </div>
       {SERVER_MODE && <SecurityLog />}
       <ArchiveModal userId={archiveId} onClose={() => setArchiveId(null)} />
-      {creds && <CredentialsModal userId={creds} onClose={() => setCreds(null)} onSaved={logins.reload} />}
+      {creds && (
+        <CredentialsModal
+          userId={creds}
+          currentLogin={logins.list?.find((l) => l.userId === creds)?.login}
+          onClose={() => setCreds(null)}
+          onSaved={logins.reload}
+        />
+      )}
     </>
   );
 }
@@ -497,7 +504,7 @@ const suggestLogin = (name: string) =>
     .replace(/^\.+|\.+$/g, "")
     .slice(0, 32);
 
-function CredentialsModal({ userId, onClose, onSaved }: { userId: string; onClose: () => void; onSaved: () => void }) {
+function CredentialsModal({ userId, currentLogin, onClose, onSaved }: { userId: string; currentLogin?: string; onClose: () => void; onSaved: () => void }) {
   const { state, showToast } = useErp();
   const u = state.users.find((x) => x.id === userId);
   const [login, setLogin] = useState(() => suggestLogin(u?.name ?? ""));
@@ -505,7 +512,17 @@ function CredentialsModal({ userId, onClose, onSaved }: { userId: string; onClos
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [extra, setExtra] = useState(false);
+  const [newLogin, setNewLogin] = useState(currentLogin ?? "");
   if (!u) return null;
+  const rename = async () => {
+    await api("/api/admin/rename-login", { userId, login: newLogin })
+      .then(() => {
+        showToast(`Login o'zgartirildi: ${newLogin}. Parol o'zgarmadi — xodim yangi login bilan kiradi.`);
+        onSaved();
+        onClose();
+      })
+      .catch((e: Error) => showToast(`⚠ ${e.message}`));
+  };
   const save = async () => {
     setBusy(true);
     setError("");
@@ -573,6 +590,19 @@ function CredentialsModal({ userId, onClose, onSaved }: { userId: string; onClos
           <button type="button" className="text-[13px] text-accent" onClick={() => setExtra((v) => !v)}>
             {extra ? "Yashirish" : "Boshqa amallar…"}
           </button>
+          {extra && currentLogin && (
+            <div className="space-y-2 rounded-[14px] bg-fill p-3">
+              <Field
+                label="Loginni o'zgartirish"
+                hint="Parol va 2FA o'zgarmaydi. Xodim barcha qurilmalardan chiqariladi va yangi login bilan kiradi. Kiritgan ma'lumotlari o'zgarmaydi."
+              >
+                <Input value={newLogin} onChange={(e) => setNewLogin(e.target.value.toLowerCase().trim())} autoCapitalize="none" spellCheck={false} />
+              </Field>
+              <Button size="sm" onClick={rename} disabled={newLogin.length < 3 || newLogin === currentLogin}>
+                Loginni almashtirish
+              </Button>
+            </div>
+          )}
           {extra && (
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => adminAct("/api/admin/logout-user", "Barcha qurilmalardan chiqarildi")}>
@@ -609,6 +639,7 @@ const AUDIT_LABELS: Record<string, string> = {
   "2fa-disable": "2FA o'chirildi",
   "admin-credentials": "Admin: login/parol berdi",
   "admin-reset-2fa": "Admin: 2FA tiklandi",
+  "admin-rename-login": "Admin: login almashtirildi",
   "admin-logout-user": "Admin: qurilmalardan chiqardi",
   "admin-export": "Zaxira yuklab olindi",
   action: "Amal",

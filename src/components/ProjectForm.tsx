@@ -78,6 +78,9 @@ export function ServiceFields({
   const look = useLookup();
   const meta = serviceMeta(value.kind);
   const once = !isRecurring(value.kind);
+  // Boshlang'ich to'lov: kiritilmaguncha tarif foizidan (50% yoki 100%) hisoblangan summa ko'rsatiladi
+  const prePct = (value.prepayPct ?? 50) / 100;
+  const preShown = value.prepayAmount ?? (usd ? Math.round((value.priceUsd ?? 0) * prePct * 100) / 100 : Math.round(value.price * prePct));
   const packs = state.tariffs.filter((t) => tariffService(t) === value.kind && (t.active || t.id === value.tariffId));
   const set = <K extends keyof ServiceInput>(k: K, v: ServiceInput[K]) => onChange({ ...value, [k]: v });
   const assignees = state.users.filter((u) => u.active && meta.assigneeRoles.includes(u.role));
@@ -167,20 +170,15 @@ export function ServiceFields({
         {once && (
           <>
             <Field
-              label="Oldindan to'lov"
-              hint={`${
-                usd
-                  ? `$${fmtUsd(((value.priceUsd ?? 0) * (value.prepayPct ?? 50)) / 100)}`
-                  : fmtMoney(Math.round((value.price * (value.prepayPct ?? 50)) / 100))
-              } oldindan, qolgani topshirishda`}
+              label={`Boshlang'ich to'lov (${usd ? "$" : "so'm"})`}
+              hint={`Qolgani (${usd ? `$${fmtUsd(Math.max(0, (value.priceUsd ?? 0) - preShown))}` : fmtMoney(Math.max(0, value.price - preShown))}) topshirishda to'lanadi. 0 yozsangiz oldindan to'lov kerak emas — ish baribir boshlanadi.`}
             >
-              <Select
-                value={String(value.prepayPct ?? 50)}
-                onChange={(e) => set("prepayPct", Number(e.target.value) as 50 | 100)}
-                options={[
-                  { value: "50", label: "50% oldindan, 50% topshirishda" },
-                  { value: "100", label: "100% oldindan" },
-                ]}
+              <Input
+                type="number"
+                min={0}
+                step={usd ? 0.01 : 1000}
+                value={preShown}
+                onChange={(e) => set("prepayAmount", Math.max(0, Number(e.target.value) || 0))}
               />
             </Field>
             <Field label="Ijrochi">
@@ -262,7 +260,7 @@ export function ProjectFormModal({
     0,
   );
   const once = f.services.filter((x) => !isRecurring(x.kind));
-  const prepay = Math.round((monthly * f.prepayType) / 100);
+  const monthlyPreShown = f.prepayAmount ?? (usd ? Math.round(monthlyUsd * f.prepayType) / 100 : Math.round((monthly * f.prepayType) / 100));
   const servicesValid =
     f.services.length > 0 &&
     f.services.every((x) => x.price > 0 && (!usd || (x.priceUsd ?? 0) > 0) && (isRecurring(x.kind) || x.assigneeId) && (x.tariffId || x.title.trim()));
@@ -427,21 +425,23 @@ export function ProjectFormModal({
         )}
         {monthly > 0 && (
           <>
-            <Field label="Oylik xizmatlar: oldindan to'lov" hint={`Oldindan: ${money(prepay, (monthlyUsd * f.prepayType) / 100)}`}>
-              <Select
-                value={String(f.prepayType)}
-                onChange={(e) => set("prepayType", Number(e.target.value) as 100 | 50)}
-                options={[
-                  { value: "100", label: "100% oldindan" },
-                  { value: "50", label: "50% oldindan" },
-                ]}
+            <Field
+              label={`Oylik xizmatlar: boshlang'ich to'lov (${usd ? "$" : "so'm"})`}
+              hint={`Oylik jami: ${money(monthly, monthlyUsd)}. 0 yozsangiz oldindan to'lov kerak emas — ish baribir boshlanadi.`}
+            >
+              <Input
+                type="number"
+                min={0}
+                step={usd ? 0.01 : 1000}
+                value={monthlyPreShown}
+                onChange={(e) => set("prepayAmount", Math.max(0, Number(e.target.value) || 0))}
               />
             </Field>
             <Field label="Oldindan to'lov sanasi">
               <Input type="date" value={f.prepayDueDate} onChange={(e) => set("prepayDueDate", e.target.value)} />
             </Field>
-            {f.prepayType === 50 && (
-              <Field label="Qoldiq 50% to'lov sanasi" hint="Kelishilgan sana yoziladi, keyin Moliyada o'zgartirish mumkin">
+            {monthlyPreShown < (usd ? monthlyUsd : monthly) && (
+              <Field label="Qoldiq to'lov sanasi" hint="Kelishilgan sana yoziladi, keyin Moliyada o'zgartirish mumkin">
                 <Input type="date" value={f.remainderDueDate} onChange={(e) => set("remainderDueDate", e.target.value)} />
               </Field>
             )}

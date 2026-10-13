@@ -142,7 +142,13 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
   const amt = (uzs: number, dollars: number) => (usd ? `$${fmtUsd(dollars)}` : fmtMoney(uzs));
   const words = (uzs: number, dollars: number) => (usd ? usdWords(dollars) : moneyWords(uzs));
   const fee = amt(p.monthlyFee, feeUsd);
-  const prepay = p.prepayType;
+  // Boshlang'ich to'lov: summa berilgan bo'lsa shu summa (0 — oldindan to'lovsiz), aks holda eski foiz
+  const preText =
+    p.prepayAmount !== undefined
+      ? p.prepayAmount > 0
+        ? `${usd ? `$${fmtUsd(p.prepayAmount)}` : fmtMoney(p.prepayAmount)} oldindan`
+        : "oldindan to'lovsiz"
+      : `${p.prepayType}% oldindan`;
   const smmSvc = services.find((x) => x.kind === "smm");
   const t = tariffOf(s, smmSvc?.tariffId ?? p.tariffId);
   const { counts } = quotaFor(s, p, monthKey(today));
@@ -251,7 +257,7 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
             {marketing && <Tile big={`${platforms.length} platforma`} text={platforms.map((x) => PLATFORM_LABELS[x]).join(" · ")} />}
           </div>
           <div className="mt-4 border-t border-white/15 pt-3 text-[12.5px] text-white/85">
-            To'lov tartibi: <b className="text-white">{prepay}% oldindan to'lov</b> — ish to'lov tushgan kundan boshlanadi
+            To'lov tartibi: <b className="text-white">{preText}</b> — ish shartnoma imzolangan kundan boshlanadi
             {ads && (
               <>
                 {" "}
@@ -389,7 +395,7 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
           <Bullets
             items={[
               "Shartnomada ko'rsatilmagan xizmat turlari bo'yicha qo'shimcha taklif berish va shartnomani yangilash",
-              `${prepay}% oldindan to'lov amalga oshirilmagan taqdirda ishni boshlamaslik yoki to'xtatib qo'yish`,
+              "To'lovlar kelishilgan muddatda amalga oshirilmagan taqdirda ishni to'xtatib qo'yish",
               "Kontent va kreativlarning ishchi (manba) fayllari Ijrochining mulki hisoblanadi va alohida kelishuvsiz topshirilmaydi",
               ...(ads ? ["Reklama byudjeti ajratilmasa yoki kelishilgan miqdordan kam bo'lsa, rejadagi natija ko'rsatkichlarini qayta ko'rib chiqish"] : []),
             ]}
@@ -399,7 +405,7 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
         <Sec n={3} title="Buyurtmachi majburiyatlari">
           <Bullets
             items={[
-              recurring ? `Oylik xizmat haqini (${fee}) ${prepay}% oldindan to'lash` : "Xizmat haqini shartnoma shartlariga muvofiq to'lash",
+              recurring ? `Oylik xizmat haqini (${fee}) kelishilgan tartibda (${preText}) to'lash` : "Xizmat haqini shartnoma shartlariga muvofiq to'lash",
               ...(ads ? ["Reklama byudjetini kelishilgan miqdorda o'z vaqtida ajratish"] : []),
               "Brifingda ishtirok etish, kompaniya haqida kerakli ma'lumotlarni berish",
               ...(marketing
@@ -454,9 +460,15 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
           <Table
             head={["To'lov turi", "Summa", "Muddat"]}
             rows={[
-              ...(recurring ? [[`Oylik xizmat haqi — 1-oy (${prepay}% oldindan)`, fee, dueText]] : []),
+              ...(recurring ? [[`Oylik xizmat haqi — 1-oy (${preText})`, fee, dueText]] : []),
               ...once.map((x) => [
-                `${serviceLabel(x.kind)} (${x.prepayPct ?? 50}% oldindan${(x.prepayPct ?? 50) < 100 ? ", qolgani topshirilganda" : ""})`,
+                `${serviceLabel(x.kind)} (${
+                  x.prepayAmount !== undefined
+                    ? x.prepayAmount > 0
+                      ? `${usd ? `$${fmtUsd(x.prepayAmount)}` : fmtMoney(x.prepayAmount)} oldindan`
+                      : "oldindan to'lovsiz"
+                    : `${x.prepayPct ?? 50}% oldindan`
+                }${(x.prepayAmount !== undefined ? x.prepayAmount < (usd ? (x.priceUsd ?? 0) : x.price) : (x.prepayPct ?? 50) < 100) ? ", qolgani topshirilganda" : ""})`,
                 amt(x.price, x.priceUsd ?? 0),
                 dueText,
               ]),
@@ -467,7 +479,7 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
             total={[
               recurring ? "Ja'mi oylik xizmat haqi (Ijrochiga):" : "Ja'mi xizmat haqi (Ijrochiga):",
               recurring ? fee : amt(onceTotal, onceUsd),
-              recurring ? `Har oy boshida, ${prepay}% oldindan` : "Shartnoma shartlariga muvofiq",
+              recurring ? "Har oy boshida, oldindan" : "Shartnoma shartlariga muvofiq",
             ]}
           />
           {usd ? (
@@ -482,8 +494,8 @@ export function Contract({ s, p, today }: { s: ErpState; p: Project; today: stri
             </p>
           )}
           <p>
-            <b>8.2.</b> Ijrochi ishni {prepay}% oldindan to'lov tushgan kundan boshlaydi
-            {recurring ? "; keyingi oylar uchun to'lov ham har oy boshida oldindan amalga oshiriladi" : ""}.
+            <b>8.2.</b> Ijrochi ishni shartnoma imzolangan kundan boshlaydi
+            {recurring ? `; oylik xizmat haqi: ${preText}, keyingi oylar uchun to'lov har oy boshida oldindan amalga oshiriladi` : ""}.
           </p>
           <p>
             <b>8.3.</b> {ads ? "Reklama byudjeti va blogerlar reklamasi xarajatlari" : "Blogerlar reklamasi xarajatlari"} xizmat haqiga kirmaydi.
