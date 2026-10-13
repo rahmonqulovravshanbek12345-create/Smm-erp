@@ -48,13 +48,14 @@ X
       cat <<'X'
 
 Endi bulut xotirasini ulaymiz (rclone). Ochilgan menyuda: «n» (yangi) → nom bering (masalan, zaxira)
-→ turini tanlang (Google Drive: «drive», Amazon/Backblaze/Wasabi: «s3»…) → ko'rsatmalarga amal qiling.
+→ turini tanlang (Backblaze B2: «b2», Google Drive: «drive», Amazon/Wasabi: «s3») → ko'rsatmalarga amal qiling.
 Ulash tugagach, «q» bilan chiqing.
 X
       touch "$RCLONE_CONF" && chmod 600 "$RCLONE_CONF"
       rclone config --config "$RCLONE_CONF"
       read -r -p "Ulangan nom (masalan, zaxira): " name </dev/tty
-      remote="${name}:smm-erp-zaxira"
+      read -r -p "Bucket yoki papka nomi (Backblaze'da — yaratgan bucket nomingiz) [smm-erp-zaxira]: " folder </dev/tty
+      remote="${name}:${folder:-smm-erp-zaxira}"
     fi
     [[ "$remote" =~ ^[A-Za-z0-9_-]+:[A-Za-z0-9_./-]*$ ]] || die "Manzil noto'g'ri: $remote (masalan, zaxira:smm-erp-zaxira)"
     [ -f "$RCLONE_CONF" ] && chmod 600 "$RCLONE_CONF"

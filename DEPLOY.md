@@ -88,12 +88,12 @@ sudo smm-erp offsite-setup
 ```
 
 1. Skript **zaxirani ochish kalitini** (`AGE-SECRET-KEY-…`) bir marta ko'rsatadi. Uni ikki joyda saqlang, masalan parollar menejeri va seyfdagi qog'oz. Kalit serverda saqlanmaydi. Kalitsiz zaxirani hech kim, siz ham ocha olmaysiz.
-2. Keyin bulut xotirasi ulanadi (rclone). Eng sodda yo'l **Backblaze B2** (10 GB bepul): «s3» turini tanlang, provider sifatida «Backblaze» ni ko'rsating va B2 sahifasidan olingan key ID hamda key'ni kiriting. **Google Drive** bilan ham ishlaydi: «drive» turini tanlang. «Use auto config?» savoliga `n` deb javob bering, chiqqan `rclone authorize …` buyrug'ini brauzeri bor kompyuterda bajaring.
+2. Keyin bulut xotirasi ulanadi (rclone). Eng sodda yo'l **Backblaze B2** (10 GB bepul): B2 sahifasida xususiy (Private) bucket va unga «Application Key» yarating. rclone menyusida `n` → nom (masalan, `zaxira`) → «b2» turini tanlang → keyID va applicationKey'ni kiriting → qolgan savollarga Enter → `q`. Skript so'raganda nomni (`zaxira`) va bucket nomini yozing. **Google Drive** bilan ham ishlaydi: «drive» turini tanlang. «Use auto config?» savoliga `n` deb javob bering, chiqqan `rclone authorize …` buyrug'ini brauzeri bor kompyuterda bajaring.
 3. Sinov uchun darhol bitta zaxira yuboriladi. Keyin har kecha avtomatik yuboriladi, bulutda 90 kun saqlanadi.
 
 Zaxira ichida baza nusxasi va `/etc/smm-erp/env` (`SECRET_KEY`) bor: kalitsiz 2FA va tokenlarni tiklab bo'lmaydi. Ro'yxat: `sudo smm-erp offsite-list`.
 
-> **Tavsiya:** bulut kaliti faqat **yozish** huquqiga ega bo'lsin, o'chirish huquqi bo'lmasin. Backblaze B2 kalitida faqat `writeFiles` va `listFiles` ni belgilang, eski fayllarni o'chirishni bucket'ning «Lifecycle» qoidasiga (masalan, 90 kun) topshiring. Shunda server buzilgan taqdirda ham bulutdagi nusxalarni o'chirib bo'lmaydi.
+> **Tavsiya:** Backblaze'da bucket yaratayotganda «Object Lock»ni yoqing va standart saqlash muddatini 90 kun qiling. Shunda server buzilgan taqdirda ham bulutdagi nusxalarni muddatidan oldin hech kim o'chira olmaydi. Sozlash oxiridagi sinov yuborishi bu sozlama bilan ham ishlayotganini ko'rsatadi.
 
 ## 8. Telegram va Meta
 

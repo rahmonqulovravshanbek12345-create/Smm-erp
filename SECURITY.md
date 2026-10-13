@@ -109,7 +109,7 @@ Quyidagilar kod bilan to'liq hal qilinmaydi. Mijozga topshirishda tushuntirilish
 7. **DDoS.** Faqat so'rov cheklovlari bor. Kuchli hujum bo'lsa, Cloudflare kabi himoya xizmati kerak bo'ladi.
 8. **Ma'lumot hajmi.** Butun ma'lumot bitta hujjatda saqlanadi. Taxminan 100 MB dan keyin tizim sekinlashadi (50 MB da adminga ogohlantirish keladi). Eski bildirishnoma va tarix avtomatik qisqartiriladi.
 9. **CSP'da `style-src 'unsafe-inline'`.** Bitta faylli yig'ish uchun kerak. Skriptlar baribir faqat xesh bilan ishlaydi, shuning uchun xavfi past.
-10. **Bulutdagi zaxira.** Server buzilsa, bulut kaliti bilan nusxalarni o'chirish mumkin. Kalitga faqat yozish huquqini bering (DEPLOY.md, 7-qadam).
+10. **Bulutdagi zaxira.** Server buzilsa, bulut kaliti bilan nusxalarni o'chirish mumkin. Bucket'da Object Lock (90 kun) yoqing (DEPLOY.md, 7-qadam).
 11. **Kvota xotirada hisoblanadi.** Server qayta ishga tushganda kunlik hisoblagich nolga tushadi. Bu ataylab shunday: admin `sudo smm-erp restart` bilan xodimni blokdan chiqara oladi.
 
 ## Tekshiruvni takrorlash
