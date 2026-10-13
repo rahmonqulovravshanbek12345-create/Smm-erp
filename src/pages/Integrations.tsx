@@ -179,7 +179,7 @@ export function Integrations() {
                         <Input
                           key={acc}
                           defaultValue={acc}
-                          disabled={!editable}
+                          disabled={!editable && !(me.role === "targetolog" && p.targetologId === me.id)}
                           placeholder="act_1234567890"
                           aria-label={`${p.name}: reklama kabineti ID`}
                           className="!w-48 !py-1.5 !text-[13px]"
@@ -203,12 +203,16 @@ export function Integrations() {
             </table>
           </div>
           <div className="flex flex-wrap items-center gap-2 px-5 py-4">
-            <Button variant="primary" onClick={sync} disabled={busy !== ""}>
-              {busy === "sync" ? "Olinmoqda…" : "Hozir sinxronlash"}
-            </Button>
-            <Button onClick={test} disabled={busy !== "" || demo}>
-              {busy === "test" ? "Tekshirilmoqda…" : "Ulanishni tekshirish"}
-            </Button>
+            {editable && (
+              <>
+                <Button variant="primary" onClick={sync} disabled={busy !== ""}>
+                  {busy === "sync" ? "Olinmoqda…" : "Hozir sinxronlash"}
+                </Button>
+                <Button onClick={test} disabled={busy !== "" || demo}>
+                  {busy === "test" ? "Tekshirilmoqda…" : "Ulanishni tekshirish"}
+                </Button>
+              </>
+            )}
             <span className="text-[13px] text-label3">Oxirgi sinxron: {meta.lastSync ? fmtDateTime(meta.lastSync) : "—"}</span>
           </div>
           <details className="border-t border-sep px-5 py-3 text-[13px] text-label2">

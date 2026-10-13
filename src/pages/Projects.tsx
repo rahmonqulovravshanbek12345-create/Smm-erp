@@ -239,7 +239,17 @@ function Info({ p }: { p: Project }) {
         {row("Xizmatlar", p.tariff)}
         {p.monthlyFee > 0 && row("Oylik summa", isUsd(p) ? `$${fmtUsd(monthlyFeeUsd(p))} (≈ ${fmtMoney(p.monthlyFee)})` : fmtMoney(p.monthlyFee))}
         {isUsd(p) && row("Valyuta", "AQSH dollari — to'lov kunidagi kurs bo'yicha")}
-        {p.monthlyFee > 0 && row("Oldindan to'lov", `${p.prepayType}%`)}
+        {p.monthlyFee > 0 &&
+          row(
+            "Boshlang'ich to'lov",
+            p.prepayAmount !== undefined
+              ? p.prepayAmount > 0
+                ? isUsd(p)
+                  ? `$${fmtUsd(p.prepayAmount)}`
+                  : fmtMoney(p.prepayAmount)
+                : "yo'q"
+              : `${p.prepayType}%`,
+          )}
         {hasRecurring(p) &&
           row(
             "Davr boshlanishi",

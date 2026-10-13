@@ -19,6 +19,8 @@ import {
   checkPassword,
   checkTotp,
   clearFailures,
+  isTrustedDevice,
+  trustDevice,
   createSession,
   credentialByLogin,
   credentialByUser,
@@ -169,6 +171,7 @@ export async function buildApp(d: Deps) {
     if (!dev || !/^[A-Za-z0-9_-]{20,64}$/.test(dev)) {
       dev = newToken();
       reply.setCookie(DID, dev, cookieOpts(400));
+      req.cookies[DID] = dev; // shu so'rov ichida qayta chaqirilsa, bir xil qiymat qaytsin
     }
     return dev;
   };
@@ -263,6 +266,12 @@ export async function buildApp(d: Deps) {
       if (!cred) return fail("password");
       const user = userIn(store.current().state, cred.user_id);
       if (!user?.active) return fail("inactive");
+      if (cred.totp_enabled && (await isTrustedDevice(db, user.id, req.cookies[DID]))) {
+        // Ishonchli qurilma (xodim shu qurilmada 30 kun ichida kod kiritib «eslab qol» belgilagan) — faqat parol yetadi
+        await fullSession(req, reply, user);
+        await afterLogin(req, reply, user, cred);
+        return { ok: true };
+      }
       if (cred.totp_enabled) {
         // Parol to'g'ri, lekin hali 2FA kodi kerak — 5 daqiqalik oraliq sessiya.
         // Xato hisoblagichlari bu yerda TOZALANMAYDI: aks holda parolni bilgan odam qayta kirib, kodlarni cheksiz tanlardi.
@@ -276,7 +285,7 @@ export async function buildApp(d: Deps) {
   });
 
   app.post("/api/auth/totp", rl(30, "5 minutes"), async (req, reply) => {
-    const body = z.strictObject({ code: z.string().max(12) }).safeParse(req.body);
+    const body = z.strictObject({ code: z.string().max(12), remember: z.boolean().optional() }).safeParse(req.body);
     const sess = await getSession(db, req.cookies[SID]);
     if (!sess || sess.stage !== "totp") return httpError(reply, 401, "Qaytadan kiring");
     const cred = await credentialByUser(db, sess.user_id);
@@ -292,6 +301,7 @@ export async function buildApp(d: Deps) {
       }
       // Oraliq sessiya o'rniga yangi to'liq sessiya (sessiya ID'si almashtiriladi)
       await deleteSession(db, sess.id);
+      if (body.success && body.data.remember) await trustDevice(db, user.id, deviceOf(req, reply));
       await fullSession(req, reply, user);
       await afterLogin(req, reply, user, cred);
       return { ok: true };
@@ -392,6 +402,7 @@ export async function buildApp(d: Deps) {
     });
     if (refused) return refused;
     await db.query("UPDATE credentials SET totp_secret = NULL, totp_enabled = false, updated_at = now() WHERE user_id = $1", [a.user.id]);
+    await db.query("DELETE FROM trusted_devices WHERE user_id = $1", [a.user.id]);
     await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "2fa-disable", ok: true });
     return { ok: true };
   });
@@ -574,6 +585,30 @@ export async function buildApp(d: Deps) {
     await revokeUser(db, user.id);
     await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "admin-credentials", ok: true, detail: { target: user.id, login } });
     return { ok: true, login, tempPassword: temp };
+  });
+
+  /** Loginni almashtirish: parol, 2FA va xodimning kiritgan ma'lumotlari o'zgarmaydi (ular xodim ID'siga bog'langan). */
+  app.post("/api/admin/rename-login", rl(30, "1 minute"), async (req, reply) => {
+    const a = await adminOnly(req, reply);
+    if (!a) return;
+    const body = z.strictObject({ userId: z.string().max(64), login: z.string().max(64) }).safeParse(req.body);
+    if (!body.success) return httpError(reply, 400, "Ma'lumot noto'g'ri");
+    const login = normLogin(body.data.login);
+    if (!LOGIN_RE.test(login)) return httpError(reply, 400, "Login 3–32 belgi: lotin harflari, raqam, nuqta, chiziqcha");
+    const cred = await credentialByUser(db, body.data.userId);
+    if (!cred) return httpError(reply, 404, "Bu xodimda hali login yo'q — avval login bering");
+    if (cred.login === login) return httpError(reply, 400, "Yangi login eskisi bilan bir xil");
+    const taken = await credentialByLogin(db, login);
+    if (taken) return httpError(reply, 409, "Bu login band — boshqasini tanlang");
+    await withLoginLock(cred.login, async () => {
+      await db.query("UPDATE credentials SET login = $2, updated_at = now() WHERE user_id = $1", [cred.user_id, login]);
+      await clearFailures(db, cred.login);
+      await clearFailures(db, login);
+      // Eski login bilan ochilgan sessiyalar va ishonchli qurilmalar yopiladi (adminning o'z sessiyasi qoladi)
+      await revokeUser(db, cred.user_id, cred.user_id === a.user.id ? a.sess.id : undefined);
+    });
+    await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "admin-rename-login", ok: true, detail: { target: cred.user_id, from: cred.login, to: login } });
+    return { ok: true, login };
   });
 
   app.post("/api/admin/reset-2fa", async (req, reply) => {

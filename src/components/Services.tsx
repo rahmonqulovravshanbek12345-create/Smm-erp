@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { diffDays, fmtDate, fmtMoney, fmtNum, fmtUsd } from "../lib/dates";
-import { invoiceSettled, invoiceStatus } from "../lib/finance";
+import { invoiceStatus } from "../lib/finance";
 import { canEdit } from "../lib/permissions";
 import { currentPeriod } from "../lib/rules";
 import {
@@ -15,7 +15,6 @@ import {
   serviceLabel,
   serviceMeta,
   serviceOwner,
-  servicePrepayPaid,
   servicesOf,
   stageIndex,
   usdFromUzs,
@@ -160,7 +159,12 @@ export function ServicesPanel({ project: p }: { project: Project }) {
         {p.monthlyFee > 0 && (
           <div className="border-t border-sep px-4 py-2.5 text-sm text-label2">
             Oylik jami: <b className="text-label">{isUsd(p) ? `$${fmtUsd(monthlyFeeUsd(p))} (≈ ${fmtMoney(p.monthlyFee)})` : fmtMoney(p.monthlyFee)}</b> ·
-            oldindan to'lov {p.prepayType}%{isUsd(p) && " · to'lov kunidagi kurs bo'yicha"}
+            {p.prepayAmount !== undefined
+              ? p.prepayAmount > 0
+                ? `boshlang'ich to'lov ${isUsd(p) ? `$${fmtUsd(p.prepayAmount)}` : fmtMoney(p.prepayAmount)}`
+                : "boshlang'ich to'lovsiz"
+              : `oldindan to'lov ${p.prepayType}%`}
+            {isUsd(p) && " · to'lov kunidagi kurs bo'yicha"}
           </div>
         )}
       </Card>
@@ -187,14 +191,19 @@ export function OneTimeService({ project: p, svc, compact }: { project: Project;
   const stages = svc.stages ?? [];
   const i = stageIndex(svc);
   const invs = state.invoices.filter((x) => x.serviceId === svc.id);
-  const paidPre = servicePrepayPaid(state, svc.id, (inv) => invoiceSettled(state, inv));
   const can = svc.status === "active" && (canManage(me.role) || svc.assigneeId === me.id);
   const last = i === stages.length - 1;
   const late = svc.status === "active" && svc.deadline && svc.deadline < today;
-  const blocked = i >= 1 && !paidPre;
-  const pre = Math.round((svc.price * (svc.prepayPct ?? 50)) / 100);
   const usdSvc = isUsd(p) && svc.priceUsd !== undefined;
-  const preUsd = usdSvc ? round2((svc.priceUsd! * (svc.prepayPct ?? 50)) / 100) : 0;
+  // Boshlang'ich to'lov: summa berilgan bo'lsa — shu, aks holda eski foiz
+  const preFrac =
+    svc.prepayAmount !== undefined
+      ? (usdSvc ? svc.priceUsd! : svc.price) > 0
+        ? Math.min(1, svc.prepayAmount / (usdSvc ? svc.priceUsd! : svc.price))
+        : 0
+      : (svc.prepayPct ?? 50) / 100;
+  const pre = svc.prepayAmount !== undefined && !usdSvc ? Math.round(svc.prepayAmount) : Math.round(svc.price * preFrac);
+  const preUsd = usdSvc ? (svc.prepayAmount !== undefined ? round2(svc.prepayAmount) : round2(svc.priceUsd! * preFrac)) : 0;
 
   return (
     <Card className="mb-4">
@@ -213,7 +222,6 @@ export function OneTimeService({ project: p, svc, compact }: { project: Project;
               <Button
                 size="sm"
                 variant="primary"
-                disabled={blocked}
                 onClick={() =>
                   (!last || window.confirm("Ish mijozga topshirildimi? Qoldiq faktura chiqadi va daromad tan olinadi.")) &&
                   run("advanceServiceStage", [p.id, svc.id], last ? "Topshirildi — moliyaga xabar ketdi" : "Bosqich bajarildi")
@@ -227,7 +235,6 @@ export function OneTimeService({ project: p, svc, compact }: { project: Project;
       />
       <div className="px-4 pb-4">
         {late && <Banner tone="red">Topshirish muddati o'tdi ({fmtDate(svc.deadline)})</Banner>}
-        {blocked && svc.status === "active" && <Banner tone="amber">Oldindan to'lov hali kelmagan — ish to'lovdan keyin davom etadi.</Banner>}
         <ol className="no-scrollbar flex gap-0 overflow-x-auto pb-1">
           {stages.map((st, k) => {
             const done = Boolean(st.doneAt);
@@ -259,7 +266,8 @@ export function OneTimeService({ project: p, svc, compact }: { project: Project;
                 {invs.map((inv) => (
                   <li key={inv.id} className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-label">
-                      {inv.kind === "prepay" ? `${svc.prepayPct ?? 50}% oldindan` : "Topshirishda"} · {inv.usd ? `$${fmtUsd(inv.usd)}` : fmtMoney(inv.amount)}
+                      {inv.kind === "prepay" ? (svc.prepayAmount !== undefined ? "Boshlang'ich to'lov" : `${svc.prepayPct ?? 50}% oldindan`) : "Topshirishda"} ·{" "}
+                      {inv.usd ? `$${fmtUsd(inv.usd)}` : fmtMoney(inv.amount)}
                     </span>
                     <PayBadge status={invoiceStatus(state, inv, today)} />
                   </li>

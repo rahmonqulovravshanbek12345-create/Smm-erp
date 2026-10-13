@@ -117,12 +117,37 @@ describe("Bir martalik xizmat bosqichlari", () => {
     return { s, p, svc: p.services[0]! };
   };
 
-  it("oldindan to'lovsiz 2-bosqichga o'tib bo'lmaydi", () => {
+  it("oldindan to'lov kelmagan bo'lsa ham bosqichlar davom etadi", () => {
     const { s, p, svc } = setup();
     const c = makeCtx(s, "u_web").c;
-    act.advanceServiceStage(c, p.id, svc.id); // 1-bosqich (brif) — to'lovsiz ham mumkin
+    act.advanceServiceStage(c, p.id, svc.id);
     expect(stageIndex(svc)).toBe(1);
-    expect(() => act.advanceServiceStage(c, p.id, svc.id)).toThrow(/Oldindan to'lov/);
+    expect(() => act.advanceServiceStage(c, p.id, svc.id)).not.toThrow();
+    expect(stageIndex(svc)).toBe(2);
+  });
+  it("bir martalik xizmat: boshlang'ich to'lov summa (0 — faktura yo'q; topshirilganda butun summa)", () => {
+    const s = demoState();
+    const make = (prepayAmount: number, no: string) =>
+      act.createProject(
+        makeCtx(s, "u_mk").c,
+        base({
+          contractNo: no,
+          smmId: "",
+          services: [{ kind: "web", tariffId: "t_web_landing", title: "Landing", price: 6_000_000, prepayAmount, assigneeId: "u_web", assigneeFee: 2_000_000 }],
+        }),
+      );
+    const id0 = make(0, "SH-ZERO");
+    expect(s.invoices.some((i) => i.projectId === id0 && i.kind === "prepay")).toBe(false);
+    const p0 = s.projects.find((x) => x.id === id0)!;
+    const c = makeCtx(s, "u_web").c;
+    while (p0.services[0]!.status === "active") act.advanceServiceStage(c, id0, p0.services[0]!.id);
+    expect(s.invoices.find((i) => i.projectId === id0 && i.kind === "remainder")!.amount).toBe(6_000_000);
+
+    const id1 = make(2_500_000, "SH-PART");
+    expect(s.invoices.find((i) => i.projectId === id1 && i.kind === "prepay")!.amount).toBe(2_500_000);
+    const p1 = s.projects.find((x) => x.id === id1)!;
+    while (p1.services[0]!.status === "active") act.advanceServiceStage(c, id1, p1.services[0]!.id);
+    expect(s.invoices.find((i) => i.projectId === id1 && i.kind === "remainder")!.amount).toBe(3_500_000);
   });
 
   it("topshirilganda: qoldiq faktura, ijrochiga haq, daromad topshirilgan oyda tan olinadi", () => {

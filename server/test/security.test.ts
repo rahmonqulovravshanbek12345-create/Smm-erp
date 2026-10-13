@@ -1,7 +1,8 @@
 // Xavfsizlik auditi topilmalari: har bir test hujumni takrorlaydi va uning rad etilishini tekshiradi.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ErpState, Lead } from "../../src/lib/types";
-import { action, giveLogin, loginAs, setup, type Client, type Ctx } from "./helpers";
+import { totpAt } from "../src/crypto";
+import { PASS, action, client, giveLogin, loginAs, setup, type Client, type Ctx } from "./helpers";
 
 let t: Ctx;
 let op1: Client;
@@ -149,6 +150,88 @@ describe("Poyga: bir vaqtdagi urinishlar blokni aylanib o'tmaydi", () => {
     ).map((r) => r.statusCode);
     expect(codes.filter((x) => x === 400).length).toBeLessThanOrEqual(5);
     expect(codes.filter((x) => x === 429).length).toBeGreaterThanOrEqual(15);
+  });
+});
+
+describe("2FA faqat yangi qurilmada", () => {
+  const code = async (login: string, secret: string) => {
+    await t.db.query("UPDATE credentials SET totp_last_step = 0 WHERE login = $1", [login]);
+    return totpAt(secret, Math.floor(Date.now() / 30_000));
+  };
+  it("«eslab qol» belgilangan qurilmada kod so'ralmaydi; yangi qurilmada, belgisiz va parol almashgach — so'raladi", async () => {
+    await giveLogin(t.db, "u_tg", "ishonch1");
+    const dev = await loginAs(t.app, "ishonch1");
+    const { secret } = (await dev.req("POST", "/api/auth/2fa/setup")).json();
+    expect((await dev.req("POST", "/api/auth/2fa/enable", { code: await code("ishonch1", secret) })).statusCode).toBe(200);
+    await dev.req("POST", "/api/auth/logout");
+
+    // Belgisiz kirish — keyingi safar yana kod so'raladi
+    expect((await dev.req("POST", "/api/auth/login", { login: "ishonch1", password: PASS })).json()).toEqual({ need2fa: true });
+    expect((await dev.req("POST", "/api/auth/totp", { code: await code("ishonch1", secret) })).statusCode).toBe(200);
+    await dev.req("POST", "/api/auth/logout");
+    expect((await dev.req("POST", "/api/auth/login", { login: "ishonch1", password: PASS })).json()).toEqual({ need2fa: true });
+
+    // «Eslab qol» bilan kod kiritildi
+    expect((await dev.req("POST", "/api/auth/totp", { code: await code("ishonch1", secret), remember: true })).statusCode).toBe(200);
+    await dev.req("POST", "/api/auth/logout");
+    // Shu qurilma: faqat parol yetadi
+    expect((await dev.req("POST", "/api/auth/login", { login: "ishonch1", password: PASS })).json()).toEqual({ ok: true });
+    expect((await dev.req("GET", "/api/state")).statusCode).toBe(200);
+    // Noto'g'ri parol — baribir kirmaydi
+    await dev.req("POST", "/api/auth/logout");
+    expect((await dev.req("POST", "/api/auth/login", { login: "ishonch1", password: "boshqa-parol-123" })).statusCode).toBe(401);
+
+    // Yangi qurilma (boshqa cookie) — kod so'raladi, kodsiz hech narsa ochilmaydi
+    const other = client(t.app);
+    expect((await other.req("POST", "/api/auth/login", { login: "ishonch1", password: PASS })).json()).toEqual({ need2fa: true });
+    expect((await other.req("GET", "/api/state")).statusCode).toBe(401);
+    // Boshqa qurilmaning cookie'sini ko'chirib bo'lmaydi: u faqat o'sha xodim uchun amal qiladi
+    await giveLogin(t.db, "u_smm2", "ishonch2");
+    const x = await loginAs(t.app, "ishonch2");
+    const sx = (await x.req("POST", "/api/auth/2fa/setup")).json().secret;
+    await x.req("POST", "/api/auth/2fa/enable", { code: await code("ishonch2", sx) });
+    await x.req("POST", "/api/auth/logout");
+    const sameBrowser = client(t.app);
+    sameBrowser.cookies = { ...Object.fromEntries(Object.entries(dev.cookies).filter(([k]) => k.includes("erpd") || k.includes("erp_did"))) };
+    expect((await sameBrowser.req("POST", "/api/auth/login", { login: "ishonch2", password: PASS })).json()).toEqual({ need2fa: true });
+
+    // Parol almashgach ishonchli qurilmalar bekor bo'ladi
+    expect((await dev.req("POST", "/api/auth/login", { login: "ishonch1", password: PASS })).json()).toEqual({ ok: true });
+    const next = "Yangi-parol-2026x";
+    expect((await dev.req("POST", "/api/auth/password", { current: PASS, next })).statusCode).toBe(200);
+    await dev.req("POST", "/api/auth/logout");
+    expect((await dev.req("POST", "/api/auth/login", { login: "ishonch1", password: next })).json()).toEqual({ need2fa: true });
+  });
+});
+
+describe("Admin xodim loginini o'zgartiradi", () => {
+  it("parol va ma'lumot o'zgarmaydi; eski login ishlamaydi; faqat admin; band yoki noto'g'ri login rad etiladi", async () => {
+    await giveLogin(t.db, "u_admin", "admin");
+    await giveLogin(t.db, "u_mk", "eski.login");
+    const admin = await loginAs(t.app, "admin");
+    const worker = await loginAs(t.app, "eski.login");
+    expect((await worker.req("GET", "/api/state")).statusCode).toBe(200);
+
+    // Admin bo'lmagan — rad
+    expect((await worker.req("POST", "/api/admin/rename-login", { userId: "u_mk", login: "yangi.login" })).statusCode).toBe(403);
+    // Band va noto'g'ri formatdagi login
+    expect((await admin.req("POST", "/api/admin/rename-login", { userId: "u_mk", login: "dizayn1" })).statusCode).toBe(409);
+    expect((await admin.req("POST", "/api/admin/rename-login", { userId: "u_mk", login: "a b" })).statusCode).toBe(400);
+    expect((await admin.req("POST", "/api/admin/rename-login", { userId: "u_mk", login: "eski.login" })).statusCode).toBe(400);
+
+    expect((await admin.req("POST", "/api/admin/rename-login", { userId: "u_mk", login: "Yangi.Login" })).statusCode).toBe(200);
+    // Eski sessiya yopildi
+    expect((await worker.req("GET", "/api/state")).statusCode).toBe(401);
+    // Eski login ishlamaydi, yangisi shu parol bilan ishlaydi
+    expect((await client(t.app).req("POST", "/api/auth/login", { login: "eski.login", password: PASS })).statusCode).toBe(401);
+    const again = await loginAs(t.app, "yangi.login");
+    expect((await again.req("GET", "/api/me")).json().user.id).toBe("u_mk");
+    // Ma'lumot (xodim ID'si bo'yicha) o'zgarmagan
+    const st = (await again.req("GET", "/api/state")).json().state as ErpState;
+    expect(st.users.find((u) => u.id === "u_mk")?.name).toBeTruthy();
+    // Jurnalda iz qoldi
+    const { rows } = await t.db.query("SELECT detail FROM audit_log WHERE kind = 'admin-rename-login' ORDER BY id DESC LIMIT 1");
+    expect(rows[0].detail).toMatchObject({ from: "eski.login", to: "yangi.login" });
   });
 });
 

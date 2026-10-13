@@ -24,7 +24,8 @@ test("Lid → tijorat taklifi → qabul → shartnoma → oldindan to'lov → is
   await dialog(page).getByRole("button", { name: "Loyiha kartasini yaratish" }).click();
   await expect(page).toHaveURL(/#\/loyiha\//);
   await expect(page.locator("main")).toContainText("SMM: Biznes");
-  await expect(page.locator("main")).toContainText("Oldindan to'lov hali kelmagan");
+  // To'lov kelmagan bo'lsa ham ish to'xtamaydi (boshlang'ich to'lov ishni to'xtatuvchi shart emas)
+  await expect(page.locator("main")).not.toContainText("Oldindan to'lov hali kelmagan");
 
   let s = await state(page);
   const project = s.projects.find((x: { name: string }) => x.name === "Test Restoran");

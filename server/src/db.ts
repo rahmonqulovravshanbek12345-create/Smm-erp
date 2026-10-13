@@ -98,6 +98,16 @@ const MIGRATIONS: string[] = [
   -- 3. Sessiya: harakatsizlik muddati rolga qarab (rahbariyat va moliya — qisqaroq)
   ALTER TABLE sessions ADD COLUMN idle_minutes int NOT NULL DEFAULT 20160;
   `,
+  `
+  -- 4. Ishonchli qurilmalar: 2FA kodi faqat yangi qurilmada so'raladi (xodim «eslab qol» belgilagan, 30 kun)
+  CREATE TABLE trusted_devices (
+    user_id text NOT NULL,
+    device text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz NOT NULL,
+    PRIMARY KEY (user_id, device)
+  );
+  `,
 ];
 
 /** Audit jurnali 2 yil saqlanadi (eski yozuvlar disk to'lib qolmasligi uchun o'chiriladi). */

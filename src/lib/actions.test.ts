@@ -36,16 +36,49 @@ describe("Lid → shartnoma → loyiha", () => {
     expect(s.accruals.some((a) => a.sourceId === "lead:l_3")).toBe(true);
     expect(notes.flatMap((n) => n.to)).toEqual(expect.arrayContaining(["u_smm1", "u_mol", "u_op1"]));
   });
-  it("oldindan to'lovsiz ish ochilmaydi; to'lov kelgach ochiladi", () => {
+  it("oldindan to'lov kelmagan bo'lsa ham ish boshlanadi (to'lov ishni to'xtatmaydi)", () => {
     const s = demoState();
     const { c } = makeCtx(s, "u_mk");
     const id = act.createProject(c, input({ prepayType: 100 }));
     const task = { projectId: id, kind: "montaj" as const, assigneeId: "u_mt1", title: "Video", brief: "", deadline: addDays(TODAY, 2) };
-    expect(() => act.createTask(c, task)).toThrow(/Oldindan to'lov/);
-    const pre = s.invoices.find((i) => i.projectId === id && i.kind === "prepay")!;
-    act.recordClientPayment(makeCtx(s, "u_mol").c, pre.id, { amount: pre.amount, date: TODAY, accountId: "acc_bank", note: "" });
-    expect(prepayPaid(s, id)).toBe(true);
+    expect(prepayPaid(s, id)).toBe(false);
     expect(() => act.createTask(c, task)).not.toThrow();
+  });
+  it("boshlang'ich to'lov summa bilan: 4 000 000 → oldindan shu summa, qolgani qoldiq faktura", () => {
+    const s = demoState();
+    const { c } = makeCtx(s, "u_mk");
+    const id = act.createProject(c, input({ prepayAmount: 4_000_000 }));
+    const pre = s.invoices.find((i) => i.projectId === id && i.kind === "prepay")!;
+    const rest = s.invoices.find((i) => i.projectId === id && i.kind === "remainder")!;
+    expect(pre.amount).toBe(4_000_000);
+    expect(rest.amount).toBe(8_000_000);
+    expect(rest.dueDate).toBe(addDays(TODAY, 20));
+  });
+  it("boshlang'ich to'lov 0: oldindan faktura chiqmaydi, butun summa qoldiq, ish boshlanadi", () => {
+    const s = demoState();
+    const { c } = makeCtx(s, "u_mk");
+    const id = act.createProject(c, input({ prepayAmount: 0 }));
+    expect(s.invoices.some((i) => i.projectId === id && i.kind === "prepay")).toBe(false);
+    expect(s.invoices.find((i) => i.projectId === id && i.kind === "remainder")!.amount).toBe(12_000_000);
+    expect(prepayPaid(s, id)).toBe(true);
+    const task = { projectId: id, kind: "montaj" as const, assigneeId: "u_mt1", title: "Video", brief: "", deadline: addDays(TODAY, 2) };
+    expect(() => act.createTask(c, task)).not.toThrow();
+  });
+  it("boshlang'ich to'lov = to'liq summa: qoldiq faktura chiqmaydi; undan ko'p yoki manfiy — rad", () => {
+    const s = demoState();
+    const { c } = makeCtx(s, "u_mk");
+    const id = act.createProject(c, input({ prepayAmount: 12_000_000 }));
+    expect(s.invoices.some((i) => i.projectId === id && i.kind === "remainder")).toBe(false);
+    expect(() => act.createProject(c, input({ contractNo: "SH-2026/100", prepayAmount: 12_000_001 }))).toThrow(/ko'p/);
+    expect(() =>
+      act.createProject(
+        c,
+        input({
+          contractNo: "SH-2026/101",
+          services: [{ kind: "web", tariffId: "t_web_landing", title: "L", price: 6_000_000, assigneeId: "u_web", prepayAmount: -1 }],
+        }),
+      ),
+    ).toThrow(/manfiy/);
   });
 });
 

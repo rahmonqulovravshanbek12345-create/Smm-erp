@@ -122,6 +122,7 @@ function Login({ notice, onDone }: { notice?: string; onDone: (need2fa: boolean)
 
 function Totp({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const [code, setCode] = useState("");
+  const [remember, setRemember] = useState(false);
   const { busy, error, submit } = useSubmit();
   return (
     <Screen title="Tasdiqlash kodi" sub="Telefoningizdagi Google Authenticator ilovasidagi 6 xonali kodni kiriting">
@@ -130,7 +131,7 @@ function Totp({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
         onSubmit={(e) =>
           submit(e, async () => {
             try {
-              await api("/api/auth/totp", { code });
+              await api("/api/auth/totp", { code, remember });
               onDone();
             } catch (err) {
               setCode("");
@@ -142,6 +143,10 @@ function Totp({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
       >
         {error && <Banner tone="red">{error}</Banner>}
         <CodeInput value={code} onChange={setCode} />
+        <label className="flex cursor-pointer items-start gap-2 text-[13px] text-label2">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="mt-[3px]" />
+          <span>Bu qurilmani 30 kunga eslab qol (shu qurilmadan kirganda kod so'ralmaydi). Boshqaning yoki jamoat kompyuterida belgilamang.</span>
+        </label>
         <Button type="submit" variant="primary" className="w-full" disabled={busy || code.length !== 6}>
           {busy ? "Tekshirilmoqda…" : "Tasdiqlash"}
         </Button>
