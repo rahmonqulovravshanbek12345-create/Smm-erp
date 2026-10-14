@@ -123,6 +123,10 @@ const RULES: { [N in ActionName]: Rule<N> } = {
   applyMetaSync: () => false,
   metaAutoSync: () => false,
   markIntegrationAttempt: () => false,
+  // Facebook Lead Ads: sozlash — faqat admin; lidlarni qabul qilishni server o'zi bajaradi
+  saveLeadAdsSettings: adminOnly,
+  intakeLead: () => false,
+  markLeadsPoll: () => false,
   switchUser: () => false,
   setChatIdForAll: () => false,
   // Xodimlar va tizim sozlamalari — faqat admin

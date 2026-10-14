@@ -10,6 +10,7 @@ import { loadConfig } from "../src/config";
 import { hashPassword, makeSealer } from "../src/crypto";
 import { createPool, migrate } from "../src/db";
 import { createIntegrations } from "../src/integrations";
+import { createLeadsService } from "../src/leads";
 import { createNotifier } from "../src/notifier";
 import { StateStore } from "../src/store";
 
@@ -56,7 +57,22 @@ async function main() {
       return res.map((r) => ({ ...r, demo: false }));
     },
   });
-  const app = await buildApp({ cfg, db, store, sealer, notifier, integrations });
+  const app = await buildApp({
+    cfg,
+    db,
+    store,
+    sealer,
+    notifier,
+    integrations,
+    leads: createLeadsService(store, {
+      getLead: async () => {
+        throw new Error("Meta: sinov muhiti");
+      },
+      listForms: async () => [],
+      listFormLeads: async () => [],
+      pageName: async () => "Sinov sahifasi",
+    }),
+  });
   app.post("/__test/reset", async () => {
     await reset();
     return { ok: true };

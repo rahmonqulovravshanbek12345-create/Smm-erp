@@ -967,6 +967,7 @@ export function buildSeed(today: string): ErpState {
           lastSync: `${today}T04:05:10.000Z`,
         },
         cbu: { autoUpdate: true, lastUpdate: `${today}T04:05:00.000Z`, rateDate: today },
+        leads: { enabled: false, pageId: "", pageToken: "", appSecret: "", verifyToken: "", assignTo: "rotate", rotateIdx: 0, received: 0 },
       },
     },
   };

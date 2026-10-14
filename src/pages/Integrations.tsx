@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Icon, IconChip } from "../components/icons";
+import { LeadAdsCard } from "../components/LeadAdsCard";
 import { A, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, PageHeader, Select } from "../components/ui";
 import { SERVER_MODE, api, type StateResponse } from "../lib/api";
 import { fmtDate, fmtDateTime, fmtNum } from "../lib/dates";
@@ -324,6 +325,8 @@ export function Integrations() {
             </div>
           </Card>
         </div>
+
+        {SERVER_MODE && me.role === "admin" && <LeadAdsCard />}
 
         <Card className="xl:col-span-3">
           <CardHeader icon={{ name: "history", color: "indigo" }} title="Jurnal" sub="Avtomatik va qo'lda bajarilgan sinxronlar" />

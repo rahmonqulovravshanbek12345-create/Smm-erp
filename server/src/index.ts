@@ -11,6 +11,7 @@ import { loadConfig } from "./config";
 import { hashPassword, makeSealer, tempPassword } from "./crypto";
 import { audit, createPool, migrate } from "./db";
 import { createIntegrations } from "./integrations";
+import { createLeadsService } from "./leads";
 import { startJobs } from "./jobs";
 import { createNotifier } from "./notifier";
 import { StateStore } from "./store";
@@ -36,10 +37,13 @@ async function main() {
     case "serve": {
       const notifier = createNotifier(store);
       const integrations = createIntegrations(store);
-      const app = await buildApp({ cfg, db, store, sealer, notifier, integrations });
+      const leads = createLeadsService(store, undefined, (m, e) => console.error(m, e instanceof Error ? e.message : e));
+      const app = await buildApp({ cfg, db, store, sealer, notifier, integrations, leads });
       if (!store.ready) app.log.warn("Tizim hali sozlanmagan: `smm-erp init <login> <ism>` buyrug'ini bajaring");
       await app.listen({ host: cfg.HOST, port: cfg.PORT });
-      const stopJobs = cfg.JOBS ? startJobs({ store, db, integrations, notifier, tz: cfg.TZ, log: (m, e) => app.log.error({ err: e }, m) }) : () => undefined;
+      const stopJobs = cfg.JOBS
+        ? startJobs({ store, db, integrations, notifier, leads, tz: cfg.TZ, log: (m, e) => app.log.error({ err: e }, m) })
+        : () => undefined;
       const stop = async () => {
         stopJobs();
         await app.close();

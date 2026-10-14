@@ -53,6 +53,7 @@ export function buildBlank(today: string, admin: { id: string; name: string } = 
       integrations: {
         meta: { token: "", apiVersion: "v23.0", autoSync: true, leadMetric: "all", accounts: {} },
         cbu: { autoUpdate: true },
+        leads: { enabled: false, pageId: "", pageToken: "", appSecret: "", verifyToken: "", assignTo: "rotate", rotateIdx: 0, received: 0 },
       },
     },
   };
