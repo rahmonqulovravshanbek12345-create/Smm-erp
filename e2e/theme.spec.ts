@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { openAs, state } from "./helpers";
+import { openAs, SERVER, state } from "./helpers";
 
 test("Mavzu: bitta tugma yorug' ↔ qorong'i almashtiradi va tanlov eslab qolinadi", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
@@ -45,10 +45,18 @@ test("Moliyaviy panel: daromad va foyda kartalarida joriy oy (hozirgacha) ko'rsa
 });
 
 test("Admin: «Butun ma'lumot Excel'da» tugmasi haqiqiy .xlsx faylni yuklab beradi", async ({ page }) => {
+  test.skip(SERVER, "Server tizimida fayl Telegram orqali ketadi (server/test/daily-excel.test.ts)");
   await openAs(page, "u_admin", "/admin");
   const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Butun ma'lumot Excel'da" }).click()]);
   expect(dl.suggestedFilename()).toMatch(/^erp-\d{4}-\d{2}-\d{2}\.xlsx$/);
   const path = await dl.path();
   const head = (await import("node:fs")).readFileSync(path).subarray(0, 4);
   expect([...head]).toEqual([0x50, 0x4b, 0x03, 0x04]);
+});
+
+test("Server: «Excel'ni hozir yuborish» — Telegram sozlanmagan bo'lsa tushunarli xato ko'rsatadi", async ({ page }) => {
+  test.skip(!SERVER, "Faqat serverli tizimda");
+  await openAs(page, "u_admin", "/admin");
+  await page.getByRole("button", { name: "Excel'ni hozir yuborish" }).click();
+  await expect(page.getByText(/Telegram o'chiq yoki adminda chat ID kiritilmagan/)).toBeVisible();
 });
