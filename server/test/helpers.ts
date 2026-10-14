@@ -19,6 +19,7 @@ export interface Ctx {
   db: Db;
   store: StateStore;
   sent: { chatId: string; text: string }[];
+  docs: { chatId: string; filename: string; bytes: Uint8Array; caption: string }[];
   close: () => Promise<void>;
 }
 
@@ -35,10 +36,18 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
   const store = new StateStore(db, { sealer });
   await store.create(demoState());
   const sent: Ctx["sent"] = [];
-  const notifier = createNotifier(store, async (_t, chatId, text) => {
-    sent.push({ chatId, text });
-    return true;
-  });
+  const docs: Ctx["docs"] = [];
+  const notifier = createNotifier(
+    store,
+    async (_t, chatId, text) => {
+      sent.push({ chatId, text });
+      return true;
+    },
+    async (_t, chatId, filename, bytes, caption) => {
+      docs.push({ chatId, filename, bytes, caption });
+      return true;
+    },
+  );
   const integrations = createIntegrations(store, {
     fetchCbuRate: async () => ({ rate: 12_900, date: "2026-10-07" }),
     testMetaToken: async () => "Test Business",
@@ -67,6 +76,7 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
     db,
     store,
     sent,
+    docs,
     close: async () => {
       await app.close();
       await notifier.idle();

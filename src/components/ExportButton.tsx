@@ -1,5 +1,6 @@
 import { useErp } from "../lib/store";
-import { downloadXlsx, type SheetData } from "../lib/xlsx";
+import type { SheetData } from "../lib/xlsx";
+import { downloadXlsx } from "../lib/xlsx-download";
 import { Icon } from "./icons";
 import { Button } from "./ui";
 

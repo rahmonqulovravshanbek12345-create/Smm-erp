@@ -523,6 +523,17 @@ export async function buildApp(d: Deps) {
     return { ok: true, sent: d.notifier.digest() };
   });
 
+  app.post("/api/integrations/telegram/excel", rl(3, "1 minute"), async (req, reply) => {
+    const a = await authenticate(req, reply);
+    if (!a) return;
+    if (a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
+    const r = await d.notifier.dailyExcel();
+    await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "export", ok: r.sent > 0, detail: { admins: r.admins, sent: r.sent, bytes: r.bytes } });
+    if (!r.admins) return httpError(reply, 400, "Telegram o'chiq yoki adminda chat ID kiritilmagan");
+    if (!r.sent) return httpError(reply, 502, "Fayl ketmadi — token, chat ID, botga /start va fayl hajmini tekshiring");
+    return { ok: true, sent: r.sent };
+  });
+
   // ---------- Admin: kirish ma'lumotlari ----------
 
   const adminOnly = async (req: FastifyRequest, reply: FastifyReply) => {

@@ -2,10 +2,14 @@
 import type { Outgoing } from "../../src/lib/ctx";
 import { nowHM, todayISO } from "../../src/lib/dates";
 import { alertsFor } from "../../src/lib/rules";
-import { sendTelegram, telegramText } from "../../src/lib/telegram";
+import { fullExportSheets, TELEGRAM_FILE_LIMIT } from "../../src/lib/full-export";
+import { sendTelegram, sendTelegramDocument, telegramText } from "../../src/lib/telegram";
+import { buildXlsx } from "../../src/lib/xlsx";
 import type { StateStore } from "./store";
 
 export type SendFn = (token: string, chatId: string, text: string) => Promise<boolean>;
+
+export type SendDocFn = (token: string, chatId: string, filename: string, bytes: Uint8Array, caption: string) => Promise<boolean>;
 
 export interface Notifier {
   /** Amal natijasidagi bildirishnomalarni Telegram'ga yuboradi (javobni kutmaydi). */
@@ -15,11 +19,13 @@ export interface Notifier {
   test(userId: string): Promise<boolean>;
   /** Bugungi eslatmalar — har bir xodimga o'zinikini. Qaytaradi: nechta xodimga. */
   digest(): number;
+  /** Butun ma'lumot Excel faylda — faqat faol adminlarga (Telegram chat ID kiritilgan bo'lsa). Qaytaradi: nechta adminga yuborildi. */
+  dailyExcel(): Promise<{ admins: number; sent: number; bytes: number }>;
   /** Navbatdagi barcha yuborishlar tugashini kutish (testlar va to'xtash uchun). */
   idle(): Promise<void>;
 }
 
-export function createNotifier(store: StateStore, send: SendFn = sendTelegram): Notifier {
+export function createNotifier(store: StateStore, send: SendFn = sendTelegram, sendDoc: SendDocFn = sendTelegramDocument): Notifier {
   let pending: Promise<unknown> = Promise.resolve();
   const track = (p: Promise<unknown>) => {
     pending = Promise.all([pending, p.catch(() => undefined)]);
@@ -78,6 +84,37 @@ export function createNotifier(store: StateStore, send: SendFn = sendTelegram): 
         sent++;
       }
       return sent;
+    },
+    async dailyExcel() {
+      const token = cfg();
+      if (!token) return { admins: 0, sent: 0, bytes: 0 };
+      const { state } = store.current();
+      const today = todayISO();
+      let bytes = buildXlsx(fullExportSheets(state, today));
+      // Fayl Telegram chegarasidan oshsa — katta jurnallarsiz yuboramiz
+      if (bytes.length > TELEGRAM_FILE_LIMIT) bytes = buildXlsx(fullExportSheets(state, today, { dropLogs: true }));
+      const admins = state.users.filter((u) => u.role === "admin" && u.active && u.telegramChatId?.trim());
+      if (bytes.length > TELEGRAM_FILE_LIMIT) {
+        for (const a of admins)
+          track(
+            send(
+              token,
+              a.telegramChatId!.trim(),
+              telegramText(a, "⚠ Kunlik Excel juda katta bo'lib ketdi (50 MB dan oshdi), yuborilmadi. Ma'lumotlar zaxirasi serverda saqlanmoqda."),
+            ),
+          );
+        return { admins: admins.length, sent: 0, bytes: bytes.length };
+      }
+      const name = `erp-${today}.xlsx`;
+      const caption = `📊 ${state.settings.companyName}: butun ERP ma'lumoti, ${today} (soat 23:50)\n${(bytes.length / 1024).toFixed(0)} KB`;
+      let sent = 0;
+      await Promise.all(
+        admins.map(async (a) => {
+          const ok = await sendDoc(token, a.telegramChatId!.trim(), name, bytes, caption);
+          if (ok) sent++;
+        }),
+      );
+      return { admins: admins.length, sent, bytes: bytes.length };
     },
     idle: () => pending.then(() => undefined),
   };

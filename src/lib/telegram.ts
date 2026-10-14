@@ -39,3 +39,28 @@ export function sendTelegram(token: string, chatId: string, text: string): Promi
 export function telegramText(to: User, text: string): string {
   return `🔔 ${BRAND}\n👤 ${to.name} · ${ROLE_LABELS[to.role]}\n\n${text}`;
 }
+
+async function postDocument(token: string, chatId: string, filename: string, bytes: Uint8Array, caption: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const form = new FormData();
+      form.set("chat_id", chatId);
+      form.set("caption", caption.slice(0, 1000));
+      form.set("document", new Blob([bytes.buffer as ArrayBuffer], { type: "application/octet-stream" }), filename);
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: "POST", body: form, signal: timeoutSignal(120_000) });
+      if (res.status !== 429) return res.ok;
+      const body = (await res.json().catch(() => null)) as { parameters?: { retry_after?: number } } | null;
+      await wait(((body?.parameters?.retry_after ?? 3) + 0.5) * 1000);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/** Faylni (masalan, Excel) hujjat sifatida yuboradi. Telegram botlari uchun chegara — 50 MB. */
+export function sendTelegramDocument(token: string, chatId: string, filename: string, bytes: Uint8Array, caption: string): Promise<boolean> {
+  const job = queue.then(() => postDocument(token, chatId, filename, bytes, caption));
+  queue = job.then(() => wait(GAP_MS));
+  return job;
+}
