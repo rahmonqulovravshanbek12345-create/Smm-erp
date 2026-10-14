@@ -46,6 +46,8 @@ export interface Lead {
   maxStep?: number;
   history: ContactLog[];
   projectId?: string;
+  /** Tashqi manba ID'si (masalan, Facebook Lead Ads lidi) — bir lid ikki marta tushmasin. */
+  externalId?: string;
   createdAt: string;
 }
 
@@ -574,6 +576,29 @@ export interface Integrations {
     rateDate?: string;
     /** Avtomatik urinish kuni — sayt ochilganda kuniga bir martadan ko'p urinilmaydi. */
     lastAttempt?: string;
+  };
+  /** Facebook Lead Ads: targetdan tushgan lidlar CRM'ga o'zi tushadi (faqat serverli tizimda ishlaydi). */
+  leads: {
+    enabled: boolean;
+    /** Facebook sahifa ID'si (faqat shu sahifa lidlari qabul qilinadi). */
+    pageId: string;
+    /** Sahifa kirish tokeni (leads_retrieval) — bazada shifrlangan, brauzerga qaytmaydi. */
+    pageToken: string;
+    /** Meta ilovasining «App Secret»i: webhook imzosini tekshirish uchun (shifrlangan). */
+    appSecret: string;
+    /** Webhook'ni Meta'da tasdiqlash uchun umumiy so'z (ikki joyga bir xil kiritiladi). */
+    verifyToken: string;
+    /** Yangi lid kimga: «rotate» — operatorlarga navbat bilan, yoki bitta xodim ID'si. */
+    assignTo: string;
+    /** Navbat hisoblagichi (operatorlarga bittadan). */
+    rotateIdx: number;
+    /** Oxirgi lid kelgan vaqt. */
+    lastLeadAt?: string;
+    /** Zaxira tekshiruvi (har 10 daqiqada) oxirgi bajarilgan vaqt va natijasi. */
+    lastPollAt?: string;
+    lastError?: string;
+    /** Jami qabul qilingan lidlar. */
+    received: number;
   };
 }
 

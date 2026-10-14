@@ -18,7 +18,11 @@ export function withoutSecrets(s: ErpState): ErpState {
     settings: {
       ...st,
       telegram: { ...st.telegram, botToken: maskSecret(st.telegram.botToken) },
-      integrations: { ...st.integrations, meta: { ...st.integrations.meta, token: maskSecret(st.integrations.meta.token) } },
+      integrations: {
+        ...st.integrations,
+        meta: { ...st.integrations.meta, token: maskSecret(st.integrations.meta.token) },
+        leads: { ...st.integrations.leads, pageToken: maskSecret(st.integrations.leads.pageToken), appSecret: maskSecret(st.integrations.leads.appSecret) },
+      },
     },
   };
 }

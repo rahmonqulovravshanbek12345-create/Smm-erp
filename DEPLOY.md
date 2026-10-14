@@ -101,6 +101,18 @@ Zaxira ichida baza nusxasi va `/etc/smm-erp/env` (`SECRET_KEY`) bor: kalitsiz 2F
   - **Kunlik Excel:** har kuni **23:50** da (Toshkent) butun ERP ma'lumoti (`erp-SANA.xlsx`, har ro'yxat alohida varaqda) faol adminlarning Telegram'iga ketadi. Tokenlar faylga kirmaydi; shaxsiy bildirishnomalar va 5000 tadan eski faoliyat yozuvlari kirmaydi. Fayl 50 MB dan oshsa, jurnallarsiz yuboriladi. Hozir sinash: Admin → Telegram → «Excel'ni hozir yuborish». **Diqqat:** faylda mijozlar telefonlari, to'lovlar va oyliklar bor, Telegram esa oxirigacha shifrlanmagan. Faqat admin chat ID'si botga ulangan bo'lishi va telefonda ekran qulfi turishi kerak.
 - **Meta Ads:** tokenni **faqat** Integratsiyalar sahifasiga kiriting. Tokenlar bazada shifrlangan holda saqlanadi va brauzerga qaytib chiqmaydi.
 
+### Facebook Lead Ads: targetdan tushgan lidlar CRM'ga o'zi tushadi
+
+Admin → Integratsiyalar → «Facebook Lead Ads → CRM» kartasi. Meta ilovasi va sahifa tomonidagi qadamlar kartaning o'zida («Meta tomonida nima qilish kerak?») yozilgan. Qisqacha:
+
+1. developers.facebook.com'da ilova yarating, «Webhooks» → «Page» → `leadgen` maydoniga obuna bo'ling. Callback URL: `https://<sayt>/api/webhooks/meta-leads`, tasdiqlash so'zi kartadagi «Yaratish» bilan olinadi.
+2. Sahifa tokeni (`leads_retrieval`, `pages_show_list`, `pages_manage_metadata`), sahifa ID'si va ilovaning App Secret'ini **faqat shu kartaga** kiriting. Ular bazada shifrlangan, brauzerga qaytmaydi.
+3. «Saqlash» → «Sahifani tekshirish» → «Yoqilgan».
+
+Qanday ishlaydi: Meta lid kelganda webhook yuboradi, server uning **imzosini** (HMAC-SHA256, App Secret bilan) tekshiradi, lid ma'lumotini Meta'dan oladi va CRM'ga yozadi (manba «Meta Ads», bosqich «Yangi»). Imzosiz so'rovlar rad etiladi. Webhook yetib kelmay qolsa, server har 10 daqiqada o'zi tekshirib, yetishmagan lidlarni oladi. Bir lid ikki marta tushmaydi; shu telefondan 30 kun ichida lid bo'lsa, yangisi ochilmaydi, mavjud lidga yozuv qo'shiladi. Lidlar operatorlarga navbat bilan (yoki bitta belgilangan xodimga) beriladi, unga bildirishnoma va Telegram xabari ketadi.
+
+Ilova ishlab chiqish (Development) rejimida faqat ilova va sahifa administratorlarining lidlari keladi. Hammaning lidlari uchun Meta «App Review» va «Business Verification» talab qilishi mumkin; Meta'ning amaldagi talablarini ularning o'z hujjatidan tekshiring. Sinash: Meta «Lead Ads Testing Tool».
+
 ## 9. Xodimlar
 
 Admin → Xodimlar bo'limida xodim qo'shiladi va unga login beriladi. Ekranda vaqtinchalik parol chiqadi, uni xodimga **yuzma-yuz** bering. Xodim birinchi kirishda parolini almashtiradi va 2FA'ni ulaydi. Ishdan ketgan xodimni arxivlang: uning sessiyalari darhol yopiladi.

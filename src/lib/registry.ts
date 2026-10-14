@@ -75,6 +75,9 @@ export const ACTIONS = {
   applyMetaSync: act.applyMetaSync,
   metaAutoSync: sys.metaAutoSync,
   markIntegrationAttempt: sys.markIntegrationAttempt,
+  saveLeadAdsSettings: sys.saveLeadAdsSettings,
+  intakeLead: sys.intakeLead,
+  markLeadsPoll: sys.markLeadsPoll,
   // Xodimlar va sozlamalar
   addUser: sys.addUser,
   setUserRole: sys.setUserRole,
@@ -113,4 +116,6 @@ export const DEMO_ONLY: ReadonlySet<ActionName> = new Set<ActionName>([
   "applyMetaSync",
   "metaAutoSync",
   "markIntegrationAttempt",
+  "intakeLead",
+  "markLeadsPoll",
 ]);

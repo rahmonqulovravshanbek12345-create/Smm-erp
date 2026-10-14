@@ -123,3 +123,12 @@ npm audit --omit=dev                # runtime bog'liqliklari
 ```
 
 Tekshirilmagan: haqiqiy Eskiz serverining holati (SSH, ochiq portlar, DNS, sertifikat). Ular [DEPLOY.md](DEPLOY.md) dagi checklist bilan tekshiriladi. DDoS chidamliligi ham, Meta token ruxsatlari ham tekshirilmagan.
+
+## Facebook Lead Ads webhook
+
+- `POST /api/webhooks/meta-leads` brauzerdan emas, Meta'dan keladi, shuning uchun brauzer himoyasi (X-ERP sarlavhasi, Origin) bu yo'lda o'rniga **HMAC-SHA256 imzo** tekshiruvi ishlaydi (`X-Hub-Signature-256`, App Secret bilan, vaqtga bog'liq bo'lmagan taqqoslash). Imzosiz yoki noto'g'ri imzoli so'rov 403 oladi va hech narsa yaratilmaydi. Boshqa barcha `POST` yo'llarda eski himoya o'zgarmagan.
+- Yo'l alohida kontekstda: xom so'rov tanasi (256 KB gacha) faqat shu yo'lda o'qiladi; so'rov cheklovi daqiqasiga 120.
+- Imzo to'g'ri bo'lsa ham lid ma'lumoti so'rovdan emas, **Meta Graph API'dan** (sahifa tokeni bilan) olinadi; faqat sozlangan sahifa ID'sidagi lidlar qabul qilinadi.
+- Sahifa tokeni va App Secret bazada shifrlangan (AES-256-GCM), zaxira nusxada ham, brauzerga «••••» bo'lib boradi, audit jurnaliga yozilmaydi. Meta xatolarida token matni ko'rsatilmaydi.
+- Lid yaratish amali (`intakeLead`) hech bir xodimga ochiq emas; faqat server bajaradi. Sozlash faqat admin uchun.
+- Ma'lum cheklov: webhook'ni kim bo'lsa ham App Secret'ni bilsa soxta lid yuborishi mumkin, shuning uchun App Secret sizib chiqsa, Meta ilovasida uni almashtiring va kartada yangilang.

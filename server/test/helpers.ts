@@ -7,7 +7,9 @@ import type { Config } from "../src/config";
 import { hashPassword, makeSealer } from "../src/crypto";
 import { createPool, migrate, type Db } from "../src/db";
 import { createIntegrations } from "../src/integrations";
+import { createLeadsService, type LeadsGraph, type LeadsService } from "../src/leads";
 import { createNotifier } from "../src/notifier";
+import type { GraphLead } from "../../src/lib/leads-intake";
 import { StateStore } from "../src/store";
 
 export const ORIGIN = "https://erp.test";
@@ -19,6 +21,9 @@ export interface Ctx {
   db: Db;
   store: StateStore;
   sent: { chatId: string; text: string }[];
+  /** Soxta Meta Graph: `byId` — webhook uchun lid, `forms` — zaxira tekshiruvi uchun. */
+  graph: { byId: Record<string, GraphLead>; forms: Record<string, GraphLead[]>; fail?: string; calls: string[] };
+  leads: LeadsService;
   docs: { chatId: string; filename: string; bytes: Uint8Array; caption: string }[];
   close: () => Promise<void>;
 }
@@ -48,6 +53,23 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
       return true;
     },
   );
+  const graph: Ctx["graph"] = { byId: {}, forms: {}, calls: [] };
+  const fakeGraph: LeadsGraph = {
+    getLead: async (_t, _v, id) => {
+      graph.calls.push(`lead:${id}`);
+      if (graph.fail) throw new Error(graph.fail);
+      const g = graph.byId[id];
+      if (!g) throw new Error("Meta: lid topilmadi");
+      return g;
+    },
+    listForms: async () => {
+      if (graph.fail) throw new Error(graph.fail);
+      return Object.keys(graph.forms).map((id) => ({ id }));
+    },
+    listFormLeads: async (_t, _v, formId) => graph.forms[formId] ?? [],
+    pageName: async () => "Friday Agency (test)",
+  };
+  const leads = createLeadsService(store, fakeGraph);
   const integrations = createIntegrations(store, {
     fetchCbuRate: async () => ({ rate: 12_900, date: "2026-10-07" }),
     testMetaToken: async () => "Test Business",
@@ -69,7 +91,7 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
     LOG_LEVEL: "silent",
     TZ: "Asia/Tashkent",
   };
-  const app = await buildApp({ cfg, db, store, sealer, notifier, integrations });
+  const app = await buildApp({ cfg, db, store, sealer, notifier, integrations, leads });
   await app.ready();
   return {
     app,
@@ -77,9 +99,12 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
     store,
     sent,
     docs,
+    graph,
+    leads,
     close: async () => {
       await app.close();
       await notifier.idle();
+      await leads.idle();
       await db.end();
     },
   };

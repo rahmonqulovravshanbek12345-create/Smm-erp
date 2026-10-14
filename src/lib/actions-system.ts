@@ -2,10 +2,12 @@
 // Oldin sahifalarda to'g'ridan-to'g'ri holatni o'zgartirardi — endi nomli amal: server ham xuddi shuni bajaradi.
 import { applyMetaSync, logIntegration } from "./actions";
 import { newId, type Ctx } from "./ctx";
+import { nowISO } from "./dates";
 import type { MetaResult } from "./integrations";
 import { ROLE_LABELS } from "./labels";
 import { isMasked } from "./redact";
-import type { Account, Requisites, Role, Vendor } from "./types";
+import { phoneKey, normalizePhone, type IntakeLead } from "./leads-intake";
+import type { Account, Integrations, Lead, Requisites, Role, Vendor } from "./types";
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 const findUser = (c: Ctx, id: string) => {
@@ -165,3 +167,98 @@ export function metaAutoSync(c: Ctx, results: MetaResult[]): number {
 }
 
 export { logIntegration };
+
+// ---------- Facebook Lead Ads: targetdan tushgan lidlar CRM'ga ----------
+
+type LeadsCfg = Integrations["leads"];
+
+/** Sozlamalar (faqat admin). Saqlangan maxfiy qiymat brauzerga «••••» bo'lib boradi — u qaytib kelsa, o'zgarmaydi. */
+export function saveLeadAdsSettings(c: Ctx, patch: Partial<Pick<LeadsCfg, "enabled" | "pageId" | "pageToken" | "appSecret" | "verifyToken" | "assignTo">>) {
+  const cfg = c.s.settings.integrations.leads;
+  const next = { ...patch };
+  for (const k of ["pageToken", "appSecret"] as const) {
+    if (next[k] !== undefined && isMasked(next[k])) delete next[k];
+    else if (next[k] !== undefined) next[k] = next[k]!.trim();
+  }
+  if (next.pageId !== undefined) {
+    next.pageId = next.pageId.trim();
+    if (next.pageId && !/^\d{5,25}$/.test(next.pageId)) throw new Error("Facebook sahifa ID'si raqamlardan iborat bo'ladi");
+  }
+  if (next.verifyToken !== undefined) {
+    next.verifyToken = next.verifyToken.trim();
+    if (next.verifyToken && !/^[A-Za-z0-9_-]{16,100}$/.test(next.verifyToken))
+      throw new Error("Tasdiqlash so'zi kamida 16 ta harf/raqamdan iborat bo'lsin (probel va maxsus belgilarsiz)");
+  }
+  if (next.assignTo !== undefined && next.assignTo !== "rotate") {
+    const u = c.s.users.find((x) => x.id === next.assignTo);
+    if (!u?.active) throw new Error("Lidlar beriladigan xodim topilmadi");
+  }
+  const result = { ...cfg, ...next };
+  if (result.enabled && !(result.appSecret && result.pageToken && result.pageId && result.verifyToken))
+    throw new Error("Yoqish uchun sahifa ID, sahifa tokeni, App Secret va tasdiqlash so'zi kerak");
+  Object.assign(cfg, next);
+  c.log(`Facebook Lead Ads sozlamalari saqlandi${cfg.enabled ? " (yoqilgan)" : ""}`, "/integratsiyalar");
+}
+
+/** Navbatdagi operator (yoki sozlamadagi xodim); operator bo'lmasa — admin/rahbar. */
+function leadOwner(c: Ctx): string {
+  const cfg = c.s.settings.integrations.leads;
+  const fixed = cfg.assignTo !== "rotate" ? c.s.users.find((u) => u.id === cfg.assignTo && u.active) : undefined;
+  if (fixed) return fixed.id;
+  const ops = c.s.users.filter((u) => u.active && u.role === "operator");
+  if (ops.length) {
+    const pick = ops[cfg.rotateIdx % ops.length]!;
+    cfg.rotateIdx = (cfg.rotateIdx + 1) % 1_000_000;
+    return pick.id;
+  }
+  return (c.s.users.find((u) => u.active && u.role === "rahbar") ?? c.s.users.find((u) => u.active && u.role === "admin") ?? c.me).id;
+}
+
+/** Tashqi (Facebook) lid: yangi lid yaratadi, takroriy bo'lsa — yaratmaydi. Qaytaradi: nima bo'ldi. */
+export function intakeLead(c: Ctx, input: IntakeLead): "created" | "duplicate" | "repeat" {
+  const cfg = c.s.settings.integrations.leads;
+  if (c.s.leads.some((l) => l.externalId === input.externalId)) return "duplicate";
+  const phone = normalizePhone(input.phone) || "";
+  const now = nowISO();
+  cfg.lastLeadAt = now;
+  cfg.received += 1;
+  // Shu telefondan oxirgi 30 kunda lid bor — yangisi ochilmaydi, mavjudiga yozuv qo'shiladi
+  const key = phoneKey(phone);
+  const cutoff = new Date(Date.parse(now) - 30 * 86_400_000).toISOString();
+  const same = key.length === 9 ? c.s.leads.find((l) => phoneKey(l.phone) === key && l.createdAt >= cutoff) : undefined;
+  if (same) {
+    same.history.unshift({
+      id: newId("c"),
+      at: now,
+      userId: "system",
+      text: `Facebook Lead Ads: shu raqamdan yana ariza keldi${input.service ? ` (${input.service})` : ""}`,
+    });
+    c.notify([same.operatorId], `${same.name}: Facebook'dan yana ariza qoldirdi — qayta bog'laning`, "/crm");
+    return "repeat";
+  }
+  const lead: Lead = {
+    id: newId("lead"),
+    name: input.name || "Facebook lid",
+    phone,
+    source: "Meta Ads",
+    service: input.service,
+    note: input.note,
+    operatorId: leadOwner(c),
+    stage: "new",
+    maxStep: 0,
+    history: [],
+    externalId: input.externalId,
+    createdAt: input.createdAt && !Number.isNaN(Date.parse(input.createdAt)) ? new Date(input.createdAt).toISOString() : now,
+  };
+  c.s.leads.unshift(lead);
+  c.notify([lead.operatorId], `Yangi lid (Facebook): ${lead.name}${phone ? ` (${phone})` : ""}`, "/crm");
+  c.log(`Facebook Lead Ads: yangi lid — ${lead.name}`, "/crm");
+  return "created";
+}
+
+/** Zaxira tekshiruvi tugadi (xato bo'lsa — matni). */
+export function markLeadsPoll(c: Ctx, error?: string) {
+  const cfg = c.s.settings.integrations.leads;
+  cfg.lastPollAt = nowISO();
+  cfg.lastError = error ? error.slice(0, 300) : undefined;
+}

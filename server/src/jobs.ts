@@ -7,6 +7,7 @@ import type { ErpState } from "../../src/lib/types";
 import { pruneSessions } from "./auth";
 import { pruneAudit, type Db } from "./db";
 import type { Integrations } from "./integrations";
+import type { LeadsService } from "./leads";
 import type { Notifier } from "./notifier";
 import { MAX_STATE_BYTES, type StateStore } from "./store";
 
@@ -32,8 +33,16 @@ export async function warnStateSize(store: StateStore, notifier: Notifier, today
   return true;
 }
 
-export function startJobs(o: { store: StateStore; db: Db; integrations: Integrations; notifier: Notifier; tz: string; log: (m: string, e?: unknown) => void }) {
-  const { store, integrations, notifier, tz, log } = o;
+export function startJobs(o: {
+  store: StateStore;
+  db: Db;
+  integrations: Integrations;
+  notifier: Notifier;
+  leads: LeadsService;
+  tz: string;
+  log: (m: string, e?: unknown) => void;
+}) {
+  const { store, integrations, notifier, leads, tz, log } = o;
   const safe = (name: string, fn: () => Promise<unknown> | unknown) => async () => {
     try {
       await fn();
@@ -79,6 +88,12 @@ export function startJobs(o: { store: StateStore; db: Db; integrations: Integrat
       "45 8 * * 1-6",
       { timezone: tz, protect: true },
       safe("eslatmalar", () => notifier.digest()),
+    ),
+    // Facebook Lead Ads zaxira tekshiruvi: webhook yetmay qolgan lidlarni oladi (yoqilgan bo'lsa)
+    new Cron(
+      "*/10 * * * *",
+      { timezone: tz, protect: true },
+      safe("facebook-lidlar", () => leads.poll()),
     ),
     // Kun oxirida butun ERP ma'lumoti Excel faylda adminga (Telegram)
     new Cron(

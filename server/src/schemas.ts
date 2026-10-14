@@ -324,6 +324,19 @@ export const ARGS: Schemas = {
   applyMetaSync: z.tuple([z.array(z.never()).max(0)]),
   metaAutoSync: z.tuple([z.array(z.never()).max(0)]),
   markIntegrationAttempt: z.tuple([z.enum(["cbu", "meta"])]),
+  saveLeadAdsSettings: z.tuple([
+    z.strictObject({
+      enabled: z.boolean().optional(),
+      pageId: z.string().max(40).optional(),
+      pageToken: z.string().max(1_000).optional(),
+      appSecret: z.string().max(200).optional(),
+      verifyToken: z.string().max(120).optional(),
+      assignTo: id.optional(),
+    }),
+  ]),
+  // Serverda brauzerdan qabul qilinmaydi (qoidalar rad etadi) — shakl faqat to'liqlik uchun
+  intakeLead: z.tuple([z.strictObject({ externalId: short, name: short, phone: short, service: short, note: text, createdAt: z.string().max(40).optional() })]),
+  markLeadsPoll: z.tuple([z.string().max(300).optional()]),
   switchUser: z.tuple([id]),
   setChatIdForAll: z.tuple([z.string().max(30)]),
 

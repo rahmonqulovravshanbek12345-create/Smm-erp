@@ -24,21 +24,30 @@ export class QuotaError extends UserError {}
 // shifrlangan (AES-256-GCM) holda turadi: zaxira yoki baza sizib chiqsa ham tokenlar ochilmaydi.
 
 const ENC = "enc:";
-type SecretKey = "tg" | "meta";
-type Secrets = { telegram?: { botToken?: unknown }; integrations?: { meta?: { token?: unknown } } };
+type SecretKey = "tg" | "meta" | "leadtok" | "leadsec";
+type Secrets = { telegram?: { botToken?: unknown }; integrations?: { meta?: { token?: unknown }; leads?: { pageToken?: unknown; appSecret?: unknown } } };
 
 function mapSecrets<T>(data: T, fn: (v: string, key: SecretKey) => string): T {
   const st = (data as { settings?: Secrets }).settings;
   if (!st) return data;
   const tg = st.telegram;
   const meta = st.integrations?.meta;
+  const leads = st.integrations?.leads;
   const conv = (v: unknown, key: SecretKey) => (typeof v === "string" ? fn(v, key) : v);
   return {
     ...data,
     settings: {
       ...st,
       ...(tg ? { telegram: { ...tg, botToken: conv(tg.botToken, "tg") } } : {}),
-      ...(st.integrations && meta ? { integrations: { ...st.integrations, meta: { ...meta, token: conv(meta.token, "meta") } } } : {}),
+      ...(st.integrations
+        ? {
+            integrations: {
+              ...st.integrations,
+              ...(meta ? { meta: { ...meta, token: conv(meta.token, "meta") } } : {}),
+              ...(leads ? { leads: { ...leads, pageToken: conv(leads.pageToken, "leadtok"), appSecret: conv(leads.appSecret, "leadsec") } } : {}),
+            },
+          }
+        : {}),
     },
   };
 }
@@ -198,6 +207,11 @@ export class StateStore {
       if (name === "saveMetaSettings") {
         const t = (args as unknown as [{ token?: string }])[0]?.token;
         if (t !== undefined && !isMasked(t)) delete this.stuck.meta;
+      }
+      if (name === "saveLeadAdsSettings") {
+        const p = (args as unknown as [{ pageToken?: string; appSecret?: string }])[0];
+        if (p?.pageToken !== undefined && !isMasked(p.pageToken)) delete this.stuck.leadtok;
+        if (p?.appSecret !== undefined && !isMasked(p.appSecret)) delete this.stuck.leadsec;
       }
       syncAll(s, today);
       // Kvota tugagan xodim ma'lumotni ko'paytiradigan amal qila olmaydi (bildirishnomani o'qish kabilar — mumkin)

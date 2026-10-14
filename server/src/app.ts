@@ -41,9 +41,12 @@ import type { Config } from "./config";
 import { hashPassword, newToken, newTotpSecret, otpauthUri, passwordProblem, tempPassword, verifyPassword, type Sealer } from "./crypto";
 import { audit, type Db } from "./db";
 import type { Integrations } from "./integrations";
+import type { LeadsService } from "./leads";
 import type { Notifier } from "./notifier";
 import { parseArgs } from "./schemas";
 import { QuotaError, UserError, type StateStore } from "./store";
+
+const META_WEBHOOK = "/api/webhooks/meta-leads";
 
 export interface Deps {
   cfg: Config;
@@ -52,6 +55,7 @@ export interface Deps {
   sealer: Sealer;
   notifier: Notifier;
   integrations: Integrations;
+  leads: LeadsService;
 }
 
 interface AuthInfo {
@@ -143,6 +147,8 @@ export async function buildApp(d: Deps) {
   // Boshqa saytdan buyruq yuborishning oldini olish (CSRF): o'zgartiruvchi so'rov faqat shu saytdan va maxsus sarlavha bilan
   app.addHook("onRequest", async (req, reply) => {
     if (req.method === "GET" || req.method === "HEAD") return;
+    // Meta webhook: brauzer emas — so'rov imzo (HMAC) bilan tekshiriladi
+    if (req.url.split("?")[0] === META_WEBHOOK) return;
     const origin = req.headers.origin;
     if (req.headers["x-erp"] !== "1" || (origin !== undefined && origin !== cfg.APP_ORIGIN)) {
       return httpError(reply, 403, "So'rov rad etildi");
@@ -534,6 +540,56 @@ export async function buildApp(d: Deps) {
     return { ok: true, sent: r.sent };
   });
 
+  // ---------- Facebook Lead Ads ----------
+
+  app.post("/api/integrations/leads/test", rl(5, "1 minute"), async (req, reply) => {
+    const a = await authenticate(req, reply);
+    if (!a) return;
+    if (a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
+    const r = await d.leads.test();
+    if (!r.ok) return httpError(reply, 502, r.error);
+    return { ok: true, name: r.name };
+  });
+
+  app.post("/api/integrations/leads/poll", rl(3, "1 minute"), async (req, reply) => {
+    const a = await authenticate(req, reply);
+    if (!a) return;
+    if (a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
+    if (!d.leads.enabled()) return httpError(reply, 400, "Facebook Lead Ads yoqilmagan yoki sozlamalar to'liq emas");
+    const r = await d.leads.poll();
+    if (r.error) return httpError(reply, 502, r.error);
+    return { ok: true, found: r.found, created: r.created };
+  });
+
+  // Meta webhook (brauzerdan emas): xom so'rov tanasi kerak — imzo shunga qarab tekshiriladi, shuning uchun alohida (yopiq) kontekst
+  await app.register(async (hook) => {
+    hook.addContentTypeParser("application/json", { parseAs: "buffer", bodyLimit: 256 * 1024 }, (_req, body, done) => done(null, body));
+
+    // Meta webhook'ni ulashda shu manzilga «hub.challenge» bilan so'rov yuboradi
+    hook.get(META_WEBHOOK, rl(30, "1 minute"), async (req, reply) => {
+      const q = req.query as Record<string, unknown>;
+      const challenge = String(q["hub.challenge"] ?? "");
+      if (q["hub.mode"] !== "subscribe" || !d.leads.verifyTokenOk(String(q["hub.verify_token"] ?? "")) || !/^[\w-]{1,100}$/.test(challenge)) {
+        return httpError(reply, 403, "So'rov rad etildi");
+      }
+      return reply.type("text/plain").send(challenge);
+    });
+
+    hook.post(META_WEBHOOK, rl(120, "1 minute"), async (req, reply) => {
+      if (!d.leads.enabled()) return httpError(reply, 404, "Topilmadi");
+      const raw = req.body as Buffer;
+      if (!Buffer.isBuffer(raw) || !d.leads.signatureOk(raw, req.headers["x-hub-signature-256"])) return httpError(reply, 403, "So'rov rad etildi");
+      let body: unknown;
+      try {
+        body = JSON.parse(raw.toString("utf8"));
+      } catch {
+        return httpError(reply, 400, "So'rov noto'g'ri");
+      }
+      d.leads.handleWebhook(body);
+      return { ok: true };
+    });
+  });
+
   // ---------- Admin: kirish ma'lumotlari ----------
 
   const adminOnly = async (req: FastifyRequest, reply: FastifyReply) => {
@@ -698,7 +754,7 @@ export async function buildApp(d: Deps) {
 
 /** Audit jurnaliga yoziladigan argumentlar: maxfiy qiymatlar va katta matnlar yozilmaydi. */
 function auditArgs(name: ActionName, args: unknown[]): unknown {
-  if (name === "setTelegramToken" || name === "saveMetaSettings") return { args: "(yashirin)" };
+  if (name === "setTelegramToken" || name === "saveMetaSettings" || name === "saveLeadAdsSettings") return { args: "(yashirin)" };
   const s = JSON.stringify(args);
   return s.length > 4000 ? { args: `${s.slice(0, 4000)}…` } : { args };
 }
