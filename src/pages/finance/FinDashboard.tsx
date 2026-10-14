@@ -84,17 +84,20 @@ export function FinDashboard() {
     const arOverdue = ar.reduce((a, r) => a + r.d30 + r.d60 + r.d60plus, 0);
     const apEmployees = ap.employees.reduce((a, r) => a + Math.max(0, r.balance), 0);
     const apVendors = ap.vendors.reduce((a, r) => a + r.outstanding, 0);
-    const lastFull = pnl(state, [prev], today);
+    const lastFull = pnl(state, [cur], today);
     const costLines = lastFull.lines.filter((l) => l.section !== "revenue").sort((a, b) => b.total - a.total);
     const activeClients = state.projects.filter((x) => x.status === "active" && x.periodStart).length;
     return { months, cur, prev, p, cf, profit, ar, ap, cal, cash, transit, arTotal, arOverdue, apEmployees, apVendors, lastFull, costLines, activeClients };
   }, [state, today]);
 
-  const { p, months, prev } = d;
+  const { p, months, prev, cur } = d;
   const costs = months.map((m) => (p.totals.direct[m] ?? 0) + (p.totals.overhead[m] ?? 0) + (p.totals.tax[m] ?? 0));
+  // Asosiy ko'rsatkich — joriy oy (hozirgacha); yonida o'tgan oy bilan solishtirish
+  const revCur = p.totals.revenue[cur] ?? 0;
+  const netCur = p.totals.net[cur] ?? 0;
   const revPrev = p.totals.revenue[prev] ?? 0;
   const netPrev = p.totals.net[prev] ?? 0;
-  const marginPrev = revPrev ? (netPrev / revPrev) * 100 : 0;
+  const marginCur = revCur ? (netCur / revCur) * 100 : 0;
   const labels = months.map((m) => (m === d.cur ? `${monthShort(m)}*` : monthShort(m)));
   const dayOfMonth = Number(today.slice(8, 10));
 
@@ -155,21 +158,21 @@ export function FinDashboard() {
         <Kpi
           icon="arrowUpRight"
           color="blue"
-          label={`Daromad — ${fmtMonth(prev)}`}
-          value={fmtShort(revPrev)}
-          sub={`Kassaga tushgan: ${fmtShort(clientCashIn(state, prev))}`}
-          trend={months.slice(0, -1).map((m) => p.totals.revenue[m] ?? 0)}
+          label={`Daromad — ${fmtMonth(cur)} (hozirgacha)`}
+          value={fmtShort(revCur)}
+          sub={`Kassaga tushgan: ${fmtShort(clientCashIn(state, cur))} · o'tgan oy (${fmtMonth(prev)}): ${fmtShort(revPrev)}`}
+          trend={months.map((m) => p.totals.revenue[m] ?? 0)}
           trendColor={VIZ.c1}
           href="/moliya/pnl"
         />
         <Kpi
           icon="sparkle"
-          color={netPrev >= 0 ? "teal" : "red"}
-          label={`Sof foyda — ${fmtMonth(prev)}`}
-          value={fmtShort(netPrev)}
-          sub={`Sof marja ${marginPrev.toFixed(1)}%`}
-          tone={netPrev < 0 ? "red" : undefined}
-          trend={months.slice(0, -1).map((m) => p.totals.net[m] ?? 0)}
+          color={netCur >= 0 ? "teal" : "red"}
+          label={`Sof foyda — ${fmtMonth(cur)} (hozirgacha)`}
+          value={fmtShort(netCur)}
+          sub={`Sof marja ${marginCur.toFixed(1)}% · o'tgan oy (${fmtMonth(prev)}): ${fmtShort(netPrev)}`}
+          tone={netCur < 0 ? "red" : undefined}
+          trend={months.map((m) => p.totals.net[m] ?? 0)}
           trendColor={VIZ.c3}
           href="/moliya/pnl"
         />
@@ -269,7 +272,7 @@ export function FinDashboard() {
         </Card>
 
         <Card>
-          <CardHeader icon={{ name: "list", color: "orange" }} title="Xarajatlar tuzilishi" sub={fmtMonth(prev)} />
+          <CardHeader icon={{ name: "list", color: "orange" }} title="Xarajatlar tuzilishi" sub={`${fmtMonth(cur)} (hozirgacha)`} />
           <div className="px-5 pb-5">
             <BarList color={VIZ.c2} rows={d.costLines.slice(0, 7).map((l) => ({ label: l.label, value: l.total }))} />
           </div>

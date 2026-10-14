@@ -35,3 +35,11 @@ test("Boshlang'ich to'lov summa bilan: 0 yozilsa oldindan faktura chiqmaydi, qol
   expect(inv.some((i: { kind: string }) => i.kind === "prepay")).toBe(false);
   expect(inv.find((i: { kind: string }) => i.kind === "remainder").amount).toBe(5_000_000);
 });
+
+test("Moliyaviy panel: daromad va foyda kartalarida joriy oy (hozirgacha) ko'rsatiladi, o'tgan oy yonida", async ({ page }) => {
+  await openAs(page, "u_boss", "/moliya");
+  await expect(page.getByText(/Daromad — .* \(hozirgacha\)/).first()).toBeVisible();
+  await expect(page.getByText(/Sof foyda — .* \(hozirgacha\)/).first()).toBeVisible();
+  await expect(page.getByText(/o'tgan oy \(/).first()).toBeVisible();
+  await page.screenshot({ path: "/tmp/claude-0/shots/moliya.png" });
+});
