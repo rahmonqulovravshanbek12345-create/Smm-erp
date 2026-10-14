@@ -98,6 +98,7 @@ Zaxira ichida baza nusxasi va `/etc/smm-erp/env` (`SECRET_KEY`) bor: kalitsiz 2F
 ## 8. Telegram va Meta
 
 - **Telegram:** @BotFather'da bot yarating. Tokenni **faqat** Admin → Telegram sahifasiga kiriting, chatga yozmang. Har bir xodim botga `/start` yuboradi, admin ularning chat ID raqamlarini kiritadi. Sinov tugmasi xabar kelishini tekshiradi.
+  - **Kunlik Excel:** har kuni **23:50** da (Toshkent) butun ERP ma'lumoti (`erp-SANA.xlsx`, har ro'yxat alohida varaqda) faol adminlarning Telegram'iga ketadi. Tokenlar faylga kirmaydi; shaxsiy bildirishnomalar va 5000 tadan eski faoliyat yozuvlari kirmaydi. Fayl 50 MB dan oshsa, jurnallarsiz yuboriladi. Hozir sinash: Admin → Telegram → «Excel'ni hozir yuborish». **Diqqat:** faylda mijozlar telefonlari, to'lovlar va oyliklar bor, Telegram esa oxirigacha shifrlanmagan. Faqat admin chat ID'si botga ulangan bo'lishi va telefonda ekran qulfi turishi kerak.
 - **Meta Ads:** tokenni **faqat** Integratsiyalar sahifasiga kiriting. Tokenlar bazada shifrlangan holda saqlanadi va brauzerga qaytib chiqmaydi.
 
 ## 9. Xodimlar

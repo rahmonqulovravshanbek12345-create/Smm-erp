@@ -1,4 +1,4 @@
-// Jadval bo'yicha ishlar (Toshkent vaqti): fakturalar va ish haqi hisoblash, kurs, Meta Ads, ertalabki eslatmalar.
+// Jadval bo'yicha ishlar (Toshkent vaqti): fakturalar va ish haqi hisoblash, kurs, Meta Ads, ertalabki eslatmalar, kunlik Excel (23:50).
 import { Cron } from "croner";
 import { newId } from "../../src/lib/ctx";
 import { addDays, nowISO, todayISO } from "../../src/lib/dates";
@@ -79,6 +79,15 @@ export function startJobs(o: { store: StateStore; db: Db; integrations: Integrat
       "45 8 * * 1-6",
       { timezone: tz, protect: true },
       safe("eslatmalar", () => notifier.digest()),
+    ),
+    // Kun oxirida butun ERP ma'lumoti Excel faylda adminga (Telegram)
+    new Cron(
+      "50 23 * * *",
+      { timezone: tz, protect: true },
+      safe("kunlik-excel", async () => {
+        const r = await notifier.dailyExcel();
+        if (r.admins && r.sent < r.admins) log(`kunlik Excel: ${r.admins} adminning ${r.sent} tasiga yetib bordi`);
+      }),
     ),
   ];
   return () => jobs.forEach((j) => j.stop());

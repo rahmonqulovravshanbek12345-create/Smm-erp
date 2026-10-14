@@ -43,3 +43,12 @@ test("Moliyaviy panel: daromad va foyda kartalarida joriy oy (hozirgacha) ko'rsa
   await expect(page.getByText(/o'tgan oy \(/).first()).toBeVisible();
   await page.screenshot({ path: "/tmp/claude-0/shots/moliya.png" });
 });
+
+test("Admin: «Butun ma'lumot Excel'da» tugmasi haqiqiy .xlsx faylni yuklab beradi", async ({ page }) => {
+  await openAs(page, "u_admin", "/admin");
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Butun ma'lumot Excel'da" }).click()]);
+  expect(dl.suggestedFilename()).toMatch(/^erp-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  const path = await dl.path();
+  const head = (await import("node:fs")).readFileSync(path).subarray(0, 4);
+  expect([...head]).toEqual([0x50, 0x4b, 0x03, 0x04]);
+});

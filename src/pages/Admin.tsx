@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge, Banner, Button, Card, CardHeader, Field, Input, Modal, PageHeader, Select } from "../components/ui";
 import { SERVER_MODE, api } from "../lib/api";
 import { fmtDateTime, fmtMoney } from "../lib/dates";
+import { fullExportSheets } from "../lib/full-export";
 import { ROLE_DUTIES, ROLE_LABELS } from "../lib/labels";
 import { ACCESS_LABELS, MATRIX_VIEW, access } from "../lib/permissions";
 import { alertsFor } from "../lib/rules";
@@ -9,6 +10,7 @@ import { userLoad } from "../lib/staff";
 import { useErp } from "../lib/store";
 import { sendTelegram, telegramText } from "../lib/telegram";
 import type { Role, User } from "../lib/types";
+import { downloadXlsx } from "../lib/xlsx-download";
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 
@@ -42,6 +44,17 @@ export function Admin() {
     const ok = await sendTelegram(tg.botToken.trim(), chatId, telegramText(me, "✅ Telegram bildirishnomalari ishlayapti"));
     setTesting(false);
     showToast(ok ? "Test xabar yuborildi" : "⚠ Xabar ketmadi — token, chat ID va botga /start bosilganini tekshiring");
+  };
+
+  // Butun ma'lumot Excel'da: server tizimida har kuni 23:50 da adminga Telegram orqali ketadi; demo'da fayl yuklab olinadi.
+  const sendExcel = async () => {
+    if (SERVER_MODE) {
+      return api<{ sent: number }>("/api/integrations/telegram/excel", {})
+        .then(() => showToast("Excel fayl adminga Telegram orqali yuborildi"))
+        .catch((e: Error) => showToast(`⚠ ${e.message}`));
+    }
+    downloadXlsx(`erp-${today}`, fullExportSheets(state, today));
+    showToast("Excel fayl tayyor (demo: yuklab olindi)");
   };
 
   const setChatForAll = () => {
@@ -223,10 +236,13 @@ export function Admin() {
                 {testing ? "Yuborilmoqda…" : "Menga test xabar yuborish"}
               </Button>
               <Button onClick={sendDigest}>Bugungi eslatmalarni yuborish</Button>
+              <Button onClick={sendExcel}>{SERVER_MODE ? "Excel'ni hozir yuborish" : "Butun ma'lumot Excel'da"}</Button>
             </div>
             <p className="text-xs text-label3">
               Eslatmalar: deadline, kechikkan ishlar, ertangi syomka, qarzlar, to'lov muddati, qayta aloqa.{" "}
-              {SERVER_MODE ? "Har kuni ertalab 8:45 da (dushanba–shanba) avtomatik yuboriladi." : "Haqiqiy tizimda har kuni ertalab avtomatik yuboriladi."}
+              {SERVER_MODE
+                ? "Eslatmalar har kuni ertalab 8:45 da (dushanba–shanba), butun ma'lumot Excel'da har kuni 23:50 da adminga avtomatik yuboriladi."
+                : "Haqiqiy tizimda har kuni ertalab avtomatik yuboriladi."}
             </p>
           </div>
         </Card>
