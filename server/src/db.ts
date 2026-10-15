@@ -108,6 +108,14 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (user_id, device)
   );
   `,
+  `
+  -- 5. Profil rasmlari (256x256 JPEG, bir necha KB): bazada saqlanadi, zaxira nusxaga ham kiradi
+  CREATE TABLE user_avatars (
+    user_id text PRIMARY KEY,
+    data bytea NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+  `,
 ];
 
 /** Audit jurnali 2 yil saqlanadi (eski yozuvlar disk to'lib qolmasligi uchun o'chiriladi). */

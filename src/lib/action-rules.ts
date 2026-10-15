@@ -127,11 +127,13 @@ const RULES: { [N in ActionName]: Rule<N> } = {
   saveLeadAdsSettings: adminOnly,
   intakeLead: () => false,
   markLeadsPoll: () => false,
+  setAvatarStamp: () => false,
   switchUser: () => false,
   setChatIdForAll: () => false,
   // Xodimlar va tizim sozlamalari — faqat admin
   addUser: adminOnly,
   setUserRole: adminOnly,
+  setUserName: adminOnly,
   setUserChatId: adminOnly,
   archiveUser: adminOnly,
   restoreUser: adminOnly,

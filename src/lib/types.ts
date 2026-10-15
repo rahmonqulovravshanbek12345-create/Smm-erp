@@ -17,6 +17,8 @@ export interface User {
   archivedAt?: string;
   /** Arxivdan qaytarilgan sana (arxivdagi oylar uchun oylik hisoblanmaydi). */
   activeFrom?: string;
+  /** Profil rasmi yuklangan vaqt (rasmning o'zi alohida saqlanadi; bu belgi o'zgarsa brauzer yangisini oladi). */
+  avatarAt?: string;
 }
 
 // ---------- CRM ----------

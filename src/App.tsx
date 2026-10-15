@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BrandMark } from "./components/BrandMark";
 import { Icon, IconChip, type ChipColor, type IconName } from "./components/icons";
+import { useAvatarPicker } from "./components/AvatarUploader";
 import { A, Avatar, IconButton, Modal, navigate, usePath } from "./components/ui";
 import { SERVER_MODE } from "./lib/api";
 import { BRAND } from "./lib/brand";
@@ -359,7 +360,7 @@ export function App() {
         <div className="flex items-center gap-2">
           <IconButton icon="bell" label="Bildirishnomalar" badge={unread} onClick={() => navigate("/bildirishnomalar")} />
           <button type="button" onClick={() => setAccount(true)} aria-label={`Akkaunt: ${me.name}`} className="rounded-full transition active:scale-95">
-            <Avatar name={me.name} size={40} decorative />
+            <Avatar name={me.name} size={40} decorative user={me} />
           </button>
         </div>
       </header>
@@ -475,7 +476,7 @@ function AccountButton({ me, onClick, open }: { me: User; onClick: () => void; o
       onClick={onClick}
       className={`flex w-full items-center gap-3 rounded-[16px] p-2 text-left transition ${open ? "bg-fill" : "hover:bg-fill"}`}
     >
-      <Avatar name={me.name} size={38} />
+      <Avatar name={me.name} size={38} user={me} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-semibold text-label">{me.name}</span>
         <span className="block truncate text-[12px] text-label2">{ROLE_LABELS[me.role]}</span>
@@ -576,6 +577,7 @@ function AccountSession({
 }) {
   const { session } = useErp();
   const me = users.find((u) => u.id === meId);
+  const photo = useAvatarPicker(meId);
   if (!session || !me) return null;
   const item = (icon: IconName, label: string, onClick: () => void, danger = false) => (
     <button
@@ -590,7 +592,7 @@ function AccountSession({
   return (
     <div className="pt-1">
       <div className="flex items-center gap-3 rounded-[12px] px-2 py-1.5">
-        <Avatar name={me.name} size={34} />
+        <Avatar name={me.name} size={34} user={me} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-semibold text-label">{me.name}</span>
           <span className="block truncate text-[12px] text-label2">
@@ -599,6 +601,9 @@ function AccountSession({
         </span>
       </div>
       <div className="mt-1 border-t border-sep pt-1">
+        {photo.input}
+        {item("camera", photo.busy ? "Yuklanmoqda…" : "Profil rasmini yuklash", photo.pick)}
+        {me.avatarAt && item("x", "Profil rasmini o'chirish", () => void photo.remove())}
         {item("gear", "Parolni o'zgartirish", () => {
           onClose();
           onSecurity("password");

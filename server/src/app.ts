@@ -39,6 +39,7 @@ import {
 } from "./auth";
 import type { Config } from "./config";
 import { hashPassword, newToken, newTotpSecret, otpauthUri, passwordProblem, tempPassword, verifyPassword, type Sealer } from "./crypto";
+import { AVATAR_MAX_BYTES, checkJpeg } from "./avatar";
 import { audit, type Db } from "./db";
 import type { Integrations } from "./integrations";
 import type { LeadsService } from "./leads";
@@ -538,6 +539,61 @@ export async function buildApp(d: Deps) {
     if (!r.admins) return httpError(reply, 400, "Telegram o'chiq yoki adminda chat ID kiritilmagan");
     if (!r.sent) return httpError(reply, 502, "Fayl ketmadi — token, chat ID, botga /start va fayl hajmini tekshiring");
     return { ok: true, sent: r.sent };
+  });
+
+  // ---------- Profil rasmi ----------
+
+  /** Rasmni ko'rish: tizimga kirgan har bir xodim (jamoa ro'yxatida hamma ko'rsin). */
+  app.get("/api/avatar/:id", rl(240, "1 minute"), async (req, reply) => {
+    const a = await authenticate(req, reply);
+    if (!a) return;
+    const { id } = req.params as { id: string };
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return httpError(reply, 404, "Topilmadi");
+    const { rows } = await db.query<{ data: Buffer; t: string }>(
+      "SELECT data, (extract(epoch FROM updated_at) * 1000)::bigint::text AS t FROM user_avatars WHERE user_id = $1",
+      [id],
+    );
+    const row = rows[0];
+    if (!row) return httpError(reply, 404, "Rasm yo'q");
+    const etag = `"${row.t}"`;
+    reply.header("ETag", etag).header("Cache-Control", "private, max-age=86400").header("Content-Security-Policy", "default-src 'none'; sandbox");
+    if (req.headers["if-none-match"] === etag) return reply.code(304).send();
+    return reply.type("image/jpeg").send(row.data);
+  });
+
+  /** Rasmni yuklash: o'z rasmini xodimning o'zi, istalganini admin. */
+  await app.register(async (up) => {
+    up.addContentTypeParser("image/jpeg", { parseAs: "buffer", bodyLimit: AVATAR_MAX_BYTES + 1024 }, (_req, body, done) => done(null, body));
+    up.post("/api/avatar/:id", rl(10, "1 minute"), async (req, reply) => {
+      const a = await authenticate(req, reply);
+      if (!a) return;
+      const { id } = req.params as { id: string };
+      if (id !== a.user.id && a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
+      if (!store.current().state.users.some((u) => u.id === id)) return httpError(reply, 404, "Xodim topilmadi");
+      const body = req.body as Buffer;
+      const chk = Buffer.isBuffer(body) ? checkJpeg(body) : ({ ok: false, error: "Rasm yuborilmadi" } as const);
+      if (!chk.ok) return httpError(reply, 400, chk.error);
+      await db.query(
+        "INSERT INTO user_avatars (user_id, data, updated_at) VALUES ($1, $2, now()) ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()",
+        [id, body],
+      );
+      const at = new Date().toISOString();
+      await store.runAsSystem("setAvatarStamp", [id, at]);
+      await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "avatar", ok: true, detail: { target: id, bytes: body.length } });
+      return { ok: true, avatarAt: at };
+    });
+  });
+
+  app.post("/api/avatar/:id/remove", rl(10, "1 minute"), async (req, reply) => {
+    const a = await authenticate(req, reply);
+    if (!a) return;
+    const { id } = req.params as { id: string };
+    if (id !== a.user.id && a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
+    if (!store.current().state.users.some((u) => u.id === id)) return httpError(reply, 404, "Xodim topilmadi");
+    await db.query("DELETE FROM user_avatars WHERE user_id = $1", [id]);
+    await store.runAsSystem("setAvatarStamp", [id, undefined]);
+    await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "avatar", ok: true, detail: { target: id, removed: true } });
+    return { ok: true };
   });
 
   // ---------- Facebook Lead Ads ----------

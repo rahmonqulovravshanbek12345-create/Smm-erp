@@ -78,6 +78,8 @@ export const ACTIONS = {
   saveLeadAdsSettings: sys.saveLeadAdsSettings,
   intakeLead: sys.intakeLead,
   markLeadsPoll: sys.markLeadsPoll,
+  setUserName: sys.setUserName,
+  setAvatarStamp: sys.setAvatarStamp,
   // Xodimlar va sozlamalar
   addUser: sys.addUser,
   setUserRole: sys.setUserRole,
@@ -118,4 +120,5 @@ export const DEMO_ONLY: ReadonlySet<ActionName> = new Set<ActionName>([
   "markIntegrationAttempt",
   "intakeLead",
   "markLeadsPoll",
+  "setAvatarStamp",
 ]);

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { SERVER_MODE } from "../lib/api";
 import type { Tone } from "../lib/labels";
 import { Icon, IconChip, type ChipColor, type IconName } from "./icons";
 
@@ -271,7 +272,10 @@ const AVATAR_GRADIENTS = [
 ];
 
 /** decorative — bosh harflar CSS orqali chiziladi (tugma nomi aria-label'dan olinadi). */
-export function Avatar({ name, size = 32, decorative }: { name: string; size?: number; decorative?: boolean }) {
+export function Avatar({ name, size = 32, decorative, user }: { name: string; size?: number; decorative?: boolean; user?: { id: string; avatarAt?: string } }) {
+  // Rasm buzilsa (yoki yuklanmasa) bosh harflar ko'rsatiladi
+  const [failed, setFailed] = useState<string | null>(null);
+  const stamp = SERVER_MODE ? user?.avatarAt : undefined;
   const initials = name
     .replace(/\(.*?\)/g, "")
     .split(/\s+/)
@@ -281,6 +285,19 @@ export function Avatar({ name, size = 32, decorative }: { name: string; size?: n
     .join("")
     .toUpperCase();
   const g = AVATAR_GRADIENTS[[...name].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AVATAR_GRADIENTS.length];
+  if (user && stamp && failed !== stamp) {
+    return (
+      <img
+        src={`/api/avatar/${encodeURIComponent(user.id)}?v=${encodeURIComponent(stamp)}`}
+        alt={decorative ? "" : name}
+        width={size}
+        height={size}
+        className="inline-block shrink-0 rounded-full object-cover"
+        style={{ width: size, height: size }}
+        onError={() => setFailed(stamp)}
+      />
+    );
+  }
   return (
     <span
       className={`inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br font-semibold text-white ${g} ${decorative ? "before:content-[attr(data-initials)]" : ""}`}

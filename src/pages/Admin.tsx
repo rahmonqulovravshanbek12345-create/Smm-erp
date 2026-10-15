@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Badge, Banner, Button, Card, CardHeader, Field, Input, Modal, PageHeader, Select } from "../components/ui";
+import { useAvatarPicker } from "../components/AvatarUploader";
+import { Avatar, Badge, Banner, Button, Card, CardHeader, Field, Input, Modal, PageHeader, Select } from "../components/ui";
 import { SERVER_MODE, api } from "../lib/api";
 import { fmtDateTime, fmtMoney } from "../lib/dates";
 import { fullExportSheets } from "../lib/full-export";
@@ -107,7 +108,9 @@ export function Admin() {
               <tbody className="divide-y divide-sep">
                 {state.users.map((u) => (
                   <tr key={u.id}>
-                    <td className="px-4 py-2 text-label">{u.name}</td>
+                    <td className="px-4 py-2 text-label">
+                      <StaffName u={u} />
+                    </td>
                     {SERVER_MODE && (
                       <td className="px-4 py-2">
                         <LoginCell info={logins.list?.find((l) => l.userId === u.id)} active={u.active} isMe={u.id === me.id} onGive={() => setCreds(u.id)} />
@@ -736,5 +739,50 @@ function SecurityLog() {
         </table>
       </div>
     </Card>
+  );
+}
+
+/** Xodim ismi: o'zgartirish mumkin (faqat admin) va (serverli tizimda) profil rasmi. */
+function StaffName({ u }: { u: User }) {
+  const { run } = useErp();
+  const photo = useAvatarPicker(u.id);
+  return (
+    <div className="flex items-center gap-2.5">
+      <Avatar name={u.name} size={32} user={u} />
+      <div className="min-w-0">
+        <Input
+          key={u.name}
+          defaultValue={u.name}
+          aria-label={`${u.name}: ism-familiya`}
+          onBlur={(e) => e.target.value.trim() !== u.name && run("setUserName", [u.id, e.target.value], "Ism o'zgartirildi")}
+          className="!w-48 !py-1 !text-xs"
+        />
+        {SERVER_MODE && (
+          <div className="mt-0.5 flex gap-2 text-[11px]">
+            {photo.input}
+            <button
+              type="button"
+              onClick={photo.pick}
+              disabled={photo.busy}
+              className="font-semibold text-accent disabled:opacity-50"
+              aria-label={`${u.name}: rasm yuklash`}
+            >
+              {photo.busy ? "Yuklanmoqda…" : "Rasm"}
+            </button>
+            {u.avatarAt && (
+              <button
+                type="button"
+                onClick={() => void photo.remove()}
+                disabled={photo.busy}
+                className="text-label3 hover:text-red"
+                aria-label={`${u.name}: rasmni o'chirish`}
+              >
+                O'chirish
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

@@ -113,7 +113,7 @@ function Balances({ onPay, editable }: { onPay: (id: string) => void; editable: 
             <tr key={u.id} className="hover:bg-fill">
               <td className={td}>
                 <div className="flex items-center gap-2.5">
-                  <Avatar name={u.name} size={32} />
+                  <Avatar name={u.name} size={32} user={u} />
                   <div className="whitespace-nowrap">
                     <div className="font-semibold text-label">
                       {u.name} {!u.active && <Badge tone="gray">Arxivda</Badge>}

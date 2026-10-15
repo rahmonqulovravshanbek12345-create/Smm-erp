@@ -115,7 +115,7 @@ Ilova ishlab chiqish (Development) rejimida faqat ilova va sahifa administratorl
 
 ## 9. Xodimlar
 
-Admin → Xodimlar bo'limida xodim qo'shiladi va unga login beriladi. Ekranda vaqtinchalik parol chiqadi, uni xodimga **yuzma-yuz** bering. Xodim birinchi kirishda parolini almashtiradi va 2FA'ni ulaydi. Ishdan ketgan xodimni arxivlang: uning sessiyalari darhol yopiladi.
+Admin → Xodimlar bo'limida xodim qo'shiladi va unga login beriladi. Ekranda vaqtinchalik parol chiqadi, uni xodimga **yuzma-yuz** bering. Xodim birinchi kirishda parolini almashtiradi va 2FA'ni ulaydi. Ishdan ketgan xodimni arxivlang: uning sessiyalari darhol yopiladi. Xodim ismi o'sha ro'yxatda to'g'ridan-to'g'ri tahrirlanadi (faqat admin). Profil rasmini xodim o'zi (akkaunt menyusi → «Profil rasmini yuklash») yoki admin (ro'yxatda «Rasm») qo'yadi; rasm bazada saqlanadi va zaxira nusxaga kiradi.
 
 ## Kundalik boshqaruv
 
