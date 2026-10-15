@@ -39,7 +39,7 @@ export function MyAccount() {
         actions={<MonthSelect value={month} onChange={setMonth} />}
       />
       <Card className="mb-5 flex flex-wrap items-center gap-4 p-5">
-        <Avatar name={me.name} size={56} />
+        <Avatar name={me.name} size={56} user={me} />
         <div className="min-w-0 flex-1">
           <div className="text-[20px] font-bold tracking-tight text-label">{me.name}</div>
           <div className="text-[14px] text-label2">{ROLE_LABELS[me.role]}</div>

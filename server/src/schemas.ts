@@ -337,6 +337,8 @@ export const ARGS: Schemas = {
   // Serverda brauzerdan qabul qilinmaydi (qoidalar rad etadi) — shakl faqat to'liqlik uchun
   intakeLead: z.tuple([z.strictObject({ externalId: short, name: short, phone: short, service: short, note: text, createdAt: z.string().max(40).optional() })]),
   markLeadsPoll: z.tuple([z.string().max(300).optional()]),
+  setAvatarStamp: z.tuple([id, z.string().max(40).optional()]),
+  setUserName: z.tuple([id, short]),
   switchUser: z.tuple([id]),
   setChatIdForAll: z.tuple([z.string().max(30)]),
 

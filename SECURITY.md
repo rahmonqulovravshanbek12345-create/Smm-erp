@@ -132,3 +132,10 @@ Tekshirilmagan: haqiqiy Eskiz serverining holati (SSH, ochiq portlar, DNS, serti
 - Sahifa tokeni va App Secret bazada shifrlangan (AES-256-GCM), zaxira nusxada ham, brauzerga «••••» bo'lib boradi, audit jurnaliga yozilmaydi. Meta xatolarida token matni ko'rsatilmaydi.
 - Lid yaratish amali (`intakeLead`) hech bir xodimga ochiq emas; faqat server bajaradi. Sozlash faqat admin uchun.
 - Ma'lum cheklov: webhook'ni kim bo'lsa ham App Secret'ni bilsa soxta lid yuborishi mumkin, shuning uchun App Secret sizib chiqsa, Meta ilovasida uni almashtiring va kartada yangilang.
+
+## Profil rasmi va xodim ismi
+
+- Rasmni xodimning o'zi yoki admin yuklaydi (`POST /api/avatar/:id`, brauzer himoyasi o'z kuchida). Brauzer rasmni 256×256 JPEG qilib yuboradi, **server uni baribir qat'iy tekshiradi**: JPEG belgisi va oxiri, o'lchami (32…512 px), hajmi (150 KB gacha); boshqa narsa (PNG, matn, HTML) rad etiladi. Kontent turi faqat `image/jpeg`.
+- Rasm faqat tizimga kirgan xodimlarga beriladi (`GET /api/avatar/:id`, ochiq havola yo'q). Javobga `Content-Security-Policy: default-src 'none'; sandbox` va `nosniff` qo'yiladi, shuning uchun zararli fayl brauzerda ishlamaydi.
+- Rasm baytlari bazadagi alohida jadvalda (`user_avatars`) saqlanadi: umumiy holatga kirmaydi (har 15 soniyada yuboriladigan holat og'irlashmaydi), kunlik Excel va zaxira nusxaga esa baza orqali kiradi. Yuklash daqiqasiga 10 ta bilan cheklangan; har yuklash audit jurnalida.
+- Xodim ismini faqat admin o'zgartiradi (`setUserName`). Ish yozuvlari ismga emas, xodim ID'siga bog'langan, shuning uchun eski lid, vazifa va hisoblar buzilmaydi.

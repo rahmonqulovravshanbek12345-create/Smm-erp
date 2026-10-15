@@ -213,14 +213,15 @@ test("Admin: xodimni arxivlash — ogohlantirish, tasdiq, qaytarish", async ({ p
   const p = await watch(page);
   await openAs(page, "u_admin", "/admin");
   const name: string = (await state(page)).users.find((u: { id: string }) => u.id === "u_dz").name;
-  const row = page.locator("tr", { hasText: name }).first();
+  const rowOf = () => page.locator("tr", { has: page.getByRole("textbox", { name: `${name}: ism-familiya` }) });
+  const row = rowOf();
   await row.getByRole("button", { name: "Arxivlash" }).click();
   await expect(dialog(page).getByText(`Arxivlash: ${name}`)).toBeVisible();
   await dialog(page).getByRole("button", { name: "Arxivlash" }).click();
-  await expect(page.locator("tr", { hasText: name }).getByText("Arxivda")).toBeVisible();
+  await expect(rowOf().getByText("Arxivda")).toBeVisible();
   let s = await state(page);
   expect(s.users.find((u: { name: string }) => u.name === name).active).toBe(false);
-  await page.locator("tr", { hasText: name }).getByRole("button", { name: "Qaytarish" }).click();
+  await rowOf().getByRole("button", { name: "Qaytarish" }).click();
   s = await state(page);
   expect(s.users.find((u: { name: string }) => u.name === name).active).toBe(true);
   expect(p.errors).toEqual([]);

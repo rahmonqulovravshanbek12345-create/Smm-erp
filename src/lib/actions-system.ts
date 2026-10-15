@@ -42,6 +42,22 @@ export function setUserRole(c: Ctx, userId: string, role: Role) {
   c.log(`${u.name}: rol → ${ROLE_LABELS[role]}`, "/admin");
 }
 
+/** Xodim ism-familiyasi (bitta maydon). Eski yozuvlar xodim ID'siga bog'langan, shuning uchun hisobotlar buzilmaydi. */
+export function setUserName(c: Ctx, userId: string, name: string) {
+  const u = findUser(c, userId);
+  const v = name.replace(/\s+/g, " ").trim();
+  if (!v) throw new Error("Ism-familiyani kiriting");
+  if (v.length > 80) throw new Error("Ism juda uzun");
+  if (v === u.name) return;
+  c.log(`${u.name}: ism o'zgartirildi → ${v}`, "/admin");
+  u.name = v;
+}
+
+/** Profil rasmi yuklangan/o'chirilganini belgilaydi (rasm baytlari bazada alohida; faqat server chaqiradi). */
+export function setAvatarStamp(c: Ctx, userId: string, at?: string) {
+  findUser(c, userId).avatarAt = at;
+}
+
 export function setUserChatId(c: Ctx, userId: string, chatId: string) {
   const u = findUser(c, userId);
   const v = chatId.trim();
