@@ -2,7 +2,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { checkJpeg } from "../src/avatar";
 import type { ErpState } from "../../src/lib/types";
-import { action, client, giveLogin, loginAs, ORIGIN, setup, type Client, type Ctx } from "./helpers";
+import { action, giveLogin, loginAs, ORIGIN, setup, type Client, type Ctx } from "./helpers";
 
 /** Haqiqiy JPEG tuzilmasi (SOI, SOF0 o'lcham bilan, skan, EOI) — faqat tekshiruvlar uchun. */
 function jpeg(w = 256, h = 256, pad = 400): Buffer {
