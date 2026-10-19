@@ -121,6 +121,10 @@ Admin → Xodimlar bo'limida xodim qo'shiladi va unga login beriladi. Ekranda va
 
 Loyiha kartasida (Loyihalar → loyiha) «Jamoani o'zgartirish» tugmasi bor (admin, rahbar, marketolog). Lavozim, yangi xodim va sanani tanlanadi. Kelajak sana bo'lsa, o'sha kuni o'zi almashadi; o'tmish sana darhol kuchga kiradi. Eski xodimning o'sha sanagacha qilgan ishi o'zida qoladi. Ochiq target vazifalari targetolog almashganda yangi xodimga o'tadi. Har bir o'zgarish «Jamoa tarixi»da va audit jurnalida saqlanadi.
 
+### Kim summalarni ko'radi
+
+Loyiha narxlari (oylik summa, bir martalik xizmat narxi, boshlang'ich to'lov, shartnoma hujjati), fakturalar va mijoz to'lovlarini faqat **admin, rahbar, marketolog va moliya** ko'radi. SMM, targetolog, montajyor, dizayner, syomkachi, operator va boshqalarga server bu ma'lumotni brauzerga umuman yubormaydi (ekranda yashirilgan emas). Ularga ish uchun kerakli narsa qoladi: xizmat nomi, muddat, vazifalar va «Mijoz to'lovi kechikkan — N kun» belgisi (summasiz). Xodim o'z ijrochi haqini (o'z oyligi) avvalgidek ko'radi.
+
 ## Kundalik boshqaruv
 
 | Buyruq                                        | Nima qiladi                                                                                                                                         |

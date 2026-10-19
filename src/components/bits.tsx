@@ -42,10 +42,10 @@ export function PayBadge({ status }: { status: PayStatus }) {
 }
 
 export function DebtBadge({ debt }: { debt: Debt }) {
-  if (debt.amount <= 0) return null;
+  if (debt.amount <= 0 && debt.days <= 0) return null;
   return (
     <Badge tone="red">
-      ● Qarz {fmtMoney(debt.amount)} · {debt.days} kun
+      ● {debt.amount > 0 ? `Qarz ${fmtMoney(debt.amount)}` : "To'lov kechikkan"} · {debt.days} kun
     </Badge>
   );
 }
