@@ -19,6 +19,7 @@ import {
 import { DOC_BLOCKS, FORMAT_LABELS, LEAD_STAGES, PLATFORM_LABELS, POST_STATUSES, ROLE_LABELS, TASK_KIND_LABELS, platformsText } from "./labels";
 import {
   hasAds,
+  hasContent,
   isRecurring,
   recurringFee,
   recurringLines,
@@ -35,12 +36,14 @@ import {
   type ServiceInput,
 } from "./services";
 import { isMasked } from "./redact";
+import { TEAM_ROLES, applyTeam, seedTeamHistory } from "./team";
 import { isTaskOpen, lateness, postStage, workBlockedReason } from "./rules";
 import { currentPeriod, periodAt } from "./period";
 import { newId, type Ctx } from "./ctx";
 import { acceptedIds, defaultPicks, nextProposalNumber, proposalPrice, tariffOf, tariffService } from "./tariffs";
 import type {
   Bill,
+  TeamRole,
   BudgetLine,
   ContentType,
   DocBlock,
@@ -1258,6 +1261,31 @@ export function saveMetaSettings(c: Ctx, patch: Partial<Omit<Integrations["meta"
   }
   if (patch.token !== undefined) patch = { ...patch, token: patch.token.trim() };
   Object.assign(c.s.settings.integrations.meta, patch);
+}
+
+/**
+ * Loyiha jamoasini o'zgartirish: lavozimga yangi xodim, qaysi sanadan. Sana kelajakda bo'lsa — o'sha kuni o'zi kuchga kiradi,
+ * o'tgan sana bo'lsa — darhol. Eski xodimning o'sha sanagacha qilgan ishi o'zida qoladi.
+ */
+export function setProjectTeam(c: Ctx, projectId: string, role: TeamRole, userId: string, from: string) {
+  const p = c.s.projects.find((x) => x.id === projectId);
+  if (!p) throw new Error("Loyiha topilmadi");
+  if (!TEAM_ROLES.includes(role)) throw new Error("Lavozimni tanlang");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || Number.isNaN(Date.parse(`${from}T00:00:00Z`))) throw new Error("Sanani to'g'ri kiriting");
+  if (from < "2020-01-01" || from > "2100-01-01") throw new Error("Sana noto'g'ri");
+  const u = c.s.users.find((x) => x.id === userId);
+  if (!u?.active) throw new Error("Xodim topilmadi yoki arxivda");
+  if (u.role !== role) throw new Error(`${ROLE_LABELS[role]} lavozimiga faqat shu rolli xodim biriktiriladi`);
+  if (role === "smm" && !hasContent(p)) throw new Error("Bu loyihada SMM menejer yo'q (faqat target xizmati)");
+  if (role === "targetolog" && !hasAds(p)) throw new Error("Bu loyihada targetolog yo'q");
+  if (!p.teamHistory?.length) p.teamHistory = seedTeamHistory(p, c.me.id);
+  p.teamHistory = p.teamHistory.filter((x) => !(x.role === role && x.from === from));
+  p.teamHistory.push({ id: newId("tm"), role, userId, from, by: c.me.id, at: nowISO() });
+  const moves = applyTeam(c.s, p, c.today);
+  if (from <= c.today && moves.some((m) => m.role === role)) {
+    c.notify([userId], `${p.name}: siz ${ROLE_LABELS[role]} etib biriktirildingiz (${fmtDate(from)} dan)`, "/loyihalar");
+  }
+  c.log(`${p.name}: ${ROLE_LABELS[role]} → ${u.name} (${fmtDate(from)} dan)`, "/loyihalar");
 }
 
 export function setMetaAccount(c: Ctx, projectId: string, account: string) {

@@ -117,6 +117,10 @@ Ilova ishlab chiqish (Development) rejimida faqat ilova va sahifa administratorl
 
 Admin → Xodimlar bo'limida xodim qo'shiladi va unga login beriladi. Ekranda vaqtinchalik parol chiqadi, uni xodimga **yuzma-yuz** bering. Xodim birinchi kirishda parolini almashtiradi va 2FA'ni ulaydi. Ishdan ketgan xodimni arxivlang: uning sessiyalari darhol yopiladi. Xodim ismi o'sha ro'yxatda to'g'ridan-to'g'ri tahrirlanadi (faqat admin). Profil rasmini xodim o'zi (akkaunt menyusi → «Profil rasmini yuklash») yoki admin (ro'yxatda «Rasm») qo'yadi; rasm bazada saqlanadi va zaxira nusxaga kiradi.
 
+### Loyiha jamoasini o'zgartirish
+
+Loyiha kartasida (Loyihalar → loyiha) «Jamoani o'zgartirish» tugmasi bor (admin, rahbar, marketolog). Lavozim, yangi xodim va sanani tanlanadi. Kelajak sana bo'lsa, o'sha kuni o'zi almashadi; o'tmish sana darhol kuchga kiradi. Eski xodimning o'sha sanagacha qilgan ishi o'zida qoladi. Ochiq target vazifalari targetolog almashganda yangi xodimga o'tadi. Har bir o'zgarish «Jamoa tarixi»da va audit jurnalida saqlanadi.
+
 ## Kundalik boshqaruv
 
 | Buyruq                                        | Nima qiladi                                                                                                                                         |

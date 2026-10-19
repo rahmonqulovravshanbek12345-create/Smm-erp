@@ -318,6 +318,7 @@ export const ARGS: Schemas = {
     }),
   ]),
   setMetaAccount: z.tuple([id, z.string().max(40)]),
+  setProjectTeam: z.tuple([id, z.enum(["marketolog", "smm", "targetolog"]), id, date]),
   setCbuAuto: z.tuple([z.boolean()]),
   // Serverda brauzerdan qabul qilinmaydi (qoidalar ham rad etadi) — shakl faqat to'liqlik uchun
   logIntegration: z.tuple([z.enum(["meta", "cbu"]), z.boolean(), text]),

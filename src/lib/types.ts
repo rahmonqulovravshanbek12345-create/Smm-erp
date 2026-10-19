@@ -113,6 +113,18 @@ export interface ProjectService {
   createdAt: string;
 }
 
+export type TeamRole = "marketolog" | "smm" | "targetolog";
+
+export interface TeamChange {
+  id: string;
+  role: TeamRole;
+  userId: string;
+  /** Shu sanadan kuchga kiradi (YYYY-MM-DD). Boshlang'ich yozuvda — shartnoma boshi. */
+  from: string;
+  by: string;
+  at: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -140,6 +152,8 @@ export interface Project {
   marketologId: string;
   smmId: string;
   targetologId?: string;
+  /** Jamoa o'zgarishlari tarixi: har lavozim qaysi sanadan qaysi xodimga o'tgani. Joriy xodim — shu sanaga yetgan oxirgi yozuv. */
+  teamHistory?: TeamChange[];
   /** Birinchi reklama joylangan sana — hisob davrining boshi. */
   periodStart?: string;
   /** "Ishni to'xtatish" opsiyasi (qo'lda): belgilansa, yangi vazifalar ochilmaydi. */

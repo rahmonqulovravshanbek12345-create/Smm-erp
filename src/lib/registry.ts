@@ -70,6 +70,7 @@ export const ACTIONS = {
   setUsdMarkup: act.setUsdMarkup,
   saveMetaSettings: act.saveMetaSettings,
   setMetaAccount: act.setMetaAccount,
+  setProjectTeam: act.setProjectTeam,
   setCbuAuto: sys.setCbuAuto,
   logIntegration: sys.logIntegration,
   applyMetaSync: act.applyMetaSync,

@@ -12,6 +12,7 @@ import { ContentPlan } from "./Content";
 import { ProjectJourney } from "../components/ProjectJourney";
 import { QuotaTab } from "../components/Quota";
 import { ServicesPanel } from "../components/Services";
+import { TeamChangeButton, TeamHistory } from "../components/TeamChange";
 import { quotaFor } from "../lib/content";
 import { hasAds, hasContent, hasRecurring, isRecurring, isUsd, monthlyFeeUsd, serviceMeta, servicesOf, stageIndex } from "../lib/services";
 import { Invoices } from "./finance/Invoices";
@@ -223,6 +224,12 @@ function Info({ p }: { p: Project }) {
         {servicesOf(p)
           .filter((x) => !isRecurring(x.kind) && x.assigneeId)
           .map((x) => row(serviceMeta(x.kind).short, look.userName(x.assigneeId)))}
+        {["admin", "rahbar", "marketolog"].includes(me.role) && (
+          <div className="mt-3">
+            <TeamChangeButton project={p} />
+          </div>
+        )}
+        <TeamHistory project={p} />
       </Card>
       <Card className="p-4">
         <h2 className="mb-2 text-sm font-semibold text-label">Shartnoma</h2>
