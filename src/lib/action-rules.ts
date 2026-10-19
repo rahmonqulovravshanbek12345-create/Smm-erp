@@ -116,6 +116,8 @@ const RULES: { [N in ActionName]: Rule<N> } = {
   setUsdMarkup: integrations,
   saveMetaSettings: integrations,
   // Reklama kabinetini shu loyihaning targetologi o'zi bog'laydi (token va sozlamalar — faqat admin/rahbar)
+  // Loyiha jamoasi: admin, rahbar va marketolog (loyihaning rahbari) o'zgartiradi
+  setProjectTeam: is("admin", "rahbar", "marketolog"),
   setMetaAccount: (me, s, [projectId]) => integrations(me) || (me.role === "targetolog" && s.projects.find((p) => p.id === projectId)?.targetologId === me.id),
   setCbuAuto: integrations,
   // Serverli tizimda bularni server o'zi bajaradi
