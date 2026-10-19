@@ -4,7 +4,7 @@ import { A, Badge, Button, Card, CardHeader, Empty, PageHeader } from "../compon
 import { fmtDate, fmtMoney, fmtUsd } from "../lib/dates";
 import { invoicePeriod, invoiceStatus } from "../lib/finance";
 import { FORMAT_LABELS, PAYMENT_KIND_LABELS, PAYMENT_STATUS } from "../lib/labels";
-import { canView, visibleProjects } from "../lib/permissions";
+import { canView, seesMoney, visibleProjects } from "../lib/permissions";
 import { reportPeriods } from "../lib/report";
 import { invoiceLines } from "../lib/services";
 import { useErp } from "../lib/store";
@@ -37,11 +37,13 @@ export function Documents() {
                 right={p.status === "closed" ? <Badge>yopilgan</Badge> : undefined}
               />
               <div className="space-y-3 px-5 pb-5 text-[14px]">
-                <DocRow label="Shartnoma" icon="checkSeal">
-                  <DocLink href={`/hujjat/shartnoma/${p.id}`}>
-                    № {p.contractNo} · {fmtDate(p.contractDate)}
-                  </DocLink>
-                </DocRow>
+                {seesMoney(me) && (
+                  <DocRow label="Shartnoma" icon="checkSeal">
+                    <DocLink href={`/hujjat/shartnoma/${p.id}`}>
+                      № {p.contractNo} · {fmtDate(p.contractDate)}
+                    </DocLink>
+                  </DocRow>
+                )}
                 {finance && (
                   <DocRow label="Hisob-fakturalar" icon="send">
                     {invoices.length === 0 && <span className="text-label3">—</span>}
@@ -108,6 +110,8 @@ export function DocumentView({ kind, id, index }: { kind: string; id: string; in
   const mine = new Set(visibleProjects(full, me).map((p) => p.id));
   const state = { ...full, projects: full.projects.filter((p) => mine.has(p.id)) };
   if (kind === "faktura" && !canView(me.role, "finance")) return <Empty>Hujjat topilmadi</Empty>;
+  // Shartnomada narxlar bor — faqat summalarni ko'radigan rollarga
+  if (kind === "shartnoma" && !seesMoney(me)) return <Empty>Hujjat topilmadi</Empty>;
   let title = "";
   let body: ReactNode = null;
   let back = "/hujjatlar";

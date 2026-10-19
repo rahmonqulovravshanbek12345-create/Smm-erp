@@ -1,8 +1,10 @@
 // Har bir xodimga faqat unga ruxsat etilgan ma'lumot yuboriladi (server tomonda). Masalan, montajyorning
 // brauzeriga boshqalarning oyligi, kompaniya kassasi yoki boshqa loyihalar umuman kelmaydi.
 // Maxfiy kalitlar (Telegram, Meta tokenlari) hech kimga yuborilmaydi — o'rniga «saqlangan» belgisi.
+import { todayISO } from "./dates";
+import { projectDebt } from "./finance";
 import { canView, seesEverything, visibleProjects } from "./permissions";
-import type { ErpState, User } from "./types";
+import type { ErpState, Project, ProjectService, User } from "./types";
 
 export const SECRET_MASK = "••••••••";
 
@@ -28,7 +30,7 @@ export function withoutSecrets(s: ErpState): ErpState {
 }
 
 /** Xodim uchun holat nusxasi. Asl holat o'zgarmaydi (yangi massiv va obyektlar). */
-export function redactFor(full: ErpState, me: User): ErpState {
+export function redactFor(full: ErpState, me: User, today: string = todayISO()): ErpState {
   const base = withoutSecrets(full);
   const admin = me.role === "admin";
   const out: ErpState = {
@@ -48,15 +50,30 @@ export function redactFor(full: ErpState, me: User): ErpState {
     for (const l of full.leads)
       if (l.projectId && l.operatorId === me.id && full.projects.some((p) => p.id === l.projectId && p.leadId === l.id)) pids.add(l.projectId);
   const inProject = <T extends { projectId: string }>(x: T) => pids.has(x.projectId);
-  const invoices = full.invoices.filter(inProject);
-  const invIds = new Set(invoices.map((i) => i.id));
+  // Narxlar, fakturalar va mijoz to'lovlari — faqat moliyaviy rollarga; xodimga ish uchun kerakli «to'lov kechikkan» belgisi (summasiz) qoladi
+  const noMoney = (p: Project): Project => {
+    const debt = projectDebt(full, p.id, today);
+    const out: Project = {
+      ...p,
+      monthlyFee: 0,
+      ...(debt.amount > 0 ? { overdueDays: debt.days } : {}),
+      services: p.services.map((x) => {
+        const svc: ProjectService = { ...x, price: 0 };
+        delete svc.priceUsd;
+        delete svc.prepayAmount;
+        delete svc.prepayPct;
+        delete svc.adPct;
+        if (x.assigneeId !== me.id) delete svc.assigneeFee;
+        return svc;
+      }),
+    };
+    delete out.prepayAmount;
+    return out;
+  };
 
   return {
     ...out,
-    // Boshqa xodimlarning ish haqi (ijrochi haqi) ko'rinmaydi
-    projects: full.projects
-      .filter((p) => pids.has(p.id))
-      .map((p) => ({ ...p, services: p.services.map((x) => (x.assigneeFee === undefined || x.assigneeId === me.id ? x : { ...x, assigneeFee: undefined })) })),
+    projects: full.projects.filter((p) => pids.has(p.id)).map(noMoney),
     leads: crm ? full.leads : [],
     proposals: crm ? full.proposals : [],
     posts: full.posts.filter(inProject),
@@ -65,9 +82,9 @@ export function redactFor(full: ErpState, me: User): ErpState {
     quotas: full.quotas.filter(inProject),
     reports: full.reports.filter(inProject),
     targetReports: full.targetReports.filter(inProject),
-    // Loyiha qarzi va «to'lov kelmagan» belgisi uchun — faqat o'z loyihalarining fakturalari va ularga to'lovlar
-    invoices,
-    transactions: full.transactions.filter((t) => t.userId === me.id || (t.invoiceId !== undefined && invIds.has(t.invoiceId))),
+    invoices: [],
+    // Faqat o'z ish haqi to'lovlari
+    transactions: full.transactions.filter((t) => t.userId === me.id),
     accruals: full.accruals.filter((a) => a.userId === me.id),
     payProfiles: full.payProfiles.filter((p) => p.userId === me.id),
     accounts: full.accounts.map((a) => ({ ...a, opening: 0 })),

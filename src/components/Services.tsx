@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { diffDays, fmtDate, fmtMoney, fmtNum, fmtUsd } from "../lib/dates";
 import { invoiceStatus } from "../lib/finance";
-import { canEdit } from "../lib/permissions";
+import { canEdit, seesMoney } from "../lib/permissions";
 import { currentPeriod } from "../lib/rules";
 import {
   AD_CHANNELS,
@@ -73,6 +73,7 @@ export function ServicesPanel({ project: p }: { project: Project }) {
     );
   const list = (p.services ?? []).slice().sort((a, b) => Number(a.status === "cancelled") - Number(b.status === "cancelled"));
   const manage = canManage(me.role) && p.status === "active";
+  const money = seesMoney(me);
   const usd = state.settings.usdRate;
 
   return (
@@ -103,8 +104,8 @@ export function ServicesPanel({ project: p }: { project: Project }) {
               </div>
               <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
                 <span className="tabular text-label">
-                  {svcPrice(p, svc)}
-                  {isRecurring(svc.kind) ? "/oy" : ""}
+                  {money && svcPrice(p, svc)}
+                  {money && isRecurring(svc.kind) ? "/oy" : ""}
                 </span>
                 {statusOf(svc)}
               </div>
@@ -119,7 +120,7 @@ export function ServicesPanel({ project: p }: { project: Project }) {
               <tr>
                 <th className="px-4 py-2 font-medium">Xizmat</th>
                 <th className="px-4 py-2 font-medium">Turi</th>
-                <th className="px-4 py-2 text-right font-medium">Narx</th>
+                {money && <th className="px-4 py-2 text-right font-medium">Narx</th>}
                 <th className="px-4 py-2 font-medium">Mas'ul</th>
                 <th className="px-4 py-2 font-medium">Holat</th>
                 {manage && <th className="px-4 py-2" />}
@@ -137,16 +138,18 @@ export function ServicesPanel({ project: p }: { project: Project }) {
                     <td className="px-4 py-2.5">
                       <Badge tone={isRecurring(svc.kind) ? "blue" : "violet"}>{isRecurring(svc.kind) ? "Oylik" : "Bir martalik"}</Badge>
                     </td>
-                    <td className="tabular whitespace-nowrap px-4 py-2.5 text-right text-label">
-                      {svcPrice(p, svc, false)}
-                      {isRecurring(svc.kind) ? "/oy" : ""}
-                      {isUsd(p) && svc.priceUsd !== undefined && <span className="block text-xs text-label2">≈ {fmtMoney(svc.price)}</span>}
-                      {pct > 0 && (
-                        <span className="block text-xs text-label2">
-                          + {svc.adPct}% byudjetdan ≈ {fmtMoney(pct)}
-                        </span>
-                      )}
-                    </td>
+                    {money && (
+                      <td className="tabular whitespace-nowrap px-4 py-2.5 text-right text-label">
+                        {svcPrice(p, svc, false)}
+                        {isRecurring(svc.kind) ? "/oy" : ""}
+                        {isUsd(p) && svc.priceUsd !== undefined && <span className="block text-xs text-label2">≈ {fmtMoney(svc.price)}</span>}
+                        {pct > 0 && (
+                          <span className="block text-xs text-label2">
+                            + {svc.adPct}% byudjetdan ≈ {fmtMoney(pct)}
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-2.5 text-label2">{look.userName(serviceOwner(p, svc))}</td>
                     <td className="px-4 py-2.5">{statusOf(svc)}</td>
                     {manage && <td className="whitespace-nowrap px-4 py-2.5 text-right">{actions(svc)}</td>}
@@ -156,7 +159,7 @@ export function ServicesPanel({ project: p }: { project: Project }) {
             </tbody>
           </table>
         </div>
-        {p.monthlyFee > 0 && (
+        {money && p.monthlyFee > 0 && (
           <div className="border-t border-sep px-4 py-2.5 text-sm text-label2">
             Oylik jami: <b className="text-label">{isUsd(p) ? `$${fmtUsd(monthlyFeeUsd(p))} (≈ ${fmtMoney(p.monthlyFee)})` : fmtMoney(p.monthlyFee)}</b> ·
             {p.prepayAmount !== undefined
@@ -188,6 +191,7 @@ export function ServicesPanel({ project: p }: { project: Project }) {
 export function OneTimeService({ project: p, svc, compact }: { project: Project; svc: ProjectService; compact?: boolean }) {
   const { state, me, run, today } = useErp();
   const look = useLookup();
+  const money = seesMoney(me);
   const stages = svc.stages ?? [];
   const i = stageIndex(svc);
   const invs = state.invoices.filter((x) => x.serviceId === svc.id);
@@ -260,26 +264,28 @@ export function OneTimeService({ project: p, svc, compact }: { project: Project;
         </ol>
         {!compact && (
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-[14px] bg-fill p-3">
-              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-label2">To'lov · {svcPrice(p, svc, false)}</div>
-              <ul className="space-y-1.5 text-sm">
-                {invs.map((inv) => (
-                  <li key={inv.id} className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-label">
-                      {inv.kind === "prepay" ? (svc.prepayAmount !== undefined ? "Boshlang'ich to'lov" : `${svc.prepayPct ?? 50}% oldindan`) : "Topshirishda"} ·{" "}
-                      {inv.usd ? `$${fmtUsd(inv.usd)}` : fmtMoney(inv.amount)}
-                    </span>
-                    <PayBadge status={invoiceStatus(state, inv, today)} />
-                  </li>
-                ))}
-                {!svc.deliveredAt && svc.price > pre && (
-                  <li className="flex flex-wrap items-center justify-between gap-2 text-label2">
-                    <span>Topshirishda · {usdSvc ? `$${fmtUsd(round2(svc.priceUsd! - preUsd))}` : fmtMoney(svc.price - pre)}</span>
-                    <Badge tone="gray">Topshirilganda faktura chiqadi</Badge>
-                  </li>
-                )}
-              </ul>
-            </div>
+            {money && (
+              <div className="rounded-[14px] bg-fill p-3">
+                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-label2">To'lov · {svcPrice(p, svc, false)}</div>
+                <ul className="space-y-1.5 text-sm">
+                  {invs.map((inv) => (
+                    <li key={inv.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-label">
+                        {inv.kind === "prepay" ? (svc.prepayAmount !== undefined ? "Boshlang'ich to'lov" : `${svc.prepayPct ?? 50}% oldindan`) : "Topshirishda"}{" "}
+                        · {inv.usd ? `$${fmtUsd(inv.usd)}` : fmtMoney(inv.amount)}
+                      </span>
+                      <PayBadge status={invoiceStatus(state, inv, today)} />
+                    </li>
+                  ))}
+                  {!svc.deliveredAt && svc.price > pre && (
+                    <li className="flex flex-wrap items-center justify-between gap-2 text-label2">
+                      <span>Topshirishda · {usdSvc ? `$${fmtUsd(round2(svc.priceUsd! - preUsd))}` : fmtMoney(svc.price - pre)}</span>
+                      <Badge tone="gray">Topshirilganda faktura chiqadi</Badge>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
             <div className="rounded-[14px] bg-fill p-3 text-sm">
               <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-label2">Shartlar</div>
               <div className="text-label">Boshlangan: {fmtDate(svc.startDate)}</div>

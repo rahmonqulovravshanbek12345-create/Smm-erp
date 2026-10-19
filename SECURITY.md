@@ -139,3 +139,11 @@ Tekshirilmagan: haqiqiy Eskiz serverining holati (SSH, ochiq portlar, DNS, serti
 - Rasm faqat tizimga kirgan xodimlarga beriladi (`GET /api/avatar/:id`, ochiq havola yo'q). Javobga `Content-Security-Policy: default-src 'none'; sandbox` va `nosniff` qo'yiladi, shuning uchun zararli fayl brauzerda ishlamaydi.
 - Rasm baytlari bazadagi alohida jadvalda (`user_avatars`) saqlanadi: umumiy holatga kirmaydi (har 15 soniyada yuboriladigan holat og'irlashmaydi), kunlik Excel va zaxira nusxaga esa baza orqali kiradi. Yuklash daqiqasiga 10 ta bilan cheklangan; har yuklash audit jurnalida.
 - Xodim ismini faqat admin o'zgartiradi (`setUserName`). Ish yozuvlari ismga emas, xodim ID'siga bog'langan, shuning uchun eski lid, vazifa va hisoblar buzilmaydi.
+
+## Loyiha narxlari va mijoz to'lovlari
+
+- Narxlar, fakturalar va mijoz to'lovlari faqat admin, rahbar, marketolog va moliyaga yuboriladi (`seesMoney`). Boshqa xodimlar uchun `redactFor` server tomonida oylik summa, xizmat narxlari, boshlang'ich to'lov va dollardagi narxlarni olib tashlaydi, fakturalar ro'yxatini bo'sh qiladi va faqat xodimning o'z ish haqi to'lovlarini qoldiradi. Brauzerning texnik oynasidan ham ko'rinmaydi.
+- Mijoz to'lovi kechikkanini xodim summasiz ko'radi (`overdueDays`); ish baribir to'xtamaydi.
+- Shartnoma hujjatida narxlar bor, shuning uchun u faqat shu rollarga ochiladi.
+- Operator CRM bo'limida o'z lidlari va takliflarini (narxlari bilan) avvalgidek ko'radi: bu uning sotuv ishi.
+- Sinov: `src/lib/redact.test.ts`, `server/test/hide-money.test.ts`, `e2e/hide-money.spec.ts`.

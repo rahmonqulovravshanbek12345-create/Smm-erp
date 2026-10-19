@@ -4,7 +4,7 @@ import { ProjectFormModal } from "../components/ProjectForm";
 import { A, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, LinkOut, PageHeader, Progress, Tabs, Textarea, navigate } from "../components/ui";
 import { fmtDate, fmtDateTime, fmtMoney, fmtNum, fmtUsd } from "../lib/dates";
 import { DOC_BLOCKS, TASK_KIND_LABELS } from "../lib/labels";
-import { canEdit, canEditFinance, canView, visibleProjects } from "../lib/permissions";
+import { canEdit, canEditFinance, canView, seesMoney, visibleProjects } from "../lib/permissions";
 import { currentPeriod, isPostLate, periodLabel, periodPosts, projectDebt, workBlockedReason } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
 import type { DocBlock, Project } from "../lib/types";
@@ -18,11 +18,17 @@ import { hasAds, hasContent, hasRecurring, isRecurring, isUsd, monthlyFeeUsd, se
 import { Invoices } from "./finance/Invoices";
 import { ProjectFinance } from "./finance/ProjectFinance";
 
+/** Summani ko'rmaydigan xodimga qarz summasi emas, faqat kechikish kunlari ko'rinadi (server `overdueDays` ni yuboradi). */
+function projectDebtFor(state: Parameters<typeof projectDebt>[0], p: Project, today: string, money: boolean) {
+  return money ? projectDebt(state, p.id, today) : { amount: 0, days: p.overdueDays ?? 0 };
+}
+
 export function Projects() {
   const { state, me, run, today } = useErp();
   const look = useLookup();
   const [creating, setCreating] = useState(false);
   const projects = visibleProjects(state, me);
+  const money = seesMoney(me);
 
   return (
     <>
@@ -39,22 +45,22 @@ export function Projects() {
       />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {projects.map((p) => {
-          const debt = projectDebt(state, p.id, today);
+          const debt = projectDebtFor(state, p, today, money);
           const { per, posts } = periodPosts(state, p, today);
           const done = posts.filter((x) => x.status === "published").length;
           const blocked = workBlockedReason(state, p);
           const docsDone = Object.values(p.docs).filter((d) => d.status === "done").length;
           return (
             <A key={p.id} href={`/loyiha/${p.id}`}>
-              <Card className={`h-full p-4 transition hover:shadow-float ${debt.amount ? "border-red/40" : ""}`}>
+              <Card className={`h-full p-4 transition hover:shadow-float ${debt.days ? "border-red/40" : ""}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-semibold text-label">{p.name}</div>
                     <div className="text-xs text-label2">{p.industry}</div>
                   </div>
                   <span className="text-right text-sm text-label/80">
-                    {p.monthlyFee > 0 && <span className="block">{isUsd(p) ? `$${fmtUsd(monthlyFeeUsd(p))}` : fmtMoney(p.monthlyFee)}/oy</span>}
-                    {servicesOf(p).some((x) => !isRecurring(x.kind) && x.status === "active") && (
+                    {money && p.monthlyFee > 0 && <span className="block">{isUsd(p) ? `$${fmtUsd(monthlyFeeUsd(p))}` : fmtMoney(p.monthlyFee)}/oy</span>}
+                    {money && servicesOf(p).some((x) => !isRecurring(x.kind) && x.status === "active") && (
                       <span className="block text-xs text-label2">
                         +{" "}
                         {fmtMoney(
@@ -131,7 +137,7 @@ export function ProjectCard({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("info");
   if (!p) return <Empty>Loyiha topilmadi yoki sizga ochiq emas</Empty>;
 
-  const debt = projectDebt(state, p.id, today);
+  const debt = projectDebtFor(state, p, today, seesMoney(me));
   const blocked = workBlockedReason(state, p);
   const per = currentPeriod(p, today);
   const tabs: { id: Tab; label: string }[] = [
@@ -160,12 +166,13 @@ export function ProjectCard({ id }: { id: string }) {
         sub={`${p.industry} · shartnoma ${p.contractNo} (${fmtDate(p.contractDate)})${hasRecurring(p) ? ` · ${per ? periodLabel(per) : "hisob davri boshlanmagan"}` : ""}`}
         actions={<DebtBadge debt={debt} />}
       />
-      {debt.amount > 0 && (
+      {debt.days > 0 && (
         <Banner tone="red">
-          ● Qarz: {fmtMoney(debt.amount)} — {debt.days} kun kechikdi. Ish to'xtamaydi{p.pauseWork ? ", lekin ish qo'lda to'xtatilgan" : ""}.
+          ● {debt.amount > 0 ? `Qarz: ${fmtMoney(debt.amount)}` : "Mijoz to'lovi kechikkan"} — {debt.days} kun kechikdi. Ish to'xtamaydi
+          {p.pauseWork ? ", lekin ish qo'lda to'xtatilgan" : ""}.
         </Banner>
       )}
-      {blocked && !debt.amount && <Banner tone="amber">{blocked}</Banner>}
+      {blocked && !debt.days && <Banner tone="amber">{blocked}</Banner>}
       <ProjectJourney project={p} />
       <Tabs value={tab} onChange={setTab} tabs={tabs} />
       {tab === "info" && (
@@ -191,6 +198,7 @@ export function ProjectCard({ id }: { id: string }) {
 
 function Info({ p }: { p: Project }) {
   const { me, run } = useErp();
+  const money = seesMoney(me);
   const look = useLookup();
   const canSettings = canEdit(me.role, "projects") || canEditFinance(me.role);
   const row = (label: string, value: React.ReactNode) => (
@@ -237,16 +245,19 @@ function Info({ p }: { p: Project }) {
           "Raqam / sana",
           <span>
             {p.contractNo} · {fmtDate(p.contractDate)}{" "}
-            <A href={`/hujjat/shartnoma/${p.id}`} className="ml-1 font-semibold text-accent">
-              Shartnoma hujjati →
-            </A>
+            {money && (
+              <A href={`/hujjat/shartnoma/${p.id}`} className="ml-1 font-semibold text-accent">
+                Shartnoma hujjati →
+              </A>
+            )}
           </span>,
         )}
         {row("Yuridik nomi", p.legalName ?? "—")}
         {row("Xizmatlar", p.tariff)}
-        {p.monthlyFee > 0 && row("Oylik summa", isUsd(p) ? `$${fmtUsd(monthlyFeeUsd(p))} (≈ ${fmtMoney(p.monthlyFee)})` : fmtMoney(p.monthlyFee))}
-        {isUsd(p) && row("Valyuta", "AQSH dollari — to'lov kunidagi kurs bo'yicha")}
-        {p.monthlyFee > 0 &&
+        {money && p.monthlyFee > 0 && row("Oylik summa", isUsd(p) ? `$${fmtUsd(monthlyFeeUsd(p))} (≈ ${fmtMoney(p.monthlyFee)})` : fmtMoney(p.monthlyFee))}
+        {money && isUsd(p) && row("Valyuta", "AQSH dollari — to'lov kunidagi kurs bo'yicha")}
+        {money &&
+          p.monthlyFee > 0 &&
           row(
             "Boshlang'ich to'lov",
             p.prepayAmount !== undefined

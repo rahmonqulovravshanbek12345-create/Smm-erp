@@ -1,6 +1,7 @@
 import { fmtDate } from "../lib/dates";
 import { invoiceStatus, prepayPaid } from "../lib/finance";
 import { POST_STATUSES, postStatusMeta } from "../lib/labels";
+import { seesMoney } from "../lib/permissions";
 import { currentPeriod, isPostLate, isTaskLate, periodPosts, postStage } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
 import { quotaProgress } from "../lib/content";
@@ -20,7 +21,7 @@ interface Step {
 
 /** Loyiha yo'li: 8 bosqich, har birining holati, mas'uli va "keyingi qadam". */
 export function ProjectJourney({ project: p }: { project: Project }) {
-  const { state, today, now } = useErp();
+  const { state, me, today, now } = useErp();
   const look = useLookup();
   const docsDone = Object.values(p.docs).filter((d) => d.status === "done").length;
   const per = currentPeriod(p, today);
@@ -80,7 +81,7 @@ export function ProjectJourney({ project: p }: { project: Project }) {
     },
   ];
 
-  const steps: Step[] = [
+  const allSteps: Step[] = [
     {
       title: "Shartnoma",
       who: look.userName(state.leads.find((l) => l.projectId === p.id)?.operatorId),
@@ -117,6 +118,8 @@ export function ProjectJourney({ project: p }: { project: Project }) {
           : `Davr tugashi ${fmtDate(per.end)}`,
     },
   ];
+  // To'lov bosqichlari (moliya) — summalarni ko'rmaydigan xodimga ko'rsatilmaydi: server unga fakturalarni yubormaydi
+  const steps = seesMoney(me) ? allSteps : allSteps.filter((s) => s.who !== "Moliya");
   const next = steps.find((s) => s.state === "problem") ?? steps.find((s) => s.state === "current");
   const color: Record<StepState, string> = {
     done: "bg-green text-white",

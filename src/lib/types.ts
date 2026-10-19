@@ -156,6 +156,8 @@ export interface Project {
   teamHistory?: TeamChange[];
   /** Birinchi reklama joylangan sana — hisob davrining boshi. */
   periodStart?: string;
+  /** Faqat summalarni ko'rmaydigan xodimlarning nusxasida: mijoz to'lovi necha kundan beri kechikkan (summasiz). */
+  overdueDays?: number;
   /** "Ishni to'xtatish" opsiyasi (qo'lda): belgilansa, yangi vazifalar ochilmaydi. */
   pauseWork: boolean;
   /** Yopilgan loyiha uchun yangi fakturalar chiqarilmaydi. */

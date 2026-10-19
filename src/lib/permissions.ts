@@ -139,6 +139,9 @@ export function seesEverything(user: User): boolean {
   return user.role === "admin" || user.role === "rahbar" || user.role === "marketolog" || user.role === "moliya";
 }
 
+/** Loyiha narxlari, fakturalar va mijoz to'lovlarini faqat shu rollar ko'radi; qolganlarga server ularni umuman yubormaydi. */
+export const seesMoney = seesEverything;
+
 export function visibleProjects(s: ErpState, user: User): Project[] {
   if (seesEverything(user)) return s.projects;
   const ids = new Set<string>();
