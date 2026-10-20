@@ -50,7 +50,7 @@ interface NavItem {
   color: ChipColor;
 }
 
-const NAV_GROUPS: { title?: string; collapsible?: string; items: NavItem[] }[] = [
+const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
   {
     items: [
       { module: "myday", path: "/mening", label: "Mening kunim", short: "Kunim", icon: "sun", color: "orange" },
@@ -83,7 +83,6 @@ const NAV_GROUPS: { title?: string; collapsible?: string; items: NavItem[] }[] =
   },
   {
     title: "Moliya",
-    collapsible: "/moliya",
     items: [
       { module: "finance", path: "/moliya", label: "Moliyaviy panel", short: "Moliya", icon: "sparkle", color: "green" },
       { module: "finance", path: "/moliya/kirim-chiqim", label: "Kirim-chiqim", short: "Kassa", icon: "list", color: "blue" },
@@ -206,6 +205,40 @@ const isActive = (item: NavItem, full: string) => {
   return best?.path === item.path;
 };
 
+// ---------- Menyu guruhlari: ▾ bilan yig'iladi / ochiladi, tanlov brauzerda eslab qolinadi ----------
+
+const NAV_KEY = "smm-erp-nav-open";
+
+/** Joriy sahifa tegishli guruh sarlavhasi (sarlavhasiz tepadagi guruh — har doim ochiq). */
+const activeGroup = (path: string) => NAV_GROUPS.find((g) => g.title && g.items.some((n) => isActive(n, path)))?.title;
+
+/** Birinchi marta hammasi yopiq; joriy sahifa guruhi esa sahifaga kirilganda o'zi ochiladi. */
+function useNavOpen(path: string): [Record<string, boolean>, (title: string) => void] {
+  const [open, setOpen] = useState<Record<string, boolean>>(() => {
+    let saved: Record<string, boolean> = {};
+    try {
+      const raw: unknown = JSON.parse(window.localStorage.getItem(NAV_KEY) ?? "null");
+      if (raw && typeof raw === "object") saved = Object.fromEntries(Object.entries(raw).filter(([, v]) => typeof v === "boolean"));
+    } catch {
+      // saqlangan tanlov o'qilmadi — hammasi yopiq
+    }
+    const a = activeGroup(path);
+    return a ? { ...saved, [a]: true } : saved;
+  });
+  useEffect(() => {
+    const a = activeGroup(path);
+    if (a) setOpen((o) => (o[a] ? o : { ...o, [a]: true }));
+  }, [path]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(NAV_KEY, JSON.stringify(open));
+    } catch {
+      // tanlov faqat shu sessiyada saqlanadi
+    }
+  }, [open]);
+  return [open, (title) => setOpen((o) => ({ ...o, [title]: !o[title] }))];
+}
+
 // ---------- Mavzu (yorug' / qorong'i; tanlanmaguncha — qurilma sozlamasi) ----------
 
 type Theme = "system" | "light" | "dark";
@@ -258,6 +291,7 @@ export function App() {
   const path = usePath();
   const { state, me, run, today, now, toast, saveError, session } = useErp();
   const [theme, setTheme] = useTheme();
+  const [navOpen, toggleNav] = useNavOpen(path);
   useAutoSync();
   const [more, setMore] = useState(false);
   const [account, setAccount] = useState(false);
@@ -292,33 +326,49 @@ export function App() {
   const navList = (compact = false) => (
     <nav className="flex flex-col gap-4">
       {NAV_GROUPS.map((g, gi) => {
-        const all = g.items.filter(visible);
-        // Yig'iladigan guruh: bo'limga kirilmaganda faqat birinchi band ko'rinadi.
-        const items = g.collapsible && !compact && !path.startsWith(g.collapsible) ? all.slice(0, 1) : all;
+        const items = g.items.filter(visible);
         if (!items.length) return null;
+        // Telefondagi «Boshqa» menyusida hammasi ochiq; kompyuterda sarlavhadagi ▾ bilan yig'iladi.
+        const isOpen = compact || !g.title || Boolean(navOpen[g.title]);
+        const label = "px-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-label3";
         return (
           <div key={gi}>
-            {g.title && <div className="mb-1 px-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-label3">{g.title}</div>}
-            <div className="flex flex-col gap-0.5">
-              {items.map((n) => {
-                const active = isActive(n, path);
-                return (
-                  <A
-                    key={n.path}
-                    href={n.path}
-                    className={`group flex items-center gap-3 rounded-[12px] px-2.5 ${compact ? "py-2" : "py-[7px]"} text-[15px] font-medium transition duration-200 ${
-                      active ? "bg-accent/12 text-accent" : "text-label hover:bg-fill"
-                    }`}
-                  >
-                    <IconChip name={n.icon} color={n.color} size={28} />
-                    <span className="flex-1 truncate">{n.label}</span>
-                    {g.collapsible && items.length === 1 && all.length > 1 && <Icon name="chevronRight" size={14} className="text-label3" />}
-                    {n.module === "notifications" && unread > 0 && (
-                      <span className="min-w-[22px] rounded-full bg-red px-1.5 text-center text-[12px] font-bold leading-[20px] text-white">{unread}</span>
-                    )}
-                  </A>
-                );
-              })}
+            {g.title &&
+              (compact ? (
+                <div className={`mb-1 ${label}`}>{g.title}</div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => toggleNav(g.title!)}
+                  aria-expanded={isOpen}
+                  aria-controls={`nav-group-${gi}`}
+                  className={`mb-1 flex w-full items-center justify-between rounded-[10px] py-1 text-left transition hover:bg-fill ${label}`}
+                >
+                  <span>{g.title}</span>
+                  <Icon name="chevronDown" size={14} className={`transition-transform duration-200 ${isOpen ? "" : "-rotate-90"}`} />
+                </button>
+              ))}
+            <div id={`nav-group-${gi}`} hidden={!isOpen}>
+              <div className="flex flex-col gap-0.5">
+                {items.map((n) => {
+                  const active = isActive(n, path);
+                  return (
+                    <A
+                      key={n.path}
+                      href={n.path}
+                      className={`group flex items-center gap-3 rounded-[12px] px-2.5 ${compact ? "py-2" : "py-[7px]"} text-[15px] font-medium transition duration-200 ${
+                        active ? "bg-accent/12 text-accent" : "text-label hover:bg-fill"
+                      }`}
+                    >
+                      <IconChip name={n.icon} color={n.color} size={28} />
+                      <span className="flex-1 truncate">{n.label}</span>
+                      {n.module === "notifications" && unread > 0 && (
+                        <span className="min-w-[22px] rounded-full bg-red px-1.5 text-center text-[12px] font-bold leading-[20px] text-white">{unread}</span>
+                      )}
+                    </A>
+                  );
+                })}
+              </div>
             </div>
           </div>
         );
