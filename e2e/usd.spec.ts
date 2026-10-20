@@ -31,7 +31,7 @@ test("Dollardagi shartnoma: loyiha → faktura $ → bank orqali so'mda to'lov (
   await expect(page.getByText("$1 000").filter({ visible: true }).first()).toBeVisible();
 
   // Moliya: oldindan 50% = $500
-  await page.getByRole("button", { name: "Moliya", exact: true }).click();
+  await page.getByRole("main").getByRole("button", { name: "Moliya", exact: true }).click();
   await expect(page.getByText("$500").filter({ visible: true }).first()).toBeVisible();
   await page.getByRole("button", { name: "To'lov", exact: true }).first().click();
   await expect(d.getByText(/Shartnoma dollarda/)).toBeVisible();
