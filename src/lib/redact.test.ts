@@ -78,3 +78,39 @@ describe("redactFor", () => {
     }
   });
 });
+
+describe("Telegram: chat ID va botga ulanish holati", () => {
+  const s = demoState();
+  for (const u of s.users) u.telegramChatId = `9${u.id.length}${u.id.charCodeAt(2)}1`;
+  const target = s.users.find((u) => u.id === "u_smm1")!;
+  target.telegramStatus = "blocked";
+  target.telegramStatusAt = "2026-10-07T05:00:00.000Z";
+  const seen = (viewerId: string) =>
+    redactFor(
+      s,
+      s.users.find((u) => u.id === viewerId)!,
+      TODAY,
+    ).users.find((u) => u.id === "u_smm1")!;
+
+  it("admin hammasini ko'radi", () => {
+    expect(seen("u_admin").telegramStatus).toBe("blocked");
+    expect(seen("u_admin").telegramChatId).toBe(target.telegramChatId);
+  });
+
+  it("xodimning o'zi o'z holatini ko'radi", () => {
+    expect(seen("u_smm1").telegramStatus).toBe("blocked");
+  });
+
+  it("boshqalar (rahbar ham) holatni ko'rmaydi, chat ID — faqat «ulangan» belgisi", () => {
+    for (const id of ["u_boss", "u_mk", "u_smm2", "u_mol"]) {
+      expect(seen(id).telegramStatus, id).toBeUndefined();
+      expect(seen(id).telegramStatusAt, id).toBeUndefined();
+      expect(seen(id).telegramChatId, id).toBe("•");
+    }
+  });
+
+  it("asl holat o'zgarmaydi", () => {
+    seen("u_boss");
+    expect(target.telegramStatus).toBe("blocked");
+  });
+});

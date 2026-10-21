@@ -15,6 +15,76 @@ import { downloadXlsx } from "../lib/xlsx-download";
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 
+/** Xodim botga ulanganmi: Telegram'dan bilingan holat (chat ID yo'q — ulanmagan; bor-u, holat bilinmagan — noma'lum). */
+function TelegramStatus({ u }: { u: User }) {
+  if (!u.telegramChatId?.trim()) return <Badge tone="gray">Ulanmagan</Badge>;
+  const at = u.telegramStatusAt ? <div className="mt-0.5 text-[11px] text-label3">{fmtDateTime(u.telegramStatusAt)}</div> : null;
+  if (u.telegramStatus === "member")
+    return (
+      <div>
+        <Badge tone="green">● Ulangan</Badge>
+        {at}
+      </div>
+    );
+  if (u.telegramStatus === "blocked")
+    return (
+      <div>
+        <Badge tone="red">● Bloklagan</Badge>
+        {at}
+      </div>
+    );
+  return <Badge tone="amber">Noma'lum</Badge>;
+}
+
+/** Xodimlar botga ulanishi va chiqib ketishini kuzatish (Telegram webhook) hamda hammani bir yo'la tekshirish. */
+function TelegramTracking({
+  tracking,
+  enabled,
+  showToast,
+}: {
+  tracking: { on: boolean; at: string; error?: string } | undefined;
+  enabled: boolean;
+  showToast: (t: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const toggle = (on: boolean) => {
+    setBusy(true);
+    api("/api/integrations/telegram/tracking", { on })
+      .then(() => showToast(on ? "Kuzatish yoqildi" : "Kuzatish o'chirildi"))
+      .catch((e: Error) => showToast(`⚠ ${e.message}`))
+      .finally(() => setBusy(false));
+  };
+  const check = () => {
+    setBusy(true);
+    api<{ chats: number }>("/api/integrations/telegram/check", {})
+      .then((r) => showToast(`${r.chats} ta chat tekshirilmoqda (~${r.chats + 1} soniya) — natija jadvalda ko'rinadi`))
+      .catch((e: Error) => showToast(`⚠ ${e.message}`))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div className="rounded-[14px] bg-fill p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="text-[13px] font-semibold text-label">Xodimlar botga ulanishi</div>
+        <Badge tone={tracking?.on ? "green" : "gray"}>{tracking?.on ? "Kuzatuv yoqilgan" : "Kuzatuv o'chiq"}</Badge>
+      </div>
+      <p className="mt-0.5 text-xs text-label2">
+        Yoqilsa, xodim botga ulanganda yoki uni bloklaganda adminga, rahbarga va marketologga xabar keladi. Holat jadvaldagi «Telegram bot» ustunida ko'rinadi.
+        «Hammasini tekshirish» har bir xodimga bir lahza «yozmoqda…» belgisini ko'rsatadi, xabar yuborilmaydi.
+      </p>
+      {tracking?.error && <p className="mt-1 text-xs text-red">Oxirgi xato: {tracking.error}</p>}
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button onClick={() => toggle(!tracking?.on)} disabled={busy || !enabled}>
+          {tracking?.on ? "Kuzatishni o'chirish" : "Kuzatishni yoqish"}
+        </Button>
+        <Button onClick={check} disabled={busy || !enabled}>
+          Hammasini tekshirish
+        </Button>
+      </div>
+      {!enabled && <p className="mt-1 text-xs text-label3">Avval Telegram bildirishnomalarini yoqing va bot tokenini kiriting.</p>}
+    </div>
+  );
+}
+
 export function Admin() {
   const { state, me, today, now, run, reset, showToast, session } = useErp();
   const [nu, setNu] = useState({ name: "", role: "smm" as Role });
@@ -94,13 +164,14 @@ export function Admin() {
         <Card className="xl:col-span-2">
           <CardHeader title="Foydalanuvchilar" sub="Telegram chat ID — xodim botga /start bosgandan keyin @userinfobot orqali olinadi" />
           <div className="overflow-x-auto">
-            <table className={`w-full ${SERVER_MODE ? "min-w-[920px]" : "min-w-[720px]"} text-sm`}>
+            <table className={`w-full ${SERVER_MODE ? "min-w-[1040px]" : "min-w-[720px]"} text-sm`}>
               <thead className="text-left text-xs text-label2">
                 <tr>
                   <th className="px-4 py-2 font-medium">Ism</th>
                   {SERVER_MODE && <th className="px-4 py-2 font-medium">Kirish</th>}
                   <th className="px-4 py-2 font-medium">Rol</th>
                   <th className="px-4 py-2 font-medium">Telegram chat ID</th>
+                  {SERVER_MODE && <th className="px-4 py-2 font-medium">Telegram bot</th>}
                   <th className="px-4 py-2 font-medium">Holat</th>
                   <th className="px-4 py-2 font-medium">Amal</th>
                 </tr>
@@ -136,6 +207,11 @@ export function Admin() {
                         className="!w-44 !py-1 !text-xs"
                       />
                     </td>
+                    {SERVER_MODE && (
+                      <td className="px-4 py-2">
+                        <TelegramStatus u={u} />
+                      </td>
+                    )}
                     <td className="px-4 py-2">
                       <Badge tone={u.active ? "green" : "gray"}>{u.active ? "Faol" : "Arxivda"}</Badge>
                     </td>
@@ -241,6 +317,7 @@ export function Admin() {
               <Button onClick={sendDigest}>Bugungi eslatmalarni yuborish</Button>
               <Button onClick={sendExcel}>{SERVER_MODE ? "Excel'ni hozir yuborish" : "Butun ma'lumot Excel'da"}</Button>
             </div>
+            {SERVER_MODE && <TelegramTracking tracking={tg.tracking} enabled={tg.enabled && Boolean(tg.botToken)} showToast={showToast} />}
             <p className="text-xs text-label3">
               Eslatmalar: deadline, kechikkan ishlar, ertangi syomka, qarzlar, to'lov muddati, qayta aloqa.{" "}
               {SERVER_MODE

@@ -130,6 +130,9 @@ const RULES: { [N in ActionName]: Rule<N> } = {
   intakeLead: () => false,
   markLeadsPoll: () => false,
   setAvatarStamp: () => false,
+  // Telegram'dan kelgan ulanish holati — faqat server
+  setTelegramStatus: () => false,
+  markTelegramTracking: () => false,
   switchUser: () => false,
   setChatIdForAll: () => false,
   // Xodimlar va tizim sozlamalari — faqat admin

@@ -8,7 +8,8 @@ import { hashPassword, makeSealer } from "../src/crypto";
 import { createPool, migrate, type Db } from "../src/db";
 import { createIntegrations } from "../src/integrations";
 import { createLeadsService, type LeadsGraph, type LeadsService } from "../src/leads";
-import { createNotifier } from "../src/notifier";
+import { createNotifier, type TelegramControl } from "../src/notifier";
+import type { Probe } from "../../src/lib/telegram";
 import type { GraphLead } from "../../src/lib/leads-intake";
 import { StateStore } from "../src/store";
 
@@ -25,6 +26,10 @@ export interface Ctx {
   graph: { byId: Record<string, GraphLead>; forms: Record<string, GraphLead[]>; fail?: string; calls: string[] };
   leads: LeadsService;
   docs: { chatId: string; filename: string; bytes: Uint8Array; caption: string }[];
+  /** Soxta Telegram boshqaruvi: `probes` — chat bo'yicha tekshiruv natijasi, `webhookError` — webhook ulashdagi xato, `calls` — chaqiruvlar. */
+  tg: { probes: Record<string, Probe>; webhookError?: string; calls: string[] };
+  /** Fonda ketayotgan Telegram xabarlari va tekshiruvlar tugashini kutadi. */
+  idle: () => Promise<void>;
   close: () => Promise<void>;
 }
 
@@ -42,6 +47,18 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
   await store.create(demoState());
   const sent: Ctx["sent"] = [];
   const docs: Ctx["docs"] = [];
+  const tg: Ctx["tg"] = { probes: {}, calls: [] };
+  const control: TelegramControl = {
+    probe: async (_t, chatId) => tg.probes[chatId] ?? "unknown",
+    setWebhook: async (_t, url, secret) => {
+      tg.calls.push(`set:${url}:${secret}`);
+      return tg.webhookError ? { ok: false, error: tg.webhookError } : { ok: true };
+    },
+    deleteWebhook: async () => {
+      tg.calls.push("delete");
+      return tg.webhookError ? { ok: false, error: tg.webhookError } : { ok: true };
+    },
+  };
   const notifier = createNotifier(
     store,
     async (_t, chatId, text) => {
@@ -52,6 +69,7 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
       docs.push({ chatId, filename, bytes, caption });
       return true;
     },
+    control,
   );
   const graph: Ctx["graph"] = { byId: {}, forms: {}, calls: [] };
   const fakeGraph: LeadsGraph = {
@@ -99,6 +117,8 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
     store,
     sent,
     docs,
+    tg,
+    idle: () => notifier.idle(),
     graph,
     leads,
     close: async () => {

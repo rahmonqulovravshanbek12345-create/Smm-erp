@@ -1,5 +1,5 @@
 // HTTP server: kirish, holat, amallar, integratsiyalar va admin. Har bir so'rov: sessiya → huquq → argumentlar → amal.
-import { createHash } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import cookie from "@fastify/cookie";
@@ -13,6 +13,7 @@ import { BRAND } from "../../src/lib/brand";
 import { canEdit } from "../../src/lib/permissions";
 import { redactFor, withoutSecrets } from "../../src/lib/redact";
 import { ACTIONS, type ActionName } from "../../src/lib/registry";
+import { parseTelegramUpdate } from "../../src/lib/telegram";
 import type { ErpState, User } from "../../src/lib/types";
 import {
   LOGIN_RE,
@@ -48,6 +49,7 @@ import { parseArgs } from "./schemas";
 import { QuotaError, UserError, type StateStore } from "./store";
 
 const META_WEBHOOK = "/api/webhooks/meta-leads";
+const TG_WEBHOOK = "/api/webhooks/telegram";
 
 export interface Deps {
   cfg: Config;
@@ -148,8 +150,9 @@ export async function buildApp(d: Deps) {
   // Boshqa saytdan buyruq yuborishning oldini olish (CSRF): o'zgartiruvchi so'rov faqat shu saytdan va maxsus sarlavha bilan
   app.addHook("onRequest", async (req, reply) => {
     if (req.method === "GET" || req.method === "HEAD") return;
-    // Meta webhook: brauzer emas — so'rov imzo (HMAC) bilan tekshiriladi
-    if (req.url.split("?")[0] === META_WEBHOOK) return;
+    // Meta va Telegram webhook: brauzer emas — so'rov imzo / maxfiy so'z bilan tekshiriladi
+    const p = req.url.split("?")[0];
+    if (p === META_WEBHOOK || p === TG_WEBHOOK) return;
     const origin = req.headers.origin;
     if (req.headers["x-erp"] !== "1" || (origin !== undefined && origin !== cfg.APP_ORIGIN)) {
       return httpError(reply, 403, "So'rov rad etildi");
@@ -528,6 +531,42 @@ export async function buildApp(d: Deps) {
     if (!a) return;
     if (a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
     return { ok: true, sent: d.notifier.digest() };
+  });
+
+  // ---------- Telegram: xodimlar botga ulanganmi ----------
+
+  // Webhook maxfiy so'zi serverning maxfiy kalitidan olinadi — saqlash shart emas, server qayta ishga tushsa ham o'zgarmaydi
+  const tgSecret = createHmac("sha256", Buffer.from(cfg.SECRET_KEY, "base64")).update("telegram-webhook").digest("hex");
+  const tgSecretOk = (v: unknown) => typeof v === "string" && v.length === tgSecret.length && timingSafeEqual(Buffer.from(v), Buffer.from(tgSecret));
+
+  app.post(TG_WEBHOOK, rl(300, "1 minute"), async (req, reply) => {
+    if (!tgSecretOk(req.headers["x-telegram-bot-api-secret-token"])) return httpError(reply, 403, "So'rov rad etildi");
+    const ev = parseTelegramUpdate(req.body);
+    if (ev && (await ensureReady())) {
+      // Xato bo'lsa ham Telegram'ga «qabul qilindi» deymiz — aks holda u bir xil yangilanishni qayta-qayta yuboradi
+      await d.notifier.recordStatus(ev.chatId, ev.status, "event").catch((err: unknown) => req.log.error({ err }, "Telegram holati yozilmadi"));
+    }
+    return { ok: true };
+  });
+
+  app.post("/api/integrations/telegram/tracking", rl(5, "1 minute"), async (req, reply) => {
+    const a = await authenticate(req, reply);
+    if (!a) return;
+    if (a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
+    const body = z.strictObject({ on: z.boolean() }).safeParse(req.body);
+    if (!body.success) return httpError(reply, 400, "So'rov noto'g'ri");
+    const r = await d.notifier.setTracking(body.data.on, new URL(TG_WEBHOOK, cfg.APP_ORIGIN).toString(), tgSecret);
+    if (!r.ok) return httpError(reply, 502, `Telegram: ${r.error}`);
+    return { ok: true };
+  });
+
+  app.post("/api/integrations/telegram/check", rl(3, "1 minute"), async (req, reply) => {
+    const a = await authenticate(req, reply);
+    if (!a) return;
+    if (a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
+    const chats = d.notifier.probeAll();
+    if (!chats) return httpError(reply, 400, "Telegram o'chiq yoki chat ID kiritilgan xodim yo'q");
+    return { ok: true, chats };
   });
 
   app.post("/api/integrations/telegram/excel", rl(3, "1 minute"), async (req, reply) => {

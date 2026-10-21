@@ -4,6 +4,7 @@ process.env.TZ ||= "Asia/Tashkent";
 
 import { newId } from "../../src/lib/ctx";
 import { todayISO } from "../../src/lib/dates";
+import { observeDelivery } from "../../src/lib/telegram";
 import { buildBlank } from "../../src/lib/blank";
 import { buildApp } from "./app";
 import { clearFailures, credentialByLogin, LOGIN_RE, normLogin, revokeUser } from "./auth";
@@ -36,6 +37,10 @@ async function main() {
   switch (cmd) {
     case "serve": {
       const notifier = createNotifier(store);
+      // Har bir yuborish natijasi: xabar yetib borsa — ulangan, «bot bloklangan» desa — bloklagan
+      observeDelivery((chatId, r) => {
+        notifier.recordStatus(chatId, r === "ok" ? "member" : "blocked", "send").catch((e: unknown) => console.error("Telegram holati yozilmadi", e));
+      });
       const integrations = createIntegrations(store);
       const leads = createLeadsService(store, undefined, (m, e) => console.error(m, e instanceof Error ? e.message : e));
       const app = await buildApp({ cfg, db, store, sealer, notifier, integrations, leads });
