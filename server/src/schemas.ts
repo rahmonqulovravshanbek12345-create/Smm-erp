@@ -240,7 +240,7 @@ export const ARGS: Schemas = {
       script: long.optional(),
       footageLink: link.optional(),
       files: link.optional(),
-      designType: z.enum(["post", "cover"]).optional(),
+      designType: z.string().max(64).optional(),
       deadline: dateOrEmpty,
       deadlineTime: time.optional(),
     }),
@@ -249,6 +249,23 @@ export const ARGS: Schemas = {
   submitTask: z.tuple([id, link]),
   acceptTask: z.tuple([id]),
   returnTask: z.tuple([id, text]),
+  updateTask: z.tuple([
+    id,
+    z.strictObject({
+      assigneeId: z.string().max(64).optional(),
+      // Bo'sh qator — postdan uzish
+      postId: z.string().max(64).optional(),
+      title: short.optional(),
+      brief: long.optional(),
+      script: long.optional(),
+      footageLink: link.optional(),
+      files: link.optional(),
+      designType: z.string().max(64).optional(),
+      deadline: dateOrEmpty.optional(),
+      deadlineTime: time.optional(),
+    }),
+  ]),
+  cancelTask: z.tuple([id]),
   launchTarget: z.tuple([id, date]),
   saveTargetReport: z.tuple([metaRow]),
 

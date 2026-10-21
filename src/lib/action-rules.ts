@@ -35,6 +35,8 @@ const reviewer = (me: User, s: ErpState, taskId: unknown) => {
   if (!t) return false;
   return is("admin", "rahbar", "marketolog")(me) || (me.role === "smm" && project(s, t.projectId)?.smmId === me.id);
 };
+/** TZ'ni o'zgartirish/bekor qilish: uni bergan odam yoki tekshiruvchi (loyiha SMM'i, marketolog, rahbar, admin). */
+const taskManager = (me: User, s: ErpState, taskId: unknown) => reviewer(me, s, taskId) || taskOf(s, taskId)?.createdBy === me.id;
 const assignee = (me: User, s: ErpState, taskId: unknown) => {
   const t = taskOf(s, taskId);
   return Boolean(t) && (t!.assigneeId === me.id || me.role === "admin");
@@ -88,6 +90,8 @@ const RULES: { [N in ActionName]: Rule<N> } = {
   submitTask: (me, s, [id]) => assignee(me, s, id),
   acceptTask: (me, s, [id]) => reviewer(me, s, id),
   returnTask: (me, s, [id]) => reviewer(me, s, id),
+  updateTask: (me, s, [id]) => taskManager(me, s, id),
+  cancelTask: (me, s, [id]) => taskManager(me, s, id),
   launchTarget: (me, s, [id]) => {
     const t = taskOf(s, id);
     return Boolean(t) && (me.role === "admin" || (me.role === "targetolog" && t!.assigneeId === me.id));

@@ -1,6 +1,6 @@
 // Biznes amallari. Har biri Ctx oladi: holatni o'zgartiradi, bildirishnoma yuboradi va tarixga yozadi.
 import { addDays, diffDays, fmtDate, fmtDateShort, fmtDeadline, fmtMonth, fmtMoney, fmtNum, fmtUsd, nowISO } from "./dates";
-import { contentTypes, findQuota, isAdType, quotaText, typeName } from "./content";
+import { contentTypes, designTypeLabel, findQuota, isAdType, isDesignType, quotaText, typeName } from "./content";
 import type { MetaResult } from "./integrations";
 import {
   ART,
@@ -1090,6 +1090,7 @@ export function createTask(c: Ctx, data: Omit<Task, "id" | "createdAt" | "create
   if (!who?.active) throw new Error("Ijrochini tanlang (faol xodim)");
   if (data.postId && c.s.posts.find((x) => x.id === data.postId)?.projectId !== data.projectId) throw new Error("Post bu loyihaga tegishli emas");
   if (data.shootId && c.s.shoots.find((x) => x.id === data.shootId)?.projectId !== data.projectId) throw new Error("Syomka bu loyihaga tegishli emas");
+  if (data.kind === "dizayn" && data.designType && !isDesignType(c.s, data.designType)) throw new Error("Dizayn turini tanlang");
   const t: Task = { ...data, id: newId("task"), status: "new", createdBy: c.me.id, createdAt: nowISO() };
   // Syomka allaqachon topshirilgan bo'lsa, montajyor kadrlar havolasini darhol oladi
   if (t.kind === "montaj" && !t.footageLink && t.postId) {
@@ -1173,6 +1174,77 @@ export function returnTask(c: Ctx, id: string, note: string) {
   t.returnNote = note.trim();
   c.notify([t.assigneeId], `Qaytarildi: ${t.title} — ${note.trim()}`, taskHref(t));
   c.log(`${t.title}: qaytarildi`, taskHref(t));
+}
+
+/** TZ'ni o'zgartirish uchun maydonlar (loyiha va vazifa turi o'zgarmaydi). */
+export type TaskPatch = Partial<
+  Pick<Task, "assigneeId" | "postId" | "title" | "brief" | "script" | "footageLink" | "files" | "designType" | "deadline" | "deadlineTime">
+>;
+
+/**
+ * Berilgan TZ'ni o'zgartirish (qabul qilinguncha). Ijrochiga nima o'zgargani yoziladi;
+ * ijrochi almashtirilsa — yangisiga «Yangi TZ», eskisiga «sizdan olindi» xabari, vazifa boshidan boshlanadi.
+ */
+export function updateTask(c: Ctx, id: string, patch: TaskPatch) {
+  const t = c.s.tasks.find((x) => x.id === id);
+  if (!t) throw new Error("Vazifa topilmadi");
+  if (t.status === "accepted") throw new Error("Qabul qilingan vazifani o'zgartirib bo'lmaydi (ish haqi hisoblangan)");
+  assertWorkAllowed(c, t.projectId);
+  const next = { ...t, ...patch };
+  next.title = (next.title ?? "").trim();
+  next.brief = (next.brief ?? "").trim();
+  if (!next.title) throw new Error("Vazifa nomini yozing");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(next.deadline)) throw new Error("Deadline sanasini tanlang");
+  const who = c.s.users.find((u) => u.id === next.assigneeId);
+  if (!who?.active) throw new Error("Ijrochini tanlang (faol xodim)");
+  // Post faqat o'zgartirilganda tekshiriladi (eski bog'lanish vazifani tahrirlashga xalaqit bermasin)
+  if (next.postId && next.postId !== t.postId && c.s.posts.find((x) => x.id === next.postId)?.projectId !== t.projectId)
+    throw new Error("Post bu loyihaga tegishli emas");
+  if (t.kind === "dizayn" && next.designType && next.designType !== t.designType && !isDesignType(c.s, next.designType))
+    throw new Error("Dizayn turini tanlang");
+  if (t.kind !== "dizayn") next.designType = undefined;
+
+  const changes: string[] = [];
+  if (next.title !== t.title) changes.push(`nomi: «${next.title}»`);
+  if (next.deadline !== t.deadline || (next.deadlineTime || "") !== (t.deadlineTime || "")) changes.push(`deadline: ${fmtDeadline(next)}`);
+  if (t.kind === "dizayn" && (next.designType || "post") !== (t.designType || "post")) changes.push(`turi: ${designTypeLabel(c.s, next.designType)}`);
+  if (next.brief !== t.brief) changes.push("TZ matni");
+  if ((next.script || "") !== (t.script || "")) changes.push("ssenariy");
+  if ((next.files || "") !== (t.files || "") || (next.footageLink || "") !== (t.footageLink || "")) changes.push("fayllar");
+  if ((next.postId || "") !== (t.postId || "")) changes.push("bog'langan post");
+  const reassigned = next.assigneeId !== t.assigneeId;
+  if (!changes.length && !reassigned) return;
+
+  const oldAssignee = t.assigneeId;
+  Object.assign(t, next);
+  for (const k of ["postId", "script", "footageLink", "files", "designType", "deadlineTime"] as const) if (!t[k]) delete t[k];
+  const post = c.s.posts.find((x) => x.id === t.postId);
+  if (t.kind === "montaj") advance(post, "editing");
+  if (t.kind === "dizayn") advance(post, "design");
+  const href = taskHref(t);
+  const kind = TASK_KIND_LABELS[t.kind];
+  if (reassigned) {
+    // Yangi ijrochi ishni boshidan boshlaydi — oldingi natija va izoh unga tegishli emas
+    t.status = "new";
+    delete t.resultLink;
+    delete t.submittedAt;
+    delete t.returnNote;
+    c.notify([t.assigneeId], `Yangi TZ (${kind}): ${t.title} — deadline ${fmtDeadline(t)}`, href);
+    c.notify([oldAssignee], `Vazifa sizdan olindi: ${t.title} (endi — ${who.name})`, href);
+  } else {
+    c.notify([t.assigneeId], `✏️ TZ o'zgartirildi: ${t.title} — ${changes.join(", ")}`, href);
+  }
+  c.log(`${kind} TZ o'zgartirildi: ${t.title}${reassigned ? ` → ${who.name}` : ""}${changes.length ? ` (${changes.join(", ")})` : ""}`, href);
+}
+
+/** Hali boshlanmagan TZ'ni bekor qilish (xato berilgan bo'lsa). Ijrochiga xabar boradi. */
+export function cancelTask(c: Ctx, id: string) {
+  const t = c.s.tasks.find((x) => x.id === id);
+  if (!t) throw new Error("Vazifa topilmadi");
+  if (t.status !== "new" || t.launchedAt) throw new Error("Faqat hali boshlanmagan vazifani bekor qilish mumkin");
+  c.s.tasks = c.s.tasks.filter((x) => x.id !== id);
+  c.notify([t.assigneeId], `❌ Vazifa bekor qilindi: ${t.title}`, taskHref(t));
+  c.log(`${TASK_KIND_LABELS[t.kind]} TZ bekor qilindi: ${t.title} (${projectName(c, t.projectId)})`, taskHref(t));
 }
 
 /** Targetolog reklamani yoqdi. Loyihadagi birinchi reklama sanasi hisob davrining boshi bo'ladi. */

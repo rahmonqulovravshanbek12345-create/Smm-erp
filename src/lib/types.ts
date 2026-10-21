@@ -317,7 +317,8 @@ export interface Task {
   script?: string;
   footageLink?: string;
   files?: string;
-  designType?: "post" | "cover";
+  /** Dizayn turi: «post», «cover» (oblojka) yoki rasm formatidagi kontent turi ID'si (Stories, Karusel…). */
+  designType?: string;
   deadline: string;
   /** Deadline soati («18:00»); yo'q bo'lsa — kun oxirigacha. */
   deadlineTime?: string;
