@@ -7,7 +7,7 @@ import type { MetaResult } from "./integrations";
 import { ROLE_LABELS } from "./labels";
 import { isMasked } from "./redact";
 import { phoneKey, normalizePhone, type IntakeLead } from "./leads-intake";
-import type { Account, Integrations, Lead, Requisites, Role, Vendor } from "./types";
+import type { Account, Integrations, Lead, Requisites, Role, User, Vendor } from "./types";
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 const findUser = (c: Ctx, id: string) => {
@@ -58,19 +58,66 @@ export function setAvatarStamp(c: Ctx, userId: string, at?: string) {
   findUser(c, userId).avatarAt = at;
 }
 
+/** Chat ID o'zgarsa, eski botga ulanish holati endi to'g'ri emas — noma'lum bo'ladi. */
+function putChatId(u: User, v: string | undefined) {
+  if ((u.telegramChatId?.trim() || undefined) === v) return;
+  u.telegramChatId = v;
+  delete u.telegramStatus;
+  delete u.telegramStatusAt;
+}
+
 export function setUserChatId(c: Ctx, userId: string, chatId: string) {
   const u = findUser(c, userId);
   const v = chatId.trim();
   if (v && !/^-?\d{3,20}$/.test(v)) throw new Error("Chat ID raqamlardan iborat bo'ladi (guruhda -100… bilan boshlanadi)");
-  u.telegramChatId = v || undefined;
+  putChatId(u, v || undefined);
 }
 
 /** Demo: barcha xodimlarga bitta chat ID (hamma xabar bitta Telegram'ga). */
 export function setChatIdForAll(c: Ctx, chatId: string) {
   const v = chatId.trim();
   if (!v) throw new Error("Chat ID kiriting");
-  for (const u of c.s.users) u.telegramChatId = v;
+  for (const u of c.s.users) putChatId(u, v);
   c.log("Barcha xodimlarga bitta Telegram chat ID qo'yildi (demo)", "/admin");
+}
+
+/** Bot ulanishi/chiqib ketishi haqida xabar oladiganlar. */
+const TG_WATCHERS: Role[] = ["admin", "rahbar", "marketolog"];
+
+/**
+ * Telegram'dan bilingan holat: xodim botga ulandi yoki botni bloklab qo'ydi (faqat server chaqiradi).
+ * `event` — Telegram'ning o'zi xabar berdi; `send` — xabar yuborish natijasi; `probe` — admin «tekshirish» tugmasi.
+ * Tekshiruv natijasi va xabar yuborilgani sababli birinchi marta «ulangan» deb bilinishi — jim (yangilik emas).
+ * Qaytaradi: nechta xodimning holati o'zgardi.
+ */
+export function setTelegramStatus(c: Ctx, chatId: string, status: "member" | "blocked", source: "event" | "send" | "probe"): number {
+  const at = nowISO();
+  const changed: User[] = [];
+  const loud: User[] = [];
+  for (const u of c.s.users) {
+    if (u.telegramChatId?.trim() !== chatId || u.telegramStatus === status) continue;
+    const before = u.telegramStatus;
+    u.telegramStatus = status;
+    u.telegramStatusAt = at;
+    changed.push(u);
+    const quiet = source === "probe" || (source === "send" && before === undefined && status === "member");
+    if (u.active && !quiet) loud.push(u);
+  }
+  if (loud.length) {
+    const names = loud.map((u) => `${u.name} (${ROLE_LABELS[u.role]})`).join(", ");
+    const text =
+      status === "member"
+        ? `✅ ${names}: Telegram botga ulandi — endi xabarlar boradi`
+        : `📵 ${names}: Telegram botni to'xtatdi (blokladi) — unga xabar bormaydi`;
+    const to = c.s.users.filter((u) => u.active && TG_WATCHERS.includes(u.role) && !loud.includes(u)).map((u) => u.id);
+    c.notify(to, text, "/admin", { self: true });
+  }
+  return changed.length;
+}
+
+/** Ulanishni kuzatish (Telegram webhook) yoqildi/o'chirildi yoki xato bilan tugadi (faqat server chaqiradi). */
+export function markTelegramTracking(c: Ctx, on: boolean, error?: string) {
+  c.s.settings.telegram.tracking = { on, at: nowISO(), ...(error ? { error: error.slice(0, 300) } : {}) };
 }
 
 /** Demo: boshqa xodim sifatida ko'rish. */
@@ -91,6 +138,14 @@ export function setTelegramToken(c: Ctx, token: string) {
   if (isMasked(token)) return;
   const v = token.trim();
   if (v && !/^\d{5,15}:[A-Za-z0-9_-]{20,}$/.test(v)) throw new Error("Bot tokeni noto'g'ri ko'rinadi (masalan 123456:ABC-DEF…)");
+  // Boshqa bot: eski botdagi ulanish holatlari va kuzatuv endi tegishli emas
+  if (v !== c.s.settings.telegram.botToken) {
+    delete c.s.settings.telegram.tracking;
+    for (const u of c.s.users) {
+      delete u.telegramStatus;
+      delete u.telegramStatusAt;
+    }
+  }
   c.s.settings.telegram.botToken = v;
   c.log(v ? "Telegram bot tokeni saqlandi" : "Telegram bot tokeni o'chirildi", "/admin");
 }

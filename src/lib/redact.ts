@@ -36,8 +36,14 @@ export function redactFor(full: ErpState, me: User, today: string = todayISO()):
   const out: ErpState = {
     ...base,
     currentUserId: me.id,
-    // Chat ID faqat admin uchun; boshqalarga faqat «ulangan» belgisi
-    users: base.users.map((u) => (admin || u.id === me.id || !u.telegramChatId ? u : { ...u, telegramChatId: "•" })),
+    // Chat ID va botga ulanish holati faqat admin (va xodimning o'zi) uchun; boshqalarga faqat «ulangan» belgisi
+    users: base.users.map((u) => {
+      if (admin || u.id === me.id) return u;
+      const v = { ...u };
+      delete v.telegramStatus;
+      delete v.telegramStatusAt;
+      return v.telegramChatId ? { ...v, telegramChatId: "•" } : v;
+    }),
     notifications: base.notifications.filter((n) => n.userId === me.id),
   };
   if (seesEverything(me)) return out;

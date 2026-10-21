@@ -11,8 +11,8 @@ export interface Ctx {
   today: string;
   /** Hozirgi vaqt «HH:MM» (deadline soati uchun); testlarda berilmasligi mumkin. */
   now?: string;
-  /** Tizim ichida bildirishnoma + (sozlangan bo'lsa) Telegram xabar. */
-  notify: (userIds: (string | undefined)[], text: string, href?: string) => void;
+  /** Tizim ichida bildirishnoma + (sozlangan bo'lsa) Telegram xabar. `self` — amalni bajaruvchiga ham (tizim amallari uchun). */
+  notify: (userIds: (string | undefined)[], text: string, href?: string, o?: { self?: boolean }) => void;
   /** Faoliyat tarixi: kim, qachon, nimani o'zgartirdi. */
   log: (text: string, href?: string) => void;
 }
@@ -91,8 +91,8 @@ export function makeCtx(s: ErpState, me: User, o: MakeCtxOptions = {}): { ctx: C
     me,
     today: o.today ?? todayISO(),
     now: o.now ?? nowHM(),
-    notify(userIds, text, href) {
-      const uniq = new Set(userIds.filter((x): x is string => Boolean(x) && x !== me.id));
+    notify(userIds, text, href, opt) {
+      const uniq = new Set(userIds.filter((x): x is string => Boolean(x) && (opt?.self || x !== me.id)));
       for (const uid of uniq) {
         const to = s.users.find((u) => u.id === uid);
         // Arxivdagi xodimga bildirishnoma va Telegram yuborilmaydi

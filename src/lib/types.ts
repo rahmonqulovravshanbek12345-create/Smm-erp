@@ -10,6 +10,10 @@ export interface User {
   phone?: string;
   /** Telegram bot xabar yuboradigan chat ID. */
   telegramChatId?: string;
+  /** Botga ulanganmi yoki botni bloklaganmi (server Telegram'dan bilib oladi; bo'lmasa — noma'lum). */
+  telegramStatus?: "member" | "blocked";
+  /** Holat oxirgi marta o'zgargan vaqt. */
+  telegramStatusAt?: string;
   active: boolean;
   /** Ishga qabul qilingan sana (fiks oylik shu oydan, kunlarga bo'lib). */
   hiredAt?: string;
@@ -559,6 +563,8 @@ export interface Settings {
     enabled: boolean;
     /** Bot tokeni faqat shu brauzerda saqlanadi; bo'sh bo'lsa xabarlar demo rejimda ko'rsatiladi. */
     botToken: string;
+    /** Xodimlar botga ulanishi/chiqib ketishini kuzatish (Telegram webhook) — oxirgi yoqish/o'chirish natijasi. */
+    tracking?: { on: boolean; at: string; error?: string };
   };
   integrations: Integrations;
 }
