@@ -5,8 +5,8 @@
 set -euo pipefail
 
 REPO=rahmonqulovravshanbek12345-create/Smm-erp
-NODE_VER=22.23.3
-NODE_SHA256=df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de
+NODE_VER=22.23.4
+NODE_SHA256=1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce
 APP=/opt/smm-erp
 ENVF=/etc/smm-erp/env
 
