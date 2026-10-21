@@ -29,6 +29,27 @@ export function contentTypes(s: ErpState): ContentType[] {
   return missing.length ? [...saved, ...missing] : saved;
 }
 
+/**
+ * Dizaynerga TZ «Turi» ro'yxati: oddiy post, agentlik qo'shgan rasm turlari (Stories, Karusel…) va oblojka.
+ * Ish haqida oblojka o'z stavkasida, qolganlari «Post dizayni» stavkasida hisoblanadi.
+ * `keep` — tahrirlashda tanlangan tur o'chirilgan bo'lsa ham ro'yxatda qolsin.
+ */
+export function designOptions(s: ErpState, keep?: string): { value: string; label: string }[] {
+  const extra = contentTypes(s).filter((t) => t.format === "image" && t.id !== "ct_design" && (t.active || t.id === keep));
+  return [{ value: "post", label: "Post dizayni" }, ...extra.map((t) => ({ value: t.id, label: t.name })), { value: "cover", label: "Oblojka" }];
+}
+
+/** Dizayn vazifasi turi nomi (kartada va tasdiqlashda). */
+export function designTypeLabel(s: ErpState, designType?: string): string {
+  if (designType === "cover") return "Oblojka";
+  if (!designType || designType === "post") return "Post dizayni";
+  const t = contentTypes(s).find((x) => x.id === designType);
+  return t ? t.name : "Post dizayni";
+}
+
+/** Tur dizayn TZ uchun yaroqlimi (post, oblojka yoki rasm formatidagi kontent turi). */
+export const isDesignType = (s: ErpState, v: string) => v === "post" || v === "cover" || contentTypes(s).some((t) => t.id === v && t.format === "image");
+
 /** Loyiha uchun kerakli turlar: target video faqat reklama xizmati bor mijozda. */
 export const typesFor = (s: ErpState, p?: Project) => contentTypes(s).filter((t) => !t.forAds || !p || hasAds(p));
 

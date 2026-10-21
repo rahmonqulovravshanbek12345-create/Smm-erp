@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Badge, Button, Card, Empty, Input, LinkOut, PageHeader } from "../components/ui";
+import { designTypeLabel } from "../lib/content";
 import { fmtDate, relDays } from "../lib/dates";
 import { FORMAT_LABELS, TASK_KIND_LABELS, platformsText } from "../lib/labels";
 import { useErp, useLookup } from "../lib/store";
@@ -43,7 +44,7 @@ export function Approvals() {
                     <div key={t.id}>
                       <span className="text-label2">
                         {TASK_KIND_LABELS[t.kind]}
-                        {t.designType === "cover" ? " (oblojka)" : ""}:
+                        {t.designType && t.designType !== "post" ? ` (${designTypeLabel(state, t.designType).toLowerCase()})` : ""}:
                       </span>{" "}
                       <LinkOut href={t.resultLink}>{t.title}</LinkOut>
                     </div>

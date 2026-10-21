@@ -45,6 +45,8 @@ export const ACTIONS = {
   submitTask: act.submitTask,
   acceptTask: act.acceptTask,
   returnTask: act.returnTask,
+  updateTask: act.updateTask,
+  cancelTask: act.cancelTask,
   launchTarget: act.launchTarget,
   saveTargetReport: act.saveTargetReport,
   // Moliya

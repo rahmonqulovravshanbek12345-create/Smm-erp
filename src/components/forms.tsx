@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { addDays, fmtDate, fmtDeadline } from "../lib/dates";
-import { isAdType, typesFor } from "../lib/content";
+import { designOptions, isAdType, typesFor } from "../lib/content";
 import { PLATFORMS, PLATFORM_LABELS, PLATFORM_SHORT, POST_STATUSES, TASK_KIND_LABELS, postStatusMeta } from "../lib/labels";
 import { hasAds, hasContent } from "../lib/services";
 import { access, canEdit } from "../lib/permissions";
 import { isPostLate, workBlockedReason } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
-import type { Platform, Post, PostStatus, TaskKind } from "../lib/types";
+import type { Platform, Post, PostStatus, Task, TaskKind } from "../lib/types";
 import { PLATFORM_BG, PostBadge, TaskBadge } from "./bits";
 import { PostJourney } from "./ProjectJourney";
 import { Banner, Button, Field, Input, LinkOut, Modal, Select, Textarea, userOptions } from "./ui";
@@ -398,14 +398,36 @@ export function PostModal({ postId, newFor, onClose }: { postId?: string; newFor
 
 const KIND_ROLE = { montaj: "montajyor", dizayn: "dizayner", target: "targetolog" } as const;
 
-export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; projectId?: string; post?: Post; onClose: () => void }) {
+/** Dizayn TZ uchun boshlang'ich tur: postning o'z turi (Stories, Karusel…), video bo'lsa — oblojka. */
+function defaultDesignType(post?: Post): string {
+  if (post?.format === "video") return "cover";
+  if (post?.typeId && post.typeId !== "ct_design" && post.typeId.startsWith("ct_")) return post.typeId;
+  return "post";
+}
+
+/** TZ berish yoki (`task` berilsa) berilgan TZ'ni o'zgartirish. */
+export function TaskModal({ kind, projectId, post, task, onClose }: { kind: TaskKind; projectId?: string; post?: Post; task?: Task; onClose: () => void }) {
   const { state, me, run, today } = useErp();
   const look = useLookup();
   const shoot = post ? state.shoots.find((s) => s.postIds.includes(post.id)) : undefined;
   const projects = state.projects.filter(
-    (p) => p.status === "active" && (kind === "target" ? hasAds(p) : hasContent(p)) && (me.role !== "smm" || p.smmId === me.id),
+    (p) => p.id === task?.projectId || (p.status === "active" && (kind === "target" ? hasAds(p) : hasContent(p)) && (me.role !== "smm" || p.smmId === me.id)),
   );
   const [f, setF] = useState(() => {
+    if (task)
+      return {
+        projectId: task.projectId,
+        postId: task.postId ?? "",
+        assigneeId: task.assigneeId,
+        title: task.title,
+        brief: task.brief,
+        script: task.script ?? "",
+        footageLink: task.footageLink ?? "",
+        files: task.files ?? "",
+        designType: task.designType ?? "post",
+        deadline: task.deadline,
+        deadlineTime: task.deadlineTime ?? "",
+      };
     const pid = projectId ?? projects[0]?.id ?? "";
     const prj = look.project(pid);
     return {
@@ -420,7 +442,7 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
       script: post?.script ?? "",
       footageLink: shoot?.footageLink ?? "",
       files: "",
-      designType: (kind === "dizayn" && post?.format === "video" ? "cover" : "post") as "post" | "cover",
+      designType: kind === "dizayn" ? defaultDesignType(post) : "post",
       deadline: addDays(today, kind === "target" ? 1 : 2),
       deadlineTime: "18:00",
     };
@@ -428,9 +450,30 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   const prj = look.project(f.projectId);
   const blocked = prj ? workBlockedReason(state, prj) : null;
-  const projectPosts = state.posts.filter((p) => p.projectId === f.projectId && p.status !== "published");
+  const projectPosts = state.posts.filter((p) => p.projectId === f.projectId && (p.status !== "published" || p.id === task?.postId));
 
   const save = () => {
+    if (task) {
+      const ok = run(
+        "updateTask",
+        [
+          task.id,
+          {
+            assigneeId: f.assigneeId,
+            postId: f.postId,
+            title: f.title.trim(),
+            brief: f.brief.trim(),
+            ...(kind === "montaj" ? { script: f.script, footageLink: f.footageLink } : { files: f.files }),
+            ...(kind === "dizayn" ? { designType: f.designType } : {}),
+            deadline: f.deadline,
+            deadlineTime: f.deadlineTime,
+          },
+        ],
+        f.assigneeId !== task.assigneeId ? `Ijrochi almashtirildi: ${look.userName(f.assigneeId)}ga xabar ketdi` : "TZ o'zgartirildi — ijrochiga xabar ketdi",
+      );
+      if (ok) onClose();
+      return;
+    }
     const ok = run(
       "createTask",
       [
@@ -455,7 +498,7 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
     if (ok) onClose();
   };
 
-  const title = kind === "montaj" ? "Montajyorga TZ" : kind === "dizayn" ? "Dizaynerga TZ" : "Targetologga material berish";
+  const title = task ? "TZ'ni o'zgartirish" : kind === "montaj" ? "Montajyorga TZ" : kind === "dizayn" ? "Dizaynerga TZ" : "Targetologga material berish";
   return (
     <Modal
       open
@@ -467,7 +510,7 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
             Bekor qilish
           </Button>
           <Button variant="primary" onClick={save} disabled={!f.title.trim() || !f.assigneeId || !f.projectId || !f.deadline || Boolean(blocked)}>
-            TZ yuborish
+            {task ? "Saqlash" : "TZ yuborish"}
           </Button>
         </>
       }
@@ -477,7 +520,7 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
         <Field label="Loyiha">
           <Select
             value={f.projectId}
-            disabled={Boolean(post)}
+            disabled={Boolean(post) || Boolean(task)}
             onChange={(e) => set("projectId", e.target.value)}
             options={projects.map((p) => ({ value: p.id, label: p.name }))}
           />
@@ -508,14 +551,7 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
         </Field>
         {kind === "dizayn" && (
           <Field label="Turi">
-            <Select
-              value={f.designType}
-              onChange={(e) => set("designType", e.target.value as "post" | "cover")}
-              options={[
-                { value: "post", label: "Post dizayni" },
-                { value: "cover", label: "Oblojka" },
-              ]}
-            />
+            <Select value={f.designType} onChange={(e) => set("designType", e.target.value)} options={designOptions(state, task?.designType)} />
           </Field>
         )}
         <Field label={kind === "target" ? "Reklama vazifasi (maqsad, geo, byudjet)" : "TZ"} className="sm:col-span-2">
@@ -538,6 +574,46 @@ export function TaskModal({ kind, projectId, post, onClose }: { kind: TaskKind; 
         )}
       </div>
     </Modal>
+  );
+}
+
+/** Berilgan TZ kartasida: o'zgartirish (qabul qilinguncha) va boshlanmagan vazifani bekor qilish. */
+export function TaskManage({ task }: { task: Task }) {
+  const { state, me, run } = useErp();
+  const [editing, setEditing] = useState(false);
+  const [ask, setAsk] = useState(false);
+  const prj = state.projects.find((p) => p.id === task.projectId);
+  // Serverdagi qoida bilan bir xil: TZ bergan odam, loyiha SMM'i, marketolog, rahbar, admin
+  const can = ["admin", "rahbar", "marketolog"].includes(me.role) || (me.role === "smm" && prj?.smmId === me.id) || task.createdBy === me.id;
+  if (!can || task.status === "accepted") return null;
+  const cancellable = task.status === "new" && !task.launchedAt;
+  return (
+    <>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <Button size="sm" variant="ghost" onClick={() => setEditing(true)} aria-label={`O'zgartirish: ${task.title}`}>
+          ✎ O'zgartirish
+        </Button>
+        {cancellable && !ask && (
+          <Button size="sm" variant="ghost" onClick={() => setAsk(true)} aria-label={`Bekor qilish: ${task.title}`}>
+            Bekor qilish
+          </Button>
+        )}
+      </div>
+      {ask && (
+        <div className="mt-2 rounded-[12px] bg-red/10 p-2 text-xs text-red">
+          Vazifa o'chiriladi va ijrochiga xabar boradi. Rostdanmi?
+          <div className="mt-1.5 flex gap-1.5">
+            <Button size="sm" variant="danger" onClick={() => run("cancelTask", [task.id], "Vazifa bekor qilindi")}>
+              Ha, bekor qilish
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setAsk(false)}>
+              Yo'q
+            </Button>
+          </div>
+        </div>
+      )}
+      {editing && <TaskModal kind={task.kind} task={task} onClose={() => setEditing(false)} />}
+    </>
   );
 }
 

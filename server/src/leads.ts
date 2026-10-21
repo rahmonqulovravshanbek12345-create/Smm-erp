@@ -1,6 +1,7 @@
 // Facebook Lead Ads → CRM. Meta lid kelganda webhook yuboradi (imzosi tekshiriladi), server lid ma'lumotini Meta'dan oladi
 // va CRM'ga yozadi. Webhook yo'qolsa ham lid yo'qolmasligi uchun har 10 daqiqada zaxira tekshiruvi ishlaydi.
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { Outgoing } from "../../src/lib/ctx";
 import { mapGraphLead, type GraphLead } from "../../src/lib/leads-intake";
 import { timeoutSignal } from "../../src/lib/net";
 import type { StateStore } from "./store";
@@ -67,7 +68,13 @@ export interface LeadsService {
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 300);
 
-export function createLeadsService(store: StateStore, graph: LeadsGraph = realGraph, log: (m: string, e?: unknown) => void = () => undefined): LeadsService {
+export function createLeadsService(
+  store: StateStore,
+  graph: LeadsGraph = realGraph,
+  log: (m: string, e?: unknown) => void = () => undefined,
+  // Operatorga «Yangi lid» xabari Telegram'ga shu orqali ketadi
+  deliver: (outbox: Outgoing[]) => void = () => undefined,
+): LeadsService {
   let pending: Promise<unknown> = Promise.resolve();
   let polling = false;
   const track = (p: Promise<unknown>) => {
@@ -79,7 +86,11 @@ export function createLeadsService(store: StateStore, graph: LeadsGraph = realGr
     const c = cfg();
     return c.enabled && Boolean(c.pageToken && c.pageId && c.appSecret);
   };
-  const ingest = async (g: GraphLead) => (await store.runAsSystem("intakeLead", [mapGraphLead(g)])).value;
+  const ingest = async (g: GraphLead) => {
+    const r = await store.runAsSystem("intakeLead", [mapGraphLead(g)]);
+    deliver(r.outbox);
+    return r.value;
+  };
 
   return {
     verifyTokenOk(token) {

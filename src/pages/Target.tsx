@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { TaskBadge } from "../components/bits";
-import { TaskModal } from "../components/forms";
+import { TaskManage, TaskModal } from "../components/forms";
 import { A, AmountInput, Badge, Banner, Button, Card, CardHeader, Empty, Field, Input, LinkOut, PageHeader, Select } from "../components/ui";
 import { addDays, fmtDate, fmtMoney, fmtNum } from "../lib/dates";
 import { access, canEdit, visibleProjects } from "../lib/permissions";
@@ -149,6 +149,7 @@ export function Target() {
                       </div>
                     )
                   )}
+                  {!t.launchedAt && <TaskManage task={t} />}
                 </li>
               ))}
             </ul>

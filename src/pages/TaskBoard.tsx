@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { TaskBadge } from "../components/bits";
-import { TaskModal } from "../components/forms";
+import { TaskManage, TaskModal } from "../components/forms";
 import { Badge, Banner, Button, Card, Input, LinkOut, PageHeader, Stat } from "../components/ui";
+import { designTypeLabel } from "../lib/content";
 import { fmtDeadline, fmtMoney, fmtMonth, monthKey, relDays } from "../lib/dates";
 import { TASK_STATUSES } from "../lib/labels";
 import { access, canEdit } from "../lib/permissions";
@@ -83,7 +84,7 @@ export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
 }
 
 function TaskCard({ task: t }: { task: Task }) {
-  const { me, run, today, now } = useErp();
+  const { state, me, run, today, now } = useErp();
   const look = useLookup();
   const [link, setLink] = useState(t.resultLink ?? "");
   const [note, setNote] = useState("");
@@ -99,7 +100,7 @@ function TaskCard({ task: t }: { task: Task }) {
         <div className="text-sm font-medium text-label">{t.title}</div>
         <div className="mt-0.5 text-xs text-label2">
           {look.projectName(t.projectId)} · {look.userName(t.assigneeId)}
-          {t.designType && ` · ${t.designType === "cover" ? "oblojka" : "post"}`}
+          {t.kind === "dizayn" && ` · ${designTypeLabel(state, t.designType).toLowerCase()}`}
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <TaskBadge task={t} today={today} />
@@ -173,6 +174,7 @@ function TaskCard({ task: t }: { task: Task }) {
         </div>
       )}
       {t.status === "review" && !isReviewer && isAssignee && <Banner tone="amber">SMM menejer tekshiryapti</Banner>}
+      <TaskManage task={t} />
     </Card>
   );
 }
