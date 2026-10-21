@@ -87,7 +87,7 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
     listFormLeads: async (_t, _v, formId) => graph.forms[formId] ?? [],
     pageName: async () => "Friday Agency (test)",
   };
-  const leads = createLeadsService(store, fakeGraph);
+  const leads = createLeadsService(store, fakeGraph, undefined, (o) => notifier.deliver(o));
   const integrations = createIntegrations(store, {
     fetchCbuRate: async () => ({ rate: 12_900, date: "2026-10-07" }),
     testMetaToken: async () => "Test Business",

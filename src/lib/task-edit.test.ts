@@ -163,3 +163,10 @@ describe("Dizayn turlari", () => {
     expect(taskWorkType({ ...base })).toBe("dizayn_post");
   });
 });
+
+describe("Demo ma'lumotlari", () => {
+  it("har bir vazifa o'z loyihasining postiga bog'langan (oy kuniga qarab Stories soni o'zgarsa ham)", () => {
+    const s = demoState();
+    for (const t of s.tasks.filter((x) => x.postId)) expect(s.posts.find((p) => p.id === t.postId)?.projectId, t.title).toBe(t.projectId);
+  });
+});

@@ -278,3 +278,26 @@ describe("Admin tugmalari va qoidalar", () => {
     expect(r.statusCode).toBe(400);
   });
 });
+
+describe("Telegram", () => {
+  it("yangi lid haqidagi xabar operatorning Telegram'iga ham yetib boradi", async () => {
+    const prev = structuredClone(t.store.current().state);
+    await t.store.system((s) => {
+      s.settings.telegram = { ...s.settings.telegram, enabled: true, botToken: "111:TG-TOKEN-0123456789abcdef" };
+      for (const u of s.users) u.telegramChatId = `chat_${u.id}`;
+    });
+    t.sent.length = 0;
+    t.graph.byId["100009"] = fbLead("100009", "+998 93 555 66 77", "Telegram Sinov");
+    expect((await post(payload("100009"))).statusCode).toBe(200);
+    await t.leads.idle();
+    await t.idle();
+    const op = fromFb().find((l) => l.name === "Telegram Sinov")!.operatorId;
+    const msgs = t.sent.filter((m) => m.text.includes("Telegram Sinov"));
+    expect(msgs.map((m) => m.chatId)).toEqual([`chat_${op}`]);
+    expect(msgs[0]!.text).toContain("Yangi lid (Facebook)");
+    await t.store.system((s) => {
+      s.settings.telegram = prev.settings.telegram;
+      for (const u of s.users) u.telegramChatId = prev.users.find((x) => x.id === u.id)?.telegramChatId;
+    });
+  });
+});

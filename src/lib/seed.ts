@@ -464,10 +464,10 @@ export function buildSeed(today: string): ErpState {
     addPost(P1, d(n), "image", topic, n < 0 ? "published" : "plan", { typeId: "ct_stories" });
   }
 
-  addPost(P2, d(-4), "video", "Yangi filial ochilishi", "published", { forTarget: true });
+  const gBranch = addPost(P2, d(-4), "video", "Yangi filial ochilishi", "published", { forTarget: true });
   addPost(P2, d(-3), "image", "Kuzgi abonement aksiyasi", "published", { forTarget: true });
   const gLate = addPost(P2, d(-1), "video", "Trener maslahati: to'g'ri isinish", "editing");
-  addPost(P2, d(1), "image", "Guruh mashg'ulotlari jadvali", "design");
+  const gSchedule = addPost(P2, d(1), "image", "Guruh mashg'ulotlari jadvali", "design");
   const gInt = addPost(P2, d(1), "video", "Transformatsiya: Aziz 3 oyda −12 kg", "internal");
   addPost(P2, d(3), "ai", "AI post: protein mifi va haqiqat", "plan");
   addPost(P2, d(6), "video", "Crossfit zonasi obzori", "plan");
@@ -625,7 +625,7 @@ export function buildSeed(today: string): ErpState {
   montaj(P1, p1Edit.id, "u_mt1", "Yetkazib berish va o'rnatish", d(-1), "progress");
   montaj(P2, gLate.id, "u_mt2", "Trener maslahati: isinish", d(-2), "new");
   montaj(P2, gInt.id, "u_mt2", "Transformatsiya hikoyasi", d(0), "accepted", thisMonthDay(0));
-  montaj(P2, posts[14]!.id, "u_mt1", "Yangi filial ochilishi", d(-5), "accepted", thisMonthDay(4));
+  montaj(P2, gBranch.id, "u_mt1", "Yangi filial ochilishi", d(-5), "accepted", thisMonthDay(4));
 
   addTask({
     projectId: P1,
@@ -653,7 +653,7 @@ export function buildSeed(today: string): ErpState {
   });
   addTask({
     projectId: P2,
-    postId: posts[17]!.id,
+    postId: gSchedule.id,
     kind: "dizayn",
     assigneeId: "u_dz",
     title: "Guruh mashg'ulotlari jadvali",

@@ -42,7 +42,12 @@ async function main() {
         notifier.recordStatus(chatId, r === "ok" ? "member" : "blocked", "send").catch((e: unknown) => console.error("Telegram holati yozilmadi", e));
       });
       const integrations = createIntegrations(store);
-      const leads = createLeadsService(store, undefined, (m, e) => console.error(m, e instanceof Error ? e.message : e));
+      const leads = createLeadsService(
+        store,
+        undefined,
+        (m, e) => console.error(m, e instanceof Error ? e.message : e),
+        (o) => notifier.deliver(o),
+      );
       const app = await buildApp({ cfg, db, store, sealer, notifier, integrations, leads });
       if (!store.ready) app.log.warn("Tizim hali sozlanmagan: `smm-erp init <login> <ism>` buyrug'ini bajaring");
       await app.listen({ host: cfg.HOST, port: cfg.PORT });
