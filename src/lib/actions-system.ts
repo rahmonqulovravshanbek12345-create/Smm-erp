@@ -7,7 +7,7 @@ import type { MetaResult } from "./integrations";
 import { ROLE_LABELS } from "./labels";
 import { isMasked } from "./redact";
 import { phoneKey, normalizePhone, type IntakeLead } from "./leads-intake";
-import type { Account, Integrations, Lead, Requisites, Role, User, Vendor } from "./types";
+import type { Account, Integrations, Lead, Notification, Requisites, Role, User, Vendor } from "./types";
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 const findUser = (c: Ctx, id: string) => {
@@ -223,13 +223,65 @@ export function saveVendor(c: Ctx, v: Omit<Vendor, "id"> & { id?: string }): str
 
 // ---------- Bildirishnomalar ----------
 
+/** Bildirishnoma o'qildi; e'lon bo'lsa — e'lonning «o'qiganlar» ro'yxatiga ham. */
+function readOne(c: Ctx, n: Notification) {
+  if (n.read) return;
+  n.read = true;
+  const a = n.ann ? c.s.announcements.find((x) => x.id === n.ann) : undefined;
+  if (a && !a.readBy.includes(n.userId)) a.readBy.push(n.userId);
+}
+
 export function markAllRead(c: Ctx) {
-  for (const n of c.s.notifications) if (n.userId === c.me.id) n.read = true;
+  for (const n of c.s.notifications) if (n.userId === c.me.id) readOne(c, n);
 }
 
 export function markRead(c: Ctx, id: string) {
   const n = c.s.notifications.find((y) => y.id === id && y.userId === c.me.id);
-  if (n) n.read = true;
+  if (n) readOne(c, n);
+}
+
+export const ANNOUNCE_MAX = 2000;
+
+/**
+ * Rahbariyat e'loni: hammaga, tanlangan rollarga yoki belgilangan xodimlarga — tizimda va Telegram'da.
+ * Faqat faol xodimlarga; yuboruvchining o'ziga bormaydi. Tasodifiy takrorlanmasin — bir xodimdan daqiqada bitta.
+ */
+export function sendAnnouncement(c: Ctx, d: { text: string; roles?: Role[]; userIds?: string[] }): string {
+  const text = d.text.trim();
+  if (!text) throw new Error("E'lon matnini yozing");
+  if (text.length > ANNOUNCE_MAX) throw new Error(`E'lon ${ANNOUNCE_MAX} belgidan oshmasin`);
+  if (d.roles && d.userIds) throw new Error("Rol yoki xodimlardan birini tanlang");
+  if ((d.roles && !d.roles.length) || (d.userIds && !d.userIds.length)) throw new Error("Kimga yuborilishini tanlang");
+  const at = nowISO();
+  const last = c.s.announcements.find((a) => a.by === c.me.id);
+  if (last && Date.parse(at) - Date.parse(last.at) < 60_000) throw new Error("E'lonlar orasida kamida 1 daqiqa bo'lsin");
+  const active = c.s.users.filter((u) => u.active && u.id !== c.me.id);
+  const to = d.userIds ? active.filter((u) => d.userIds!.includes(u.id)) : d.roles ? active.filter((u) => d.roles!.includes(u.role)) : active;
+  if (!to.length) throw new Error("Tanlanganlar orasida faol xodim yo'q");
+  const id = newId("ann");
+  const before = c.s.notifications.length;
+  c.notify(
+    to.map((u) => u.id),
+    `📣 E'lon — ${c.me.name} (${ROLE_LABELS[c.me.role]}):\n${text}`,
+    "/bildirishnomalar",
+    { ann: id },
+  );
+  const sent = c.s.notifications.slice(0, c.s.notifications.length - before);
+  c.s.announcements.unshift({
+    id,
+    at,
+    by: c.me.id,
+    text,
+    audience: d.userIds ? "users" : d.roles ? "roles" : "all",
+    ...(d.roles ? { roles: [...new Set(d.roles)] } : {}),
+    to: to.map((u) => u.id),
+    tg: sent.filter((n) => n.telegram === "sent").length,
+    readBy: [],
+  });
+  // Eng oxirgi 200 ta e'lon saqlanadi (bildirishnomalarning o'zi xodimlarda qoladi)
+  if (c.s.announcements.length > 200) c.s.announcements.length = 200;
+  c.log(`E'lon yuborildi: ${to.length} kishiga`, "/bildirishnomalar");
+  return id;
 }
 
 // ---------- Integratsiyalar (demo brauzer o'zi so'raydi; serverda bu ishni jadval bajaradi) ----------

@@ -87,7 +87,13 @@ export function createNotifier(
         for (const o of outbox) if (!(await send(token, o.chatId, o.text))) failed.push(o.notificationId);
         if (failed.length)
           await store.system((s) => {
-            for (const n of s.notifications) if (failed.includes(n.id)) n.telegram = "failed";
+            for (const n of s.notifications) {
+              if (!failed.includes(n.id)) continue;
+              n.telegram = "failed";
+              // E'lon hisobotida «Telegram yetkaza olmadi»
+              const a = n.ann ? s.announcements.find((x) => x.id === n.ann) : undefined;
+              if (a) a.tgFailed = (a.tgFailed ?? 0) + 1;
+            }
           });
       })(),
     );

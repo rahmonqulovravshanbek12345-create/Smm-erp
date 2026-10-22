@@ -1,6 +1,6 @@
 // Kim qaysi amalni bajara oladi — serverda har bir so'rovda tekshiriladi (sahifadagi tugmalar bilan bir xil qoidalar).
 // Brauzerdagi cheklov qulaylik uchun; haqiqiy himoya — shu yer: tugmasi yo'q amalni so'rov yuborib ham bajarib bo'lmaydi.
-import { access, canEdit, canEditFinance, canPayUser, canReassignLead } from "./permissions";
+import { access, canAnnounce, canEdit, canEditFinance, canPayUser, canReassignLead } from "./permissions";
 import { DEMO_ONLY, type ActionArgs, type ActionName } from "./registry";
 import type { ErpState, Project, Role, User } from "./types";
 
@@ -156,6 +156,8 @@ const RULES: { [N in ActionName]: Rule<N> } = {
   // Har kim o'z bildirishnomalarini
   markAllRead: () => true,
   markRead: () => true,
+  // E'lon — admin, rahbar, marketolog
+  sendAnnouncement: (me) => canAnnounce(me.role),
 };
 
 /** Serverli tizimda amalga ruxsat: yo'q bo'lsa — sababi, bor bo'lsa — null. */

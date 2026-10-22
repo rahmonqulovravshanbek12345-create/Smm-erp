@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { AnnounceModal, AnnouncementsCard } from "../components/Announcements";
 import { A, Badge, Button, Card, CardHeader, Empty, PageHeader, Select, userOptions } from "../components/ui";
 import { SERVER_MODE } from "../lib/api";
 import { fmtDateTime } from "../lib/dates";
+import { canAnnounce } from "../lib/permissions";
 import { alertsFor } from "../lib/rules";
 import { useErp, useLookup } from "../lib/store";
 
@@ -17,14 +19,26 @@ export function Notifications() {
   const mine = state.notifications.filter((n) => n.userId === me.id);
   const alerts = alertsFor(state, me, today, now);
   const unread = mine.filter((n) => !n.read).length;
+  const announcer = canAnnounce(me.role);
+  const [announce, setAnnounce] = useState(false);
 
   return (
     <>
       <PageHeader
         title="Bildirishnomalar"
         sub="Tizim ichida va Telegram bot orqali"
-        actions={unread > 0 && <Button onClick={() => run("markAllRead", [], "Hammasi o'qildi")}>Hammasini o'qilgan qilish</Button>}
+        actions={
+          <>
+            {announcer && (
+              <Button variant="primary" onClick={() => setAnnounce(true)}>
+                📣 E'lon yuborish
+              </Button>
+            )}
+            {unread > 0 && <Button onClick={() => run("markAllRead", [], "Hammasi o'qildi")}>Hammasini o'qilgan qilish</Button>}
+          </>
+        }
       />
+      {announce && <AnnounceModal onClose={() => setAnnounce(false)} />}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader title="Eslatmalar va ogohlantirishlar" sub="Muddatlar bo'yicha avtomatik hisoblanadi" />
@@ -44,10 +58,18 @@ export function Notifications() {
           <ul className="divide-y divide-sep">
             {mine.map((n) => (
               <li key={n.id} className={`px-4 py-2.5 text-sm ${n.read ? "opacity-60" : ""}`}>
-                <A href={n.href ?? "/bildirishnomalar"} className="block text-label hover:underline">
-                  {!n.read && <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green" />}
-                  {n.text}
-                </A>
+                {n.ann ? (
+                  // E'lon: bosilganda o'qilgan hisoblanadi (yuboruvchi kim o'qiganini ko'radi)
+                  <button type="button" onClick={() => !n.read && run("markRead", [n.id])} className="block w-full whitespace-pre-line text-left text-label">
+                    {!n.read && <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green" />}
+                    {n.text}
+                  </button>
+                ) : (
+                  <A href={n.href ?? "/bildirishnomalar"} className="block text-label hover:underline">
+                    {!n.read && <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-green" />}
+                    {n.text}
+                  </A>
+                )}
                 <div className="mt-1 flex items-center gap-2 text-[11px] text-label2">
                   {fmtDateTime(n.at)} <Badge tone={TG[n.telegram].tone}>{TG[n.telegram].label}</Badge>
                   {!n.read && (
@@ -62,6 +84,11 @@ export function Notifications() {
           </ul>
         </Card>
       </div>
+      {announcer && (
+        <div className="mt-4">
+          <AnnouncementsCard />
+        </div>
+      )}
     </>
   );
 }

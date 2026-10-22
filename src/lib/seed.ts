@@ -921,6 +921,7 @@ export function buildSeed(today: string): ErpState {
       },
       { id: "n_6", userId: "u_mol", text: "FitLife Gym: oylik to'lov muddati o'tdi", href: "/moliya", at: at(-3), read: false, telegram: "demo" },
     ],
+    announcements: [],
     activity: [
       { id: "a_1", at: at(-1, 11), userId: "u_op1", text: "Grand Tour turagentligi: bosqich → Uchrashuv belgilandi", href: "/crm" },
       { id: "a_2", at: at(-2, 9), userId: "u_smm1", text: "Showroom bo'ylab tur: ichki tasdiqqa yuborildi", href: "/kontent" },

@@ -67,7 +67,8 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
     store,
     async (_t, chatId, text) => {
       sent.push({ chatId, text });
-      return true;
+      // «fail» chat — Telegram yetkaza olmagan holatni sinash uchun
+      return chatId !== "fail";
     },
     async (_t, chatId, filename, bytes, caption) => {
       docs.push({ chatId, filename, bytes, caption });

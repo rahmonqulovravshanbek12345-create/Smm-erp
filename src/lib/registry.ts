@@ -103,6 +103,7 @@ export const ACTIONS = {
   // Bildirishnomalar
   markAllRead: sys.markAllRead,
   markRead: sys.markRead,
+  sendAnnouncement: sys.sendAnnouncement,
 } satisfies Record<string, (c: Ctx, ...args: never[]) => unknown>;
 
 export type ActionName = keyof typeof ACTIONS;

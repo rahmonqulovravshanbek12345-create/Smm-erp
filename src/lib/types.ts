@@ -525,6 +525,28 @@ export interface Notification {
   read: boolean;
   /** Telegram orqali yetkazilish holati. */
   telegram: "sent" | "demo" | "failed" | "off";
+  /** Rahbariyat e'loni bo'lsa — uning ID'si (kim o'qigani hisoblanadi). */
+  ann?: string;
+}
+
+/** Rahbariyatning xodimlarga e'loni (admin, rahbar, marketolog yuboradi). */
+export interface Announcement {
+  id: string;
+  at: string;
+  /** Yuborgan xodim. */
+  by: string;
+  text: string;
+  /** all — hammaga; roles — tanlangan rollarga; users — belgilangan xodimlarga. */
+  audience: "all" | "roles" | "users";
+  roles?: Role[];
+  /** Qabul qilganlar (yuborilgan paytdagi faol xodimlar). */
+  to: string[];
+  /** Telegram'ga yuborilgan xabarlar soni. */
+  tg: number;
+  /** Telegram yetkaza olmaganlari. */
+  tgFailed?: number;
+  /** ERP'da o'qiganlar. */
+  readBy: string[];
 }
 
 export interface Activity {
@@ -654,6 +676,7 @@ export interface ErpState {
   quotas: Quota[];
   integrationLog: IntegrationLog[];
   notifications: Notification[];
+  announcements: Announcement[];
   activity: Activity[];
   settings: Settings;
 }

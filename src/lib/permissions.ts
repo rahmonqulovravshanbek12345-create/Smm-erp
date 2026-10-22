@@ -142,6 +142,9 @@ export function seesEverything(user: User): boolean {
 /** Loyiha narxlari, fakturalar va mijoz to'lovlarini faqat shu rollar ko'radi; qolganlarga server ularni umuman yubormaydi. */
 export const seesMoney = seesEverything;
 
+/** Hamma xodimga e'lon yuborish va e'lonlar hisobotini ko'rish. */
+export const canAnnounce = (role: Role) => role === "admin" || role === "rahbar" || role === "marketolog";
+
 export function visibleProjects(s: ErpState, user: User): Project[] {
   if (seesEverything(user)) return s.projects;
   const ids = new Set<string>();
