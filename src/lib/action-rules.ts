@@ -137,6 +137,7 @@ const RULES: { [N in ActionName]: Rule<N> } = {
   // Telegram'dan kelgan ulanish holati — faqat server
   setTelegramStatus: () => false,
   markTelegramTracking: () => false,
+  markTelegramMiniApp: () => false,
   switchUser: () => false,
   setChatIdForAll: () => false,
   // Xodimlar va tizim sozlamalari — faqat admin

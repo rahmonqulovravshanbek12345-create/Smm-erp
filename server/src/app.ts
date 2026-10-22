@@ -10,6 +10,7 @@ import { renderSVG } from "uqr";
 import { z } from "zod";
 import { denyReason } from "../../src/lib/action-rules";
 import { BRAND } from "../../src/lib/brand";
+import { MINI_ACTIONS, MINI_SESSION_HOURS } from "../../src/lib/miniapp";
 import { canEdit } from "../../src/lib/permissions";
 import { redactFor, withoutSecrets } from "../../src/lib/redact";
 import { ACTIONS, type ActionName } from "../../src/lib/registry";
@@ -47,9 +48,16 @@ import type { LeadsService } from "./leads";
 import type { Notifier } from "./notifier";
 import { parseArgs } from "./schemas";
 import { QuotaError, UserError, type StateStore } from "./store";
+import { verifyInitData } from "./tg-auth";
 
 const META_WEBHOOK = "/api/webhooks/meta-leads";
 const TG_WEBHOOK = "/api/webhooks/telegram";
+/** Mini App manzili (botdagi «ERP» tugmasi shu sahifani ochadi). */
+const MINI_PATH = "/tg";
+/** Kirishda Telegram imzosi shu vaqtdan eski bo'lmasin (Mini App ochilgandan keyin 1 soat ichida parol kiritiladi). */
+const TG_LOGIN_MAX_AGE = 3600;
+/** Har bir so'rovdagi Telegram imzosi: Mini App ochilganidan beri ko'pi bilan 1 kun. */
+const TG_REQUEST_MAX_AGE = 24 * 3600;
 
 export interface Deps {
   cfg: Config;
@@ -67,6 +75,8 @@ interface AuthInfo {
   cred: Credential;
   /** Parolni almashtirish yoki 2FA'ni yoqish talab qilinadi — boshqa ishlar yopiq. */
   blocked: "password" | "2fa" | null;
+  /** web — sayt (cookie); tg — Telegram Mini App (pul va sozlamalarsiz). */
+  via: "web" | "tg";
 }
 
 declare module "fastify" {
@@ -98,7 +108,8 @@ export async function buildApp(d: Deps) {
   const htmlEtag = `"${createHash("sha256").update(html).digest("base64url").slice(0, 27)}"`;
 
   const app = Fastify({
-    logger: cfg.LOG_LEVEL === "silent" ? false : { level: cfg.LOG_LEVEL, redact: ["req.headers.cookie", "req.headers.authorization"] },
+    logger:
+      cfg.LOG_LEVEL === "silent" ? false : { level: cfg.LOG_LEVEL, redact: ["req.headers.cookie", "req.headers.authorization", 'req.headers["x-tg-init"]'] },
     trustProxy: cfg.TRUST_PROXY,
     bodyLimit: 1024 * 1024,
     logController: new LogController({ disableRequestLogging: cfg.LOG_LEVEL !== "debug" && cfg.LOG_LEVEL !== "trace" }),
@@ -196,15 +207,18 @@ export async function buildApp(d: Deps) {
     return store.ready;
   };
 
-  async function authenticate(req: FastifyRequest, reply: FastifyReply, o: { allowBlocked?: boolean } = {}): Promise<AuthInfo | null> {
+  async function authenticate(req: FastifyRequest, reply: FastifyReply, o: { allowBlocked?: boolean; allowTg?: boolean } = {}): Promise<AuthInfo | null> {
     if (!(await ensureReady())) {
       httpError(reply, 503, "Tizim hali sozlanmagan");
       return null;
     }
+    const bearer = bearerOf(req);
+    if (bearer !== undefined) return authenticateTg(req, reply, bearer, Boolean(o.allowTg));
     const sess = await getSession(db, req.cookies[SID]);
     const user = sess ? userIn(store.current().state, sess.user_id) : undefined;
     const cred = sess && user ? await credentialByUser(db, user.id) : null;
-    if (!sess || sess.stage !== "full" || !user?.active || !cred) {
+    // Mini App tokeni sayt cookie'si sifatida ishlamaydi (Telegram imzosisiz)
+    if (!sess || sess.kind !== "web" || sess.stage !== "full" || !user?.active || !cred) {
       if (sess && (!user?.active || !cred)) await revokeUser(db, sess.user_id);
       httpError(reply, 401, "Tizimga kiring");
       return null;
@@ -222,7 +236,55 @@ export async function buildApp(d: Deps) {
       httpError(reply, 403, blocked === "password" ? "Avval parolni almashtiring" : "Avval ikki bosqichli kirishni yoqing", { blocked });
       return null;
     }
-    const info = { sess, user, cred, blocked };
+    const info: AuthInfo = { sess, user, cred, blocked, via: "web" };
+    req.auth = info;
+    return info;
+  }
+
+  // ---------- Telegram Mini App ----------
+
+  /** «Authorization: Bearer …» — faqat Mini App ishlatadi (sayt cookie bilan ishlaydi). */
+  const bearerOf = (req: FastifyRequest): string | undefined => {
+    const h = req.headers.authorization;
+    if (h === undefined) return undefined;
+    const m = /^Bearer ([A-Za-z0-9_-]{20,100})$/.exec(h);
+    return m ? m[1] : "";
+  };
+  /** Mini App yoqilgan bo'lsa — bot tokeni (Telegram imzosini tekshirish uchun). */
+  const miniToken = (): string | null => {
+    const tg = store.current().state.settings.telegram;
+    const token = tg.botToken.trim();
+    return tg.enabled && token && tg.miniApp?.on ? token : null;
+  };
+  const tgInitOf = (req: FastifyRequest) => req.headers["x-tg-init"];
+
+  /**
+   * Mini App so'rovi: token (parol bilan kirilganda berilgan) + shu so'rovdagi Telegram imzosi.
+   * Imzodagi Telegram akkaunt sessiya ochilgan akkaunt va ERP'da xodimga bog'langan chat ID bilan bir xil bo'lishi shart.
+   */
+  async function authenticateTg(req: FastifyRequest, reply: FastifyReply, bearer: string, allowed: boolean): Promise<AuthInfo | null> {
+    if (!allowed) {
+      httpError(reply, 403, "Bu amal faqat saytda bajariladi");
+      return null;
+    }
+    const token = miniToken();
+    const sess = bearer ? await getSession(db, bearer) : null;
+    const tgSess = sess?.kind === "tg" ? sess : null;
+    const launch = token ? verifyInitData(tgInitOf(req), token, TG_REQUEST_MAX_AGE) : null;
+    const user = tgSess ? userIn(store.current().state, tgSess.user_id) : undefined;
+    const cred = tgSess && user ? await credentialByUser(db, user.id) : null;
+    const linked = Boolean(tgSess && user?.telegramChatId?.trim() === tgSess.tg_id);
+    if (!tgSess || !token || !user?.active || !cred || cred.must_change || !linked) {
+      // Xodim arxivlangan, chat ID o'zgargan, parol tiklangan yoki Mini App o'chirilgan — sessiya yopiladi
+      if (tgSess) await deleteSession(db, tgSess.id);
+      httpError(reply, 401, "Tizimga kiring");
+      return null;
+    }
+    if (!launch || launch.tgId !== tgSess.tg_id) {
+      httpError(reply, 401, "Telegram tasdig'i topilmadi — Mini App'ni botdan qayta oching");
+      return null;
+    }
+    const info: AuthInfo = { sess: tgSess, user, cred, blocked: null, via: "tg" };
     req.auth = info;
     return info;
   }
@@ -233,7 +295,10 @@ export async function buildApp(d: Deps) {
     blocked: a.blocked,
     has2fa: a.cred.totp_enabled,
     require2fa: needs2fa(a.user),
+    via: a.via,
   });
+  /** Xodimga yuboriladigan holat: Mini App'da pul va narxlarsiz. */
+  const stateFor = (s: ErpState, me: User, via: AuthInfo["via"]) => redactFor(s, me, undefined, { noFinance: via === "tg" });
 
   /** Kirish muvaffaqiyatli bo'lganda: yangi qurilma bo'lsa — xodimning Telegram'iga ogohlantirish. */
   async function afterLogin(req: FastifyRequest, reply: FastifyReply, user: User, cred: Credential) {
@@ -319,6 +384,16 @@ export async function buildApp(d: Deps) {
   });
 
   app.post("/api/auth/logout", async (req, reply) => {
+    const bearer = bearerOf(req);
+    if (bearer !== undefined) {
+      // Mini App'dan chiqish: shu token bekor qilinadi (Telegram imzosi shart emas — chiqish zararsiz)
+      const s = bearer ? await getSession(db, bearer, false) : null;
+      if (s?.kind === "tg") {
+        await deleteSession(db, s.id);
+        await audit(db, { userId: s.user_id, ip: ipOf(req), kind: "logout", ok: true, detail: { via: "telegram" } });
+      }
+      return { ok: true };
+    }
     const sess = await getSession(db, req.cookies[SID]);
     if (sess) {
       await deleteSession(db, sess.id);
@@ -329,10 +404,62 @@ export async function buildApp(d: Deps) {
     return { ok: true };
   });
 
+  // Mini App'ga kirish: Telegram imzosi (qaysi akkaunt) + login va parol. 2FA kodi o'rnida — xodimga bog'langan Telegram akkaunt.
+  const TgLoginBody = z.strictObject({ initData: z.string().max(4096), login: z.string().max(64), password: z.string().max(200) });
+
+  app.post("/api/tg/login", rl(30, "5 minutes"), async (req, reply) => {
+    const body = TgLoginBody.safeParse(req.body);
+    if (!body.success) return httpError(reply, 400, "Login va parolni kiriting");
+    if (!(await ensureReady())) return httpError(reply, 503, "Tizim hali sozlanmagan");
+    const token = miniToken();
+    if (!token) return httpError(reply, 403, "Telegram Mini App o'chirilgan — adminga murojaat qiling");
+    const launch = verifyInitData(body.data.initData, token, TG_LOGIN_MAX_AGE);
+    if (!launch) return httpError(reply, 401, "Telegram tasdig'i eskirgan yoki noto'g'ri — Mini App'ni botdan qayta oching");
+    const login = normLogin(body.data.login);
+    const shown = async () => ((await credentialByLogin(db, login)) ? login.slice(0, 64) : "(mavjud emas)");
+    const fail = async (reason: string) => {
+      await recordFailure(db, login, ipOf(req));
+      await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: await shown(), reason, via: "telegram" } });
+      return httpError(reply, 401, "Login yoki parol noto'g'ri");
+    };
+    return withLoginLock(login, async () => {
+      const wait = await lockedFor(db, login, ipOf(req));
+      if (wait > 0) {
+        await audit(db, { ip: ipOf(req), kind: "login", ok: false, detail: { login: await shown(), reason: "locked", via: "telegram" } });
+        return httpError(reply, 429, `Juda ko'p noto'g'ri urinish — ${wait} daqiqadan keyin qayta urinib ko'ring`);
+      }
+      const cred = await checkPassword(db, login, body.data.password);
+      if (!cred) return fail("password");
+      const user = userIn(store.current().state, cred.user_id);
+      if (!user?.active) return fail("inactive");
+      if (user.telegramChatId?.trim() !== launch.tgId) {
+        // Parol to'g'ri, lekin begona Telegram akkaunt: xato hisoblanadi va xodimning o'ziga ogohlantirish ketadi
+        await recordFailure(db, login, ipOf(req));
+        await audit(db, { userId: user.id, ip: ipOf(req), kind: "login", ok: false, detail: { reason: "telegram-mismatch", via: "telegram" } });
+        if (user.telegramChatId?.trim())
+          d.notifier.direct(
+            user.id,
+            "⚠️ Loginingiz bilan boshqa Telegram akkauntdan ERP Mini App'ga kirishga urinishdi. Siz bo'lmasangiz — darhol parolni almashtiring va adminga xabar bering.",
+          );
+        return httpError(reply, 403, "Bu Telegram akkaunt ERP'dagi profilingizga bog'lanmagan — adminga murojaat qiling");
+      }
+      if (cred.must_change) return httpError(reply, 403, "Avval saytda vaqtinchalik parolni o'zingiznikiga almashtiring");
+      if (needs2fa(user) && !cred.totp_enabled) return httpError(reply, 403, "Avval saytda ikki bosqichli kirishni yoqing");
+      const life = { days: MINI_SESSION_HOURS / 24, idleMinutes: MINI_SESSION_HOURS * 60 };
+      const sessionToken = await createSession(db, user.id, "full", ipOf(req), uaOf(req), life, launch.tgId);
+      await clearFailures(db, cred.login, ipOf(req));
+      await db.query("UPDATE credentials SET last_login_at = now() WHERE user_id = $1", [user.id]);
+      await audit(db, { userId: user.id, ip: ipOf(req), kind: "login", ok: true, detail: { via: "telegram", ua: uaOf(req) } });
+      return { ok: true, token: sessionToken };
+    });
+  });
+
   app.get("/api/me", async (req, reply) => {
     // Kirilmagan bo'lsa — xato emas, oddiy javob (brauzer konsolida «401» shovqini bo'lmasin)
-    if ((await ensureReady()) && !(await getSession(db, req.cookies[SID], false))) return { user: null };
-    const a = await authenticate(req, reply, { allowBlocked: true });
+    const bearer = bearerOf(req);
+    const token = bearer === undefined ? req.cookies[SID] : bearer;
+    if ((await ensureReady()) && !(await getSession(db, token, false))) return { user: null };
+    const a = await authenticate(req, reply, { allowBlocked: true, allowTg: true });
     if (!a) return;
     return meInfo(a);
   });
@@ -420,12 +547,12 @@ export async function buildApp(d: Deps) {
   // ---------- Holat va amallar ----------
 
   app.get("/api/state", async (req, reply) => {
-    const a = await authenticate(req, reply);
+    const a = await authenticate(req, reply, { allowTg: true });
     if (!a) return;
     const { state, version } = store.current();
     const have = Number((req.query as { v?: string }).v);
     if (have === version) return reply.code(204).send();
-    return { version, state: redactFor(state, a.user) };
+    return { version, state: stateFor(state, a.user, a.via) };
   });
 
   const ActionBody = z.strictObject({
@@ -436,14 +563,20 @@ export async function buildApp(d: Deps) {
 
   // Cheklov har bir sessiyaga (ofisda hamma bitta IP'dan chiqadi): bir xodim boshqalarni sekinlashtira olmasin
   const actionLimit = cfg.RATE_LIMITS
-    ? { config: { rateLimit: { max: 120, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.cookies[SID] ?? req.ip } } }
+    ? { config: { rateLimit: { max: 120, timeWindow: "1 minute", keyGenerator: (req: FastifyRequest) => req.cookies[SID] || bearerOf(req) || req.ip } } }
     : rl(0, "");
   app.post("/api/action", actionLimit, async (req, reply) => {
-    const a = await authenticate(req, reply);
+    const a = await authenticate(req, reply, { allowTg: true });
     if (!a) return;
     const body = ActionBody.safeParse(req.body);
     if (!body.success || !Object.hasOwn(ACTIONS, body.data.name)) return httpError(reply, 400, "Noma'lum amal");
     const name = body.data.name as ActionName;
+    const viaTg = a.via === "tg" ? { via: "telegram" } : {};
+    // Mini App: pul, xodimlar va sozlamalar — faqat saytda (parol va 2FA bilan)
+    if (a.via === "tg" && !MINI_ACTIONS.has(name)) {
+      await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "action", action: name, ok: false, detail: { error: "mini-app", ...viaTg } });
+      return httpError(reply, 403, "Bu amal faqat saytda bajariladi (Telegram'da emas)");
+    }
     // JSON'da undefined → null bo'ladi: yuqori darajadagi null — «berilmagan» argument
     const parsed = parseArgs(
       name,
@@ -458,13 +591,22 @@ export async function buildApp(d: Deps) {
         ids: body.data.ids,
         check: (me, s) => denyReason(name, me, s, parsed.args),
         quotaBytes: a.user.role === "admin" ? undefined : cfg.USER_DAILY_WRITE_MB * 1024 * 1024,
+        logSuffix: a.via === "tg" ? " · Telegram orqali" : undefined,
       });
-      await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "action", action: name, ok: true, version: r.version, detail: auditArgs(name, parsed.args) });
+      await audit(db, {
+        userId: a.user.id,
+        ip: ipOf(req),
+        kind: "action",
+        action: name,
+        ok: true,
+        version: r.version,
+        detail: { ...auditArgs(name, parsed.args), ...viaTg },
+      });
       d.notifier.deliver(r.outbox);
       // Arxivlangan xodim darhol tizimdan chiqariladi
       if (name === "archiveUser") await revokeUser(db, String(parsed.args[0]));
       const me = r.state.users.find((u) => u.id === a.user.id)!;
-      return { ok: true, value: r.value ?? null, version: r.version, state: redactFor(r.state, me) };
+      return { ok: true, value: r.value ?? null, version: r.version, state: stateFor(r.state, me, a.via) };
     } catch (e) {
       if (!(e instanceof UserError)) throw e;
       await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "action", action: name, ok: false, detail: { error: e.message } });
@@ -556,6 +698,20 @@ export async function buildApp(d: Deps) {
     const body = z.strictObject({ on: z.boolean() }).safeParse(req.body);
     if (!body.success) return httpError(reply, 400, "So'rov noto'g'ri");
     const r = await d.notifier.setTracking(body.data.on, new URL(TG_WEBHOOK, cfg.APP_ORIGIN).toString(), tgSecret);
+    if (!r.ok) return httpError(reply, 502, `Telegram: ${r.error}`);
+    return { ok: true };
+  });
+
+  /** Mini App: botga «ERP» tugmasini qo'yish yoki olib tashlash. O'chirilganda hamma Mini App sessiyalari yopiladi. */
+  app.post("/api/integrations/telegram/miniapp", rl(5, "1 minute"), async (req, reply) => {
+    const a = await authenticate(req, reply);
+    if (!a) return;
+    if (a.user.role !== "admin") return httpError(reply, 403, "Bu amal uchun ruxsatingiz yo'q");
+    const body = z.strictObject({ on: z.boolean() }).safeParse(req.body);
+    if (!body.success) return httpError(reply, 400, "So'rov noto'g'ri");
+    const r = await d.notifier.setMiniApp(body.data.on, new URL(MINI_PATH, cfg.APP_ORIGIN).toString());
+    if (!body.data.on && r.ok) await db.query("DELETE FROM sessions WHERE kind = 'tg'");
+    await audit(db, { userId: a.user.id, ip: ipOf(req), kind: "admin-miniapp", ok: r.ok, detail: { on: body.data.on } });
     if (!r.ok) return httpError(reply, 502, `Telegram: ${r.error}`);
     return { ok: true };
   });
@@ -842,13 +998,22 @@ export async function buildApp(d: Deps) {
       );
     }
   }
+  // Mini App sahifasi — o'sha ilova; faqat Telegram'ning veb-versiyasi (web.telegram.org) uni oyna ichida ocha oladi
+  app.get(MINI_PATH, async (req, reply) => {
+    const csp = String(reply.getHeader("content-security-policy") ?? "");
+    reply.header("Content-Security-Policy", csp.replace("frame-ancestors 'none'", "frame-ancestors https://web.telegram.org"));
+    reply.removeHeader("x-frame-options");
+    reply.header("Cache-Control", "no-cache").header("ETag", htmlEtag).type("text/html; charset=utf-8");
+    if (req.headers["if-none-match"] === htmlEtag) return reply.code(304).send();
+    return html;
+  });
   app.get("/healthz", async () => ({ ok: store.ready }));
 
   return app;
 }
 
 /** Audit jurnaliga yoziladigan argumentlar: maxfiy qiymatlar va katta matnlar yozilmaydi. */
-function auditArgs(name: ActionName, args: unknown[]): unknown {
+function auditArgs(name: ActionName, args: unknown[]): Record<string, unknown> {
   if (name === "setTelegramToken" || name === "saveMetaSettings" || name === "saveLeadAdsSettings") return { args: "(yashirin)" };
   const s = JSON.stringify(args);
   return s.length > 4000 ? { args: `${s.slice(0, 4000)}…` } : { args };

@@ -85,6 +85,46 @@ function TelegramTracking({
   );
 }
 
+/** Telegram Mini App: botdagi «ERP» tugmasi — telefonda kundalik ishlar. */
+function TelegramMiniApp({
+  miniApp,
+  enabled,
+  showToast,
+}: {
+  miniApp: { on: boolean; at: string; error?: string } | undefined;
+  enabled: boolean;
+  showToast: (t: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const toggle = (on: boolean) => {
+    setBusy(true);
+    api("/api/integrations/telegram/miniapp", { on })
+      .then(() => showToast(on ? "Botga «ERP» tugmasi qo'yildi" : "Mini App o'chirildi — Telegram kirishlari yopildi"))
+      .catch((e: Error) => showToast(`⚠ ${e.message}`))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div className="rounded-[14px] bg-fill p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="text-[13px] font-semibold text-label">Telegram Mini App</div>
+        <Badge tone={miniApp?.on ? "green" : "gray"}>{miniApp?.on ? "Yoqilgan" : "O'chiq"}</Badge>
+      </div>
+      <p className="mt-0.5 text-xs text-label2">
+        Yoqilsa, botda «ERP» tugmasi paydo bo'ladi. Xodim saytdagi login va parol bilan kiradi, kod o'rniga uning Telegram akkaunti tekshiriladi (jadvaldagi
+        chat ID to'g'ri bo'lishi shart). Telegram'da faqat kundalik ishlar: vazifalar, tasdiq, kontent, syomka va lidlar. Pul, hujjatlar va sozlamalar — faqat
+        saytda. O'chirilsa, hamma Telegram kirishlari darhol yopiladi.
+      </p>
+      {miniApp?.error && <p className="mt-1 text-xs text-red">Oxirgi xato: {miniApp.error}</p>}
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button onClick={() => toggle(!miniApp?.on)} disabled={busy || !enabled}>
+          {miniApp?.on ? "Mini App'ni o'chirish" : "Mini App'ni yoqish"}
+        </Button>
+      </div>
+      {!enabled && <p className="mt-1 text-xs text-label3">Avval Telegram bildirishnomalarini yoqing va bot tokenini kiriting.</p>}
+    </div>
+  );
+}
+
 export function Admin() {
   const { state, me, today, now, run, reset, showToast, session } = useErp();
   const [nu, setNu] = useState({ name: "", role: "smm" as Role });
@@ -318,6 +358,7 @@ export function Admin() {
               <Button onClick={sendExcel}>{SERVER_MODE ? "Excel'ni hozir yuborish" : "Butun ma'lumot Excel'da"}</Button>
             </div>
             {SERVER_MODE && <TelegramTracking tracking={tg.tracking} enabled={tg.enabled && Boolean(tg.botToken)} showToast={showToast} />}
+            {SERVER_MODE && <TelegramMiniApp miniApp={tg.miniApp} enabled={tg.enabled && Boolean(tg.botToken)} showToast={showToast} />}
             <p className="text-xs text-label3">
               Eslatmalar: deadline, kechikkan ishlar, ertangi syomka, qarzlar, to'lov muddati, qayta aloqa.{" "}
               {SERVER_MODE

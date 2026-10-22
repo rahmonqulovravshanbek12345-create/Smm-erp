@@ -1,4 +1,5 @@
 // Serverli tizim: brauzer ↔ server so'rovlari. Demo (GitHub Pages) versiyasida ishlatilmaydi.
+import { MINI_APP, tgHeaders } from "./tg";
 import type { ErpState, Role } from "./types";
 
 /** Yig'ishda belgilanadi: `VITE_SERVER=1 vite build` — haqiqiy tizim, aks holda demo. */
@@ -20,9 +21,10 @@ export async function api<T = unknown>(path: string, body?: unknown, o: { method
   try {
     res = await fetch(path, {
       method,
-      credentials: "same-origin",
+      // Mini App cookie ishlatmaydi: token va Telegram imzosi sarlavhada
+      credentials: MINI_APP ? "omit" : "same-origin",
       cache: "no-store",
-      headers: method === "POST" ? { "Content-Type": "application/json", "X-ERP": "1" } : {},
+      headers: { ...(method === "POST" ? { "Content-Type": "application/json", "X-ERP": "1" } : {}), ...tgHeaders() },
       body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
     });
   } catch {
@@ -40,6 +42,8 @@ export interface MeInfo {
   blocked: "password" | "2fa" | null;
   has2fa: boolean;
   require2fa: boolean;
+  /** tg — Telegram Mini App orqali kirilgan. */
+  via?: "web" | "tg";
 }
 
 export interface StateResponse {

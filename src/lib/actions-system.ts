@@ -120,6 +120,12 @@ export function markTelegramTracking(c: Ctx, on: boolean, error?: string) {
   c.s.settings.telegram.tracking = { on, at: nowISO(), ...(error ? { error: error.slice(0, 300) } : {}) };
 }
 
+/** Telegram Mini App («ERP» tugmasi botda) yoqildi yoki o'chirildi — oxirgi urinish natijasi. */
+export function markTelegramMiniApp(c: Ctx, on: boolean, error?: string) {
+  c.s.settings.telegram.miniApp = { on, at: nowISO(), ...(error ? { error: error.slice(0, 300) } : {}) };
+  if (!error) c.log(`Telegram Mini App ${on ? "yoqildi" : "o'chirildi"}`, "/admin");
+}
+
 /** Demo: boshqa xodim sifatida ko'rish. */
 export function switchUser(c: Ctx, userId: string) {
   findUser(c, userId);

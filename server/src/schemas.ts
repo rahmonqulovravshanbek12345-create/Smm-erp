@@ -358,6 +358,7 @@ export const ARGS: Schemas = {
   setAvatarStamp: z.tuple([id, z.string().max(40).optional()]),
   setTelegramStatus: z.tuple([z.string().regex(/^-?\d{3,20}$/), z.enum(["member", "blocked"]), z.enum(["event", "send", "probe"])]),
   markTelegramTracking: z.tuple([z.boolean(), z.string().max(300).optional()]),
+  markTelegramMiniApp: z.tuple([z.boolean(), z.string().max(300).optional()]),
   setUserName: z.tuple([id, short]),
   switchUser: z.tuple([id]),
   setChatIdForAll: z.tuple([z.string().max(30)]),

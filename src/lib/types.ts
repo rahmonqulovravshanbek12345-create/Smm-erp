@@ -566,6 +566,8 @@ export interface Settings {
     botToken: string;
     /** Xodimlar botga ulanishi/chiqib ketishini kuzatish (Telegram webhook) — oxirgi yoqish/o'chirish natijasi. */
     tracking?: { on: boolean; at: string; error?: string };
+    /** Telegram Mini App: botdagi «ERP» tugmasi (telefonda kundalik ishlar) — oxirgi yoqish/o'chirish natijasi. */
+    miniApp?: { on: boolean; at: string; error?: string };
   };
   integrations: Integrations;
 }

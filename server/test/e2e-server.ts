@@ -94,6 +94,15 @@ async function main() {
     }
     return { ok: true, today: todayISO() };
   });
+  // Telegram Mini App: bot tokeni, Mini App yoqilgan va xodimlarning chat ID'lari (haqiqiy Telegram'ga murojaat qilinmaydi)
+  app.post("/__test/miniapp", async (req) => {
+    const body = req.body as { token: string; chats: Record<string, string> };
+    await store.system((s) => {
+      s.settings.telegram = { ...s.settings.telegram, enabled: true, botToken: body.token, miniApp: { on: true, at: new Date().toISOString() } };
+      for (const u of s.users) if (body.chats[u.id]) u.telegramChatId = body.chats[u.id];
+    });
+    return { ok: true };
+  });
   // To'liq (saralanmagan) holat — testlar server haqiqatini tekshirishi uchun
   app.get("/__test/state", async () => store.current());
   await app.listen({ host: cfg.HOST, port: cfg.PORT });
