@@ -377,6 +377,13 @@ export const ARGS: Schemas = {
 
   markAllRead: z.tuple([]),
   markRead: z.tuple([id]),
+  sendAnnouncement: z.tuple([
+    z.strictObject({
+      text: z.string().max(4000),
+      roles: z.array(role).max(20).optional(),
+      userIds: z.array(id).max(500).optional(),
+    }),
+  ]),
 };
 
 /** Argumentlarni tekshiradi: to'g'ri bo'lsa — tozalangan qiymat, aks holda xato matni. */

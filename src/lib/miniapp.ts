@@ -49,9 +49,10 @@ export const MINI_ACTIONS: ReadonlySet<ActionName> = new Set<ActionName>([
   "saveLead",
   "addContact",
   "moveLead",
-  // Bildirishnomalar
+  // Bildirishnomalar va e'lonlar
   "markAllRead",
   "markRead",
+  "sendAnnouncement",
 ]);
 
 /** Mini App sessiyasi umri: bir ish kuni. Keyin parol qayta so'raladi. */

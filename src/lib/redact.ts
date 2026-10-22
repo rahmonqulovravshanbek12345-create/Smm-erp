@@ -3,7 +3,7 @@
 // Maxfiy kalitlar (Telegram, Meta tokenlari) hech kimga yuborilmaydi — o'rniga «saqlangan» belgisi.
 import { todayISO } from "./dates";
 import { projectDebt } from "./finance";
-import { canView, seesEverything, visibleProjects } from "./permissions";
+import { canAnnounce, canView, seesEverything, visibleProjects } from "./permissions";
 import type { ErpState, Project, ProjectService, User } from "./types";
 
 export const SECRET_MASK = "••••••••";
@@ -48,6 +48,8 @@ export function redactFor(full: ErpState, me: User, today: string = todayISO(), 
       return v.telegramChatId ? { ...v, telegramChatId: "•" } : v;
     }),
     notifications: base.notifications.filter((n) => n.userId === me.id),
+    // E'lonlar hisoboti (kim o'qidi) — faqat e'lon yuboradiganlarga
+    announcements: canAnnounce(me.role) ? base.announcements : [],
   };
   if (seesEverything(me) && !o.noFinance) return out;
 

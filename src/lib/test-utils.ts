@@ -59,6 +59,7 @@ export function emptyState(today = TODAY): ErpState {
     quotas: [],
     integrationLog: [],
     notifications: [],
+    announcements: [],
     activity: [],
     accounts: s.accounts.map((a) => ({ ...a, opening: 0 })),
   };

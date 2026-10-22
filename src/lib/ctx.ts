@@ -12,7 +12,7 @@ export interface Ctx {
   /** Hozirgi vaqt «HH:MM» (deadline soati uchun); testlarda berilmasligi mumkin. */
   now?: string;
   /** Tizim ichida bildirishnoma + (sozlangan bo'lsa) Telegram xabar. `self` — amalni bajaruvchiga ham (tizim amallari uchun). */
-  notify: (userIds: (string | undefined)[], text: string, href?: string, o?: { self?: boolean }) => void;
+  notify: (userIds: (string | undefined)[], text: string, href?: string, o?: { self?: boolean; ann?: string }) => void;
   /** Faoliyat tarixi: kim, qachon, nimani o'zgartirdi. */
   log: (text: string, href?: string) => void;
 }
@@ -111,6 +111,7 @@ export function makeCtx(s: ErpState, me: User, o: MakeCtxOptions = {}): { ctx: C
           at: nowISO(),
           read: false,
           telegram: !tg.enabled ? "off" : live ? "sent" : "demo",
+          ...(opt?.ann ? { ann: opt.ann } : {}),
         });
         if (live) outbox.push({ notificationId: id, chatId: chatId!, text: telegramText(to, text) });
       }

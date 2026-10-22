@@ -39,6 +39,7 @@ export function buildBlank(today: string, admin: { id: string; name: string } = 
     quotas: [],
     integrationLog: [],
     notifications: [],
+    announcements: [],
     activity: [],
     settings: {
       companyName: "Friday Agency",
