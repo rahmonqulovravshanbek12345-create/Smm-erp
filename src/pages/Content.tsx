@@ -22,6 +22,7 @@ export function Content() {
   return (
     <>
       <PageHeader
+        cover="content"
         title="Kontent reja"
         sub="Marketolog topshirig'i bo'yicha: sana, platformalar, tur, mavzu, mas'ul va status. Bitta post bir nechta platformaga qo'yilsa ham 1 ta post sanaladi"
         actions={

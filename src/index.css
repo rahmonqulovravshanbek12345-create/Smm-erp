@@ -214,6 +214,17 @@
 }
 
 @layer components {
+  /* Bo'lim muqovalari (sahifa sarlavhasi orqasida): bo'lim rangidagi yumshoq fon */
+  .cover-content {
+    background: linear-gradient(120deg, rgb(255 45 85 / 0.13), rgb(255 149 0 / 0.11) 45%, rgb(88 86 214 / 0.14));
+  }
+  .cover-montaj {
+    background: linear-gradient(120deg, rgb(88 86 214 / 0.16), rgb(175 82 222 / 0.12) 50%, rgb(255 45 85 / 0.1));
+  }
+  .cover-finance {
+    background: linear-gradient(120deg, rgb(52 199 89 / 0.16), rgb(48 176 199 / 0.12) 55%, rgb(255 204 0 / 0.13));
+  }
+
   /* Rangli devor qog'ozi — shisha shu fon ustida "jonlanadi". */
   .wallpaper {
     position: fixed;
@@ -287,5 +298,28 @@
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Muqova rasmlaridagi yengil harakat — faqat qurilmada animatsiya o'chirilmagan bo'lsa */
+@media (prefers-reduced-motion: no-preference) {
+  .cover-float {
+    animation: cover-float 5s ease-in-out infinite alternate;
+  }
+  .cover-playhead {
+    animation: cover-playhead 9s linear infinite;
+  }
+}
+@keyframes cover-float {
+  to {
+    transform: translateY(-6px);
+  }
+}
+@keyframes cover-playhead {
+  from {
+    transform: translateX(-80px);
+  }
+  to {
+    transform: translateX(100px);
   }
 }
