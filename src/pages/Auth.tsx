@@ -7,9 +7,11 @@ import { Banner, Button, Field, Input } from "../components/ui";
 import { ApiError, api, type MeInfo, type StateResponse } from "../lib/api";
 import { BRAND } from "../lib/brand";
 import { ServerStoreProvider } from "../lib/server-store";
+import { MINI_APP, setTgToken, tgInitData, tgReady } from "../lib/tg";
 
 type Phase =
   | { k: "loading" }
+  | { k: "outside" }
   | { k: "login"; notice?: string }
   | { k: "totp" }
   | { k: "password"; me: MeInfo }
@@ -22,6 +24,8 @@ export function ServerGate() {
   const [phase, setPhase] = useState<Phase>({ k: "loading" });
 
   const check = useCallback(async (notice?: string) => {
+    // Mini App faqat Telegram ichida (Telegram imzosisiz server hech narsa bermaydi)
+    if (MINI_APP && !tgInitData()) return setPhase({ k: "outside" });
     try {
       const me = await api<MeInfo | { user: null }>("/api/me");
       if (!me.user) return setPhase({ k: "login", notice });
@@ -30,16 +34,23 @@ export function ServerGate() {
       const initial = await api<StateResponse>("/api/state?v=-1");
       setPhase({ k: "ready", me, initial });
     } catch (e) {
-      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) return setPhase({ k: "login", notice });
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        if (MINI_APP) setTgToken(null);
+        return setPhase({ k: "login", notice });
+      }
       setPhase({ k: "error", text: e instanceof Error ? e.message : "Xatolik" });
     }
   }, []);
 
   useEffect(() => {
+    tgReady();
     void check();
   }, [check]);
 
-  const signedOut = useCallback(() => setPhase({ k: "login", notice: "Sessiya tugadi — qaytadan kiring" }), []);
+  const signedOut = useCallback(() => {
+    if (MINI_APP) setTgToken(null);
+    setPhase({ k: "login", notice: "Sessiya tugadi — qaytadan kiring" });
+  }, []);
 
   switch (phase.k) {
     case "loading":
@@ -53,7 +64,16 @@ export function ServerGate() {
           </Button>
         </Screen>
       );
+    case "outside":
+      return (
+        <Screen title="Telegram orqali oching" sub="Bu sahifa — tizimning Telegram versiyasi. Uni Telegram botdagi «ERP» tugmasi orqali oching.">
+          <a href="/" className="block text-center text-[14px] font-semibold text-accent">
+            Saytning to'liq versiyasiga o'tish →
+          </a>
+        </Screen>
+      );
     case "login":
+      if (MINI_APP) return <MiniLogin notice={phase.notice} onDone={() => void check()} />;
       return <Login notice={phase.notice} onDone={(need2fa) => (need2fa ? setPhase({ k: "totp" }) : void check())} />;
     case "totp":
       return <Totp onDone={() => void check()} onBack={() => setPhase({ k: "login" })} />;
@@ -115,6 +135,41 @@ function Login({ notice, onDone }: { notice?: string; onDone: (need2fa: boolean)
           {busy ? "Tekshirilmoqda…" : "Kirish"}
         </Button>
         <p className="pt-1 text-center text-[12px] text-label3">Parolni unutsangiz — adminga murojaat qiling</p>
+      </form>
+    </Screen>
+  );
+}
+
+/** Telegram Mini App: login va parol; ikkinchi qadam — shu Telegram akkaunt (u ERP'da xodimga bog'langan bo'lishi kerak). */
+function MiniLogin({ notice, onDone }: { notice?: string; onDone: () => void }) {
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
+  const { busy, error, submit } = useSubmit();
+  return (
+    <Screen title="Tizimga kirish" sub="Saytdagi login va parolingiz. Kod so'ralmaydi — uning o'rnida Telegram akkauntingiz tekshiriladi.">
+      <form
+        className="space-y-3"
+        onSubmit={(e) =>
+          submit(e, async () => {
+            const r = await api<{ token: string }>("/api/tg/login", { initData: tgInitData(), login: login.trim(), password });
+            setPassword("");
+            setTgToken(r.token);
+            onDone();
+          })
+        }
+      >
+        {notice && !error && <Banner tone="amber">{notice}</Banner>}
+        {error && <Banner tone="red">{error}</Banner>}
+        <Field label="Login">
+          <Input value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} required />
+        </Field>
+        <Field label="Parol">
+          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+        </Field>
+        <Button type="submit" variant="primary" className="w-full" disabled={busy || !login.trim() || !password}>
+          {busy ? "Tekshirilmoqda…" : "Kirish"}
+        </Button>
+        <p className="pt-1 text-center text-[12px] text-label3">Kirish 12 soat eslab qolinadi. Pul va sozlamalar — faqat saytda.</p>
       </form>
     </Screen>
   );

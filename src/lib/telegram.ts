@@ -144,6 +144,10 @@ export const setTelegramWebhook = (token: string, url: string, secret: string) =
 
 export const deleteTelegramWebhook = (token: string) => botCall(token, "deleteWebhook", {});
 
+/** Botning chap pastdagi menyu tugmasi: «ERP» (Mini App'ni ochadi) yoki oddiy buyruqlar menyusi (url bo'lmasa). */
+export const setTelegramMenuButton = (token: string, url: string | null) =>
+  botCall(token, "setChatMenuButton", { menu_button: url ? { type: "web_app", text: "ERP", web_app: { url } } : { type: "default" } });
+
 /**
  * Telegram'dan kelgan yangilanish: shaxsiy chatda xodim botni ishga tushirdi (/start yoki blokdan chiqardi)
  * yoki botni bloklab qo'ydi. Boshqa hamma narsa — null.

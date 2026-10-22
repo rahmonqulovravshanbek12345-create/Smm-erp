@@ -58,6 +58,10 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
       tg.calls.push("delete");
       return tg.webhookError ? { ok: false, error: tg.webhookError } : { ok: true };
     },
+    setMenuButton: async (_t, url) => {
+      tg.calls.push(url ? `menu:${url}` : "menu:default");
+      return tg.webhookError ? { ok: false, error: tg.webhookError } : { ok: true };
+    },
   };
   const notifier = createNotifier(
     store,

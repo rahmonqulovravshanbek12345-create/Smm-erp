@@ -8,6 +8,7 @@ import {
   probeChat,
   sendTelegram,
   sendTelegramDocument,
+  setTelegramMenuButton,
   setTelegramWebhook,
   telegramText,
   type Probe,
@@ -25,9 +26,15 @@ export interface TelegramControl {
   probe(token: string, chatId: string): Promise<Probe>;
   setWebhook(token: string, url: string, secret: string): Promise<TgResult>;
   deleteWebhook(token: string): Promise<TgResult>;
+  setMenuButton(token: string, url: string | null): Promise<TgResult>;
 }
 
-const realControl: TelegramControl = { probe: probeChat, setWebhook: setTelegramWebhook, deleteWebhook: deleteTelegramWebhook };
+const realControl: TelegramControl = {
+  probe: probeChat,
+  setWebhook: setTelegramWebhook,
+  deleteWebhook: deleteTelegramWebhook,
+  setMenuButton: setTelegramMenuButton,
+};
 
 export interface Notifier {
   /** Amal natijasidagi bildirishnomalarni Telegram'ga yuboradi (javobni kutmaydi). */
@@ -45,6 +52,8 @@ export interface Notifier {
   probeAll(): number;
   /** Ulanishni kuzatishni yoqish (Telegram webhook shu manzilga) yoki o'chirish. */
   setTracking(on: boolean, url: string, secret: string): Promise<TgResult>;
+  /** Mini App: botga «ERP» tugmasini qo'yish (url) yoki olib tashlash. */
+  setMiniApp(on: boolean, url: string): Promise<TgResult>;
   /** Navbatdagi barcha yuborishlar tugashini kutish (testlar va to'xtash uchun). */
   idle(): Promise<void>;
 }
@@ -108,6 +117,13 @@ export function createNotifier(
       const r = on ? await control.setWebhook(token, url, secret) : await control.deleteWebhook(token);
       // O'chirish muvaffaqiyatsiz bo'lsa — kuzatuv hali ham yoqilgan
       await store.runAsSystem("markTelegramTracking", [on ? r.ok : !r.ok, r.ok ? undefined : r.error]);
+      return r;
+    },
+    async setMiniApp(on, url) {
+      const token = cfg();
+      if (!token) return { ok: false, error: "Avval Telegram bildirishnomalarini yoqing va bot tokenini kiriting" };
+      const r = await control.setMenuButton(token, on ? url : null);
+      await store.runAsSystem("markTelegramMiniApp", [on ? r.ok : !r.ok, r.ok ? undefined : r.error]);
       return r;
     },
     direct(userId, text) {

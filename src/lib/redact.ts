@@ -29,8 +29,11 @@ export function withoutSecrets(s: ErpState): ErpState {
   };
 }
 
-/** Xodim uchun holat nusxasi. Asl holat o'zgarmaydi (yangi massiv va obyektlar). */
-export function redactFor(full: ErpState, me: User, today: string = todayISO()): ErpState {
+/**
+ * Xodim uchun holat nusxasi. Asl holat o'zgarmaydi (yangi massiv va obyektlar).
+ * `noFinance` — Telegram Mini App: rahbar va moliyachiga ham kompaniya pullari, narxlar va takliflar yuborilmaydi.
+ */
+export function redactFor(full: ErpState, me: User, today: string = todayISO(), o: { noFinance?: boolean } = {}): ErpState {
   const base = withoutSecrets(full);
   const admin = me.role === "admin";
   const out: ErpState = {
@@ -46,9 +49,9 @@ export function redactFor(full: ErpState, me: User, today: string = todayISO()):
     }),
     notifications: base.notifications.filter((n) => n.userId === me.id),
   };
-  if (seesEverything(me)) return out;
+  if (seesEverything(me) && !o.noFinance) return out;
 
-  const projects = visibleProjects(full, me);
+  const projects = seesEverything(me) ? full.projects : visibleProjects(full, me);
   const pids = new Set(projects.map((p) => p.id));
   const crm = canView(me.role, "crm");
   // Operator — o'z lidlaridan tuzilgan loyihalar (loyiha ham aynan shu liddan yaratilgan bo'lishi shart)
@@ -81,7 +84,7 @@ export function redactFor(full: ErpState, me: User, today: string = todayISO()):
     ...out,
     projects: full.projects.filter((p) => pids.has(p.id)).map(noMoney),
     leads: crm ? full.leads : [],
-    proposals: crm ? full.proposals : [],
+    proposals: crm && !o.noFinance ? full.proposals : [],
     posts: full.posts.filter(inProject),
     shoots: full.shoots.filter(inProject),
     tasks: full.tasks.filter(inProject),

@@ -182,7 +182,7 @@ export class StateStore {
     name: N,
     args: ActionArgs<N>,
     userId: string,
-    o: { ids?: unknown; check?: (me: User, s: ErpState) => string | null; quotaBytes?: number } = {},
+    o: { ids?: unknown; check?: (me: User, s: ErpState) => string | null; quotaBytes?: number; logSuffix?: string } = {},
   ): Promise<Applied<ActionResult<N>>> {
     return this.serial(async () => {
       const { state, version } = this.current();
@@ -193,7 +193,7 @@ export class StateStore {
       if (denied) throw new UserError(denied);
       const before = this.size;
       const today = todayISO();
-      const { ctx, outbox } = makeCtx(s, me, { today, now: nowHM() });
+      const { ctx, outbox } = makeCtx(s, me, { today, now: nowHM(), logSuffix: o.logSuffix });
       let value: ActionResult<N>;
       try {
         value = withReplayIds(s, o.ids, () => apply(ctx, name, args));

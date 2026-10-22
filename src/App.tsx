@@ -7,7 +7,9 @@ import { SERVER_MODE } from "./lib/api";
 import { BRAND } from "./lib/brand";
 import { PasswordForm, TwoFactorForm } from "./components/Security";
 import { ROLE_LABELS } from "./lib/labels";
+import { MINI_MODULES, miniPathAllowed } from "./lib/miniapp";
 import { canView, homeFor, type Module } from "./lib/permissions";
+import { MINI_APP, tgBackButton, tgDark, tgOpenLink } from "./lib/tg";
 import { alertsFor } from "./lib/rules";
 import { useErp } from "./lib/store";
 import type { Role, User } from "./lib/types";
@@ -107,6 +109,12 @@ const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
 ];
 
 const ALL_NAV = NAV_GROUPS.flatMap((g) => g.items);
+
+/** Telegram Mini App'da faqat kundalik ish bo'limlari (pul, hujjatlar va sozlamalar — saytda). */
+const inMini = (module: Module, path: string) => !MINI_APP || (MINI_MODULES.has(module) && miniPathAllowed(path.split("?")[0]!));
+/** Rolning bosh sahifasi; Mini App'da — ochiq bo'limlardan birinchisi. */
+const homeOf = (role: Role) =>
+  MINI_APP ? (["/", "/mening", "/bildirishnomalar"].find((p) => canView(role, route(p).module)) ?? "/bildirishnomalar") : homeFor(role);
 const TAB_PRIORITY: string[] = [
   "/mening",
   "/",
@@ -255,7 +263,10 @@ function useTheme(): [Theme, (t: Theme) => void] {
   });
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === "system") root.removeAttribute("data-theme");
+    const tg = tgDark();
+    // Mini App'da «tizim» — Telegram'ning mavzusi
+    if (theme === "system" && MINI_APP && tg !== null) root.setAttribute("data-theme", tg ? "dark" : "light");
+    else if (theme === "system") root.removeAttribute("data-theme");
     else root.setAttribute("data-theme", theme);
     try {
       window.localStorage.setItem(THEME_KEY, theme);
@@ -277,7 +288,8 @@ function useEffectiveTheme(theme: Theme): "light" | "dark" {
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
-  return theme === "system" ? system : theme;
+  const tg = MINI_APP ? tgDark() : null;
+  return theme === "system" ? (tg === null ? system : tg ? "dark" : "light") : theme;
 }
 
 const WEEKDAYS = ["Yakshanba", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
@@ -297,12 +309,15 @@ export function App() {
   const [account, setAccount] = useState(false);
   const [security, setSecurity] = useState<"password" | "2fa" | null>(null);
   const { module, node } = route(path);
-  const allowed = canView(me.role, module);
+  const allowed = canView(me.role, module) && inMini(module, path);
+  const home = homeOf(me.role);
 
   // Ruxsat yo'q sahifaga tushsa — rolning bosh sahifasiga yo'naltiramiz.
   useEffect(() => {
-    if (!allowed) navigate(homeFor(me.role));
-  }, [allowed, me.role]);
+    if (!allowed) navigate(home);
+  }, [allowed, home]);
+  // Mini App: Telegram sarlavhasidagi «Orqaga» — bosh sahifadan boshqa joyda
+  useEffect(() => tgBackButton(path !== home, () => (window.history.length > 1 ? window.history.back() : navigate(home))), [path, home]);
   useEffect(() => {
     setMore(false);
     setAccount(false);
@@ -310,7 +325,7 @@ export function App() {
   }, [path]);
 
   const unread = state.notifications.filter((n) => n.userId === me.id && !n.read).length + alertsFor(state, me, today, now).length;
-  const visible = (item: NavItem) => canView(me.role, item.module);
+  const visible = (item: NavItem) => canView(me.role, item.module) && inMini(item.module, item.path);
   const tabs = TAB_PRIORITY.map((p) => ALL_NAV.find((n) => n.path === p)!)
     .filter(visible)
     .slice(0, 4);
@@ -320,7 +335,7 @@ export function App() {
     setAccount(false);
     setMore(false);
     const u = state.users.find((x) => x.id === id);
-    if (u) navigate(homeFor(u.role));
+    if (u) navigate(homeOf(u.role));
   };
 
   const navList = (compact = false) => (
@@ -650,22 +665,30 @@ function AccountSession({
           </span>
         </span>
       </div>
-      <div className="mt-1 border-t border-sep pt-1">
-        {photo.input}
-        {item("camera", photo.busy ? "Yuklanmoqda…" : "Profil rasmini yuklash", photo.pick)}
-        {me.avatarAt && item("x", "Profil rasmini o'chirish", () => void photo.remove())}
-        {item("gear", "Parolni o'zgartirish", () => {
-          onClose();
-          onSecurity("password");
-        })}
-        {!session.has2fa &&
-          item("checkSeal", "Ikki bosqichli kirishni yoqish", () => {
+      {MINI_APP ? (
+        <div className="mt-1 border-t border-sep pt-1">
+          <p className="px-2 py-1.5 text-[13px] text-label2">Telegram versiyasi: pul, hujjatlar, parol va sozlamalar — saytda.</p>
+          {item("link", "Saytning to'liq versiyasi", () => tgOpenLink(`${window.location.origin}/`))}
+          {item("logout", "Chiqish", () => void session.logout(), true)}
+        </div>
+      ) : (
+        <div className="mt-1 border-t border-sep pt-1">
+          {photo.input}
+          {item("camera", photo.busy ? "Yuklanmoqda…" : "Profil rasmini yuklash", photo.pick)}
+          {me.avatarAt && item("x", "Profil rasmini o'chirish", () => void photo.remove())}
+          {item("gear", "Parolni o'zgartirish", () => {
             onClose();
-            onSecurity("2fa");
+            onSecurity("password");
           })}
-        {session.has2fa && <div className="px-2 py-1.5 text-[13px] text-green">✓ Ikki bosqichli kirish yoqilgan</div>}
-        {item("logout", "Chiqish", () => void session.logout(), true)}
-      </div>
+          {!session.has2fa &&
+            item("checkSeal", "Ikki bosqichli kirishni yoqish", () => {
+              onClose();
+              onSecurity("2fa");
+            })}
+          {session.has2fa && <div className="px-2 py-1.5 text-[13px] text-green">✓ Ikki bosqichli kirish yoqilgan</div>}
+          {item("logout", "Chiqish", () => void session.logout(), true)}
+        </div>
+      )}
     </div>
   );
 }

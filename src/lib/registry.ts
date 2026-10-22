@@ -85,6 +85,7 @@ export const ACTIONS = {
   setAvatarStamp: sys.setAvatarStamp,
   setTelegramStatus: sys.setTelegramStatus,
   markTelegramTracking: sys.markTelegramTracking,
+  markTelegramMiniApp: sys.markTelegramMiniApp,
   // Xodimlar va sozlamalar
   addUser: sys.addUser,
   setUserRole: sys.setUserRole,

@@ -147,3 +147,14 @@ Tekshirilmagan: haqiqiy Eskiz serverining holati (SSH, ochiq portlar, DNS, serti
 - Shartnoma hujjatida narxlar bor, shuning uchun u faqat shu rollarga ochiladi.
 - Operator CRM bo'limida o'z lidlari va takliflarini (narxlari bilan) avvalgidek ko'radi: bu uning sotuv ishi.
 - Sinov: `src/lib/redact.test.ts`, `server/test/hide-money.test.ts`, `e2e/hide-money.spec.ts`.
+
+## Telegram Mini App
+
+- Botdagi «ERP» tugmasi `https://<sayt>/tg` sahifasini Telegram ichida ochadi. Uni faqat admin yoqadi (Admin → Telegram → «Mini App'ni yoqish»). O'chirilganda botdagi tugma olinadi va hamma Mini App sessiyalari darhol yopiladi.
+- **Kirish: parol + Telegram akkaunt.** Telegram ochilganda imzolangan ma'lumot (`initData`) beradi. Server uni bot tokeni bilan tekshiradi (HMAC-SHA256, vaqtga bog'liq bo'lmagan taqqoslash, takrorlangan maydon rad etiladi, kirishda 1 soatdan eski bo'lmasin). Xodim saytdagi login va parolini kiritadi. 2FA kodi o'rnida — imzodagi Telegram akkaunt ERP'da shu xodimga bog'langan chat ID bilan bir xil bo'lishi shart. Parol to'g'ri, lekin akkaunt begona bo'lsa: rad etiladi, xato hisoblanadi (blok hisoblagichi saytdagi bilan umumiy) va xodimning o'ziga Telegram'da ogohlantirish boradi.
+- **Sessiya:** 12 soat, sayt cookie'si emas — token (`Authorization: Bearer`) va **har so'rovda** shu akkauntning Telegram imzosi (`X-TG-Init`, 1 kundan eski emas). Token o'g'irlansa ham Telegram imzosisiz ishlamaydi; Mini App tokeni sayt cookie'si sifatida ishlamaydi. Xodimning chat ID'si o'zgarsa, arxivlansa, paroli tiklansa yoki bot tokeni almashtirilsa — sessiya yopiladi. Parol almashtirilsa yoki admin «chiqarsa» — hamma sessiyalar, Mini App ham.
+- **Pul va sozlamalarsiz:** Mini App sessiyasi bilan faqat ro'yxatdagi amallar bajariladi (`src/lib/miniapp.ts`: vazifalar, syomka, kontent va tasdiq, lidlar, bildirishnomalar). Pul, xodimlar, sozlamalar, admin, parol, 2FA va integratsiya yo'llari 403 qaytaradi (rol ruxsat bersa ham). Holat ham `redactFor(..., { noFinance: true })` bilan yuboriladi: rahbar va moliyachiga ham fakturalar, kassa, narxlar va takliflar bormaydi.
+- `/tg` sahifasini faqat `https://web.telegram.org` oyna ichida ocha oladi (`frame-ancestors`); qolgan sahifalar avvalgidek hech kimga. Rasmiy SDK skripti yuklanmaydi — begona skript yo'q, CSP o'zgarmagan.
+- Har bir amal audit jurnalida `via: telegram`, faoliyat tarixida «· Telegram orqali» belgisi bilan. `X-TG-Init` sarlavhasi server jurnaliga yozilmaydi.
+- Ma'lum cheklov: telefoni ochiq holda qo'lga tushsa va Mini App 12 soat ichida ochilgan bo'lsa, kundalik ishlarni bajarish mumkin (pul va sozlamalarni emas). Bunday holda admin xodimni «chiqaradi» yoki chat ID'sini o'chiradi.
+- Sinov: `server/test/miniapp.test.ts`, `e2e/miniapp.spec.ts`.

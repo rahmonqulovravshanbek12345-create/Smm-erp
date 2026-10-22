@@ -36,6 +36,9 @@ export interface Session {
   last_seen: Date;
   expires_at: Date;
   idle_minutes: number;
+  /** web — saytdagi cookie; tg — Telegram Mini App (token + Telegram imzosi). */
+  kind: "web" | "tg";
+  tg_id: string | null;
 }
 
 export const normLogin = (v: string) => v.trim().toLowerCase();
@@ -155,12 +158,14 @@ export async function createSession(
   ip: string,
   ua: string,
   life = { days: SESSION_DAYS, idleMinutes: IDLE_DAYS * 24 * 60 },
+  tgId?: string,
 ): Promise<string> {
   const token = newToken();
-  const minutes = stage === "totp" ? TOTP_STAGE_MIN : life.days * 24 * 60;
+  const minutes = stage === "totp" ? TOTP_STAGE_MIN : Math.round(life.days * 24 * 60);
   await db.query(
-    "INSERT INTO sessions (id, user_id, stage, expires_at, ip, user_agent, idle_minutes) VALUES ($1, $2, $3, now() + make_interval(mins => $4), $5, $6, $7)",
-    [sha256(token), userId, stage, minutes, ip.slice(0, 64), ua.slice(0, 300), life.idleMinutes],
+    `INSERT INTO sessions (id, user_id, stage, expires_at, ip, user_agent, idle_minutes, kind, tg_id)
+     VALUES ($1, $2, $3, now() + make_interval(mins => $4), $5, $6, $7, $8, $9)`,
+    [sha256(token), userId, stage, minutes, ip.slice(0, 64), ua.slice(0, 300), life.idleMinutes, tgId ? "tg" : "web", tgId ?? null],
   );
   return token;
 }

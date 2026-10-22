@@ -116,6 +116,11 @@ const MIGRATIONS: string[] = [
     updated_at timestamptz NOT NULL DEFAULT now()
   );
   `,
+  `
+  -- 6. Telegram Mini App sessiyalari: sayt cookie'si bilan ishlamaydi, har so'rovda Telegram imzosi ham tekshiriladi
+  ALTER TABLE sessions ADD COLUMN kind text NOT NULL DEFAULT 'web' CHECK (kind IN ('web', 'tg'));
+  ALTER TABLE sessions ADD COLUMN tg_id text;
+  `,
 ];
 
 /** Audit jurnali 2 yil saqlanadi (eski yozuvlar disk to'lib qolmasligi uchun o'chiriladi). */

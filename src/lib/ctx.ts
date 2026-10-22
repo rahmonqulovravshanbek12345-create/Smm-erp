@@ -76,6 +76,8 @@ export function withReplayIds<T>(s: ErpState, ids: unknown, fn: () => T): T {
 export interface MakeCtxOptions {
   today?: string;
   now?: string;
+  /** Faoliyat tarixidagi yozuv oxiriga qo'shiladi (masalan, « · Telegram orqali»). */
+  logSuffix?: string;
 }
 
 /**
@@ -114,7 +116,7 @@ export function makeCtx(s: ErpState, me: User, o: MakeCtxOptions = {}): { ctx: C
       }
     },
     log(text, href) {
-      s.activity.unshift({ id: newId("act"), at: nowISO(), userId: me.id, text, href });
+      s.activity.unshift({ id: newId("act"), at: nowISO(), userId: me.id, text: text + (o.logSuffix ?? ""), href });
     },
   };
   return { ctx, outbox };
