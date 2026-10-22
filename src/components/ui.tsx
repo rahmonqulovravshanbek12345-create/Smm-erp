@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { createPortal } from "react-dom";
 import { SERVER_MODE } from "../lib/api";
 import type { Tone } from "../lib/labels";
-import { COVER_BG, CoverArt, type CoverKind } from "./covers";
 import { Icon, IconChip, type ChipColor, type IconName } from "./icons";
 
 // ---------- Router ----------
@@ -151,21 +150,7 @@ export function CardHeader({ title, right, sub, icon }: { title: ReactNode; righ
   );
 }
 
-export function PageHeader({ title, sub, actions, cover }: { title: string; sub?: ReactNode; actions?: ReactNode; cover?: CoverKind }) {
-  if (cover)
-    return (
-      // Rasm — butun muqova foni (o'ngda yorqin, matn tomonga so'nib boradi), yozuv uning ustida
-      <div className={`relative mb-6 overflow-hidden rounded-[28px] sm:min-h-[188px] ${COVER_BG[cover]}`}>
-        <div className="cover-art pointer-events-none absolute inset-0">
-          <CoverArt kind={cover} className="absolute -right-6 top-1/2 aspect-[252/212] h-[120%] max-w-none -translate-y-1/2 sm:right-0 sm:h-[125%]" />
-        </div>
-        <div className="relative p-5 sm:p-7">
-          <h1 className="text-[28px] font-bold leading-tight tracking-[-0.025em] text-label sm:text-[34px]">{title}</h1>
-          {sub && <p className="mt-1 max-w-[62ch] text-[14px] font-medium text-label2 sm:text-[15px]">{sub}</p>}
-          {actions && <div className="mt-4 flex flex-wrap gap-2">{actions}</div>}
-        </div>
-      </div>
-    );
+export function PageHeader({ title, sub, actions }: { title: string; sub?: ReactNode; actions?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">

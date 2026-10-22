@@ -1,15 +1,8 @@
-// Bo'lim muqovalari: sahifa sarlavhasi orqasidagi yengil vektor rasmlar (har bo'lim o'z ishini ko'rsatadi).
+// Bo'lim devor qog'ozi: butun sahifa foni bo'lim mavzusida — rang, mayda belgilar naqshi va katta rasm (har bo'lim o'z ishini ko'rsatadi).
 // Tashqi rasm yuklanmaydi — hammasi shu yerda chizilgan; harakat faqat qurilmada animatsiya o'chirilmagan bo'lsa.
 import type { ReactNode } from "react";
 
 export type CoverKind = "content" | "montaj" | "finance";
-
-/** Muqova foni: bo'limning rangi (yorug' va qorong'i mavzuda yumshoq). */
-export const COVER_BG: Record<CoverKind, string> = {
-  content: "cover-content",
-  montaj: "cover-montaj",
-  finance: "cover-finance",
-};
 
 const Float = ({ d = 0, children }: { d?: number; children: ReactNode }) => (
   <g className="cover-float" style={{ animationDelay: `${d}s` }}>
@@ -219,6 +212,81 @@ function FinanceArt() {
         </g>
       </Float>
     </>
+  );
+}
+
+/** Naqsh uchun mayda belgilar (bir rangli chiziqlar): har bo'limning o'z «doodle»lari. */
+const DOODLES: Record<CoverKind, string[]> = {
+  content: [
+    // yurak, izoh, # , kamera, qog'oz samolyot, ijro
+    "M12 21 l-7-7 a4.5 4.5 0 0 1 7-5.5 a4.5 4.5 0 0 1 7 5.5 z",
+    "M4 6 h16 v10 h-9 l-5 4 v-4 h-2 z",
+    "M9 4 l-2 16 M17 4 l-2 16 M4 9 h16 M3 15 h16",
+    "M3 7 h4 l2-3 h6 l2 3 h4 v12 h-18 z M12 10 a3.5 3.5 0 1 0 0.01 0",
+    "M3 11 l18-7 -6 17 -4-7 z M11 14 l10-10",
+    "M7 4 l12 8 -12 8 z",
+  ],
+  montaj: [
+    // kadr, ijro, qaychi, klaper, tasma
+    "M3 5 h18 v14 h-18 z M3 9 h18 M3 15 h18 M7 5 v4 M12 5 v4 M17 5 v4",
+    "M7 4 l12 8 -12 8 z",
+    "M6 7 a2.5 2.5 0 1 0 0.01 0 M6 17 a2.5 2.5 0 1 0 0.01 0 M8 8 l12 9 M8 16 l12-9",
+    "M3 9 h18 v11 h-18 z M3 9 l2-5 16 0 -2 5 M8 4 l-2 5 M13 4 l-2 5 M18 4 l-2 5",
+    "M2 12 h4 l2-5 3 10 3-12 3 9 2-2 h3",
+  ],
+  finance: [
+    // tanga, pul, o'sish, hamyon, foiz
+    "M12 4 a8 8 0 1 0 0.01 0 M12 8 v8 M9.5 10 h4 a1.5 1.5 0 0 1 0 3 h-3 a1.5 1.5 0 0 0 0 3 h4",
+    "M2 7 h20 v10 h-20 z M12 9.5 a2.5 2.5 0 1 0 0.01 0",
+    "M3 19 l6-6 4 3 8-9 M15 7 h6 v6",
+    "M4 7 h14 a2 2 0 0 1 2 2 v9 a2 2 0 0 1-2 2 h-14 z M4 7 l11-3 M15 13 h5",
+    "M5 19 l14-14 M7 7 a1.5 1.5 0 1 0 0.01 0 M17 17 a1.5 1.5 0 1 0 0.01 0",
+  ],
+};
+
+/** Butun fon bo'ylab mayda belgilar naqshi (juda xira — matnga xalaqit bermaydi). */
+function Doodles({ kind }: { kind: CoverKind }) {
+  const icons = DOODLES[kind];
+  // 6 ta joy, har birida boshqa belgi va burchak — takrorlanish sezilmasin
+  const spots: [number, number, number, number][] = [
+    [14, 18, -12, 1],
+    [92, 8, 14, 0.9],
+    [150, 64, -8, 1.1],
+    [40, 92, 18, 1],
+    [118, 128, -16, 0.95],
+    [190, 150, 8, 1.05],
+  ];
+  const id = `doodle-${kind}`;
+  return (
+    <svg className="absolute inset-0 h-full w-full text-label opacity-[0.08]" aria-hidden>
+      <defs>
+        <pattern id={id} width="220" height="200" patternUnits="userSpaceOnUse">
+          {spots.map(([x, y, r, k], i) => (
+            <path
+              key={i}
+              d={icons[i % icons.length]}
+              transform={`translate(${x} ${y}) rotate(${r} 12 12) scale(${k * 1.25})`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill={`url(#${id})`} />
+    </svg>
+  );
+}
+
+/** Sahifa foni: bo'lim rangi, naqsh va pastki o'ng burchakda katta xira rasm (telefonda — faqat rang va naqsh). Kartalar shisha bo'lgani uchun fon ular orqasida xiralashadi. */
+export function SectionWallpaper({ kind }: { kind: CoverKind }) {
+  return (
+    <div className={`section-wall section-wall-${kind}`} aria-hidden>
+      <Doodles kind={kind} />
+      <CoverArt kind={kind} className="wall-art absolute -right-[4%] bottom-[4%] hidden aspect-[252/212] h-[58vh] max-w-none sm:block" />
+    </div>
   );
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BrandMark } from "./components/BrandMark";
 import { Icon, IconChip, type ChipColor, type IconName } from "./components/icons";
 import { useAvatarPicker } from "./components/AvatarUploader";
+import { SectionWallpaper, type CoverKind } from "./components/covers";
 import { A, Avatar, IconButton, Modal, navigate, usePath } from "./components/ui";
 import { SERVER_MODE } from "./lib/api";
 import { BRAND } from "./lib/brand";
@@ -109,6 +110,9 @@ const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
 ];
 
 const ALL_NAV = NAV_GROUPS.flatMap((g) => g.items);
+
+/** Bo'lim foni (mavzuli rasm va naqsh); qolgan bo'limlarda — umumiy fon. */
+const WALL: Partial<Record<Module, CoverKind>> = { content: "content", montaj: "montaj", finance: "finance", payroll: "finance" };
 
 /** Telegram Mini App'da faqat kundalik ish bo'limlari (pul, hujjatlar va sozlamalar — saytda). */
 const inMini = (module: Module, path: string) => !MINI_APP || (MINI_MODULES.has(module) && miniPathAllowed(path.split("?")[0]!));
@@ -394,6 +398,7 @@ export function App() {
   return (
     <div className="min-h-screen">
       <div className="wallpaper" />
+      {allowed && WALL[module] && <SectionWallpaper kind={WALL[module]!} />}
 
       {/* ---------- Kompyuter: suzuvchi shisha sidebar ---------- */}
       <aside className="no-print glass fixed bottom-3 left-3 top-3 z-30 hidden w-[272px] flex-col rounded-[28px] lg:flex">

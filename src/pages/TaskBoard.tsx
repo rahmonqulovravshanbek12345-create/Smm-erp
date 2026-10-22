@@ -33,7 +33,6 @@ export function TaskBoard({ kind }: { kind: "montaj" | "dizayn" }) {
   return (
     <>
       <PageHeader
-        cover={kind === "montaj" ? "montaj" : undefined}
         title={own ? (kind === "montaj" ? "Montajyor oynasi" : "Dizayner oynasi") : kind === "montaj" ? "Montaj vazifalari" : "Dizayn vazifalari"}
         sub={own ? "Faqat sizga berilgan vazifalar: TZ, ssenariy, kadrlar havolasi, deadline" : "SMM menejer tayyor ishni qabul qiladi yoki qaytaradi"}
         actions={

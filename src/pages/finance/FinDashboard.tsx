@@ -141,7 +141,7 @@ export function FinDashboard() {
 
   return (
     <>
-      <PageHeader cover="finance" title="Moliyaviy panel" sub={`Hisoblash usulidagi natija, haqiqiy pul oqimi va qarzlar · bugun ${fmtDate(today)}`} />
+      <PageHeader title="Moliyaviy panel" sub={`Hisoblash usulidagi natija, haqiqiy pul oqimi va qarzlar · bugun ${fmtDate(today)}`} />
       <FinNav />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
