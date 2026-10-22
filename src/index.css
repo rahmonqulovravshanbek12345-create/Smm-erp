@@ -215,6 +215,17 @@
 
 @layer components {
   /* Bo'lim muqovalari (sahifa sarlavhasi orqasida): bo'lim rangidagi yumshoq fon */
+  .cover-art {
+    /* Rasm matn tomonga so'nib boradi — yozuv ustida o'qiladi (telefonda matn butun kenglikda, shuning uchun xiraroq) */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, rgb(0 0 0 / 0.18) 40%, rgb(0 0 0 / 0.5) 100%);
+    mask-image: linear-gradient(to right, transparent 0%, rgb(0 0 0 / 0.18) 40%, rgb(0 0 0 / 0.5) 100%);
+  }
+  @media (min-width: 640px) {
+    .cover-art {
+      -webkit-mask-image: linear-gradient(to right, transparent 5%, rgb(0 0 0 / 0.28) 45%, #000 85%);
+      mask-image: linear-gradient(to right, transparent 5%, rgb(0 0 0 / 0.28) 45%, #000 85%);
+    }
+  }
   .cover-content {
     background: linear-gradient(120deg, rgb(255 45 85 / 0.13), rgb(255 149 0 / 0.11) 45%, rgb(88 86 214 / 0.14));
   }

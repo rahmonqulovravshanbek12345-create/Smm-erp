@@ -154,17 +154,14 @@ export function CardHeader({ title, right, sub, icon }: { title: ReactNode; righ
 export function PageHeader({ title, sub, actions, cover }: { title: string; sub?: ReactNode; actions?: ReactNode; cover?: CoverKind }) {
   if (cover)
     return (
-      // Telefonda: sarlavha rasm yonida, izoh va tugmalar pastda to'liq kenglikda; kattaroq ekranda — matn chapda, rasm o'ngda
-      <div className={`relative mb-6 overflow-hidden rounded-[28px] sm:min-h-[176px] ${COVER_BG[cover]}`}>
-        <CoverArt
-          kind={cover}
-          className="pointer-events-none absolute right-1 top-1 h-[104px] w-[48%] sm:inset-y-0 sm:right-0 sm:h-full sm:w-[44%] lg:w-[40%]"
-        />
-        <div className="relative p-5 sm:py-7 sm:pl-7 sm:pr-[44%] lg:pr-[40%]">
-          <h1 className="flex min-h-[90px] items-center pr-[48%] text-[26px] font-bold leading-tight tracking-[-0.025em] text-label sm:block sm:min-h-0 sm:pr-0 sm:text-[34px]">
-            {title}
-          </h1>
-          {sub && <p className="mt-1 max-w-[70ch] text-[14px] text-label2 sm:text-[15px]">{sub}</p>}
+      // Rasm — butun muqova foni (o'ngda yorqin, matn tomonga so'nib boradi), yozuv uning ustida
+      <div className={`relative mb-6 overflow-hidden rounded-[28px] sm:min-h-[188px] ${COVER_BG[cover]}`}>
+        <div className="cover-art pointer-events-none absolute inset-0">
+          <CoverArt kind={cover} className="absolute -right-6 top-1/2 aspect-[252/212] h-[120%] max-w-none -translate-y-1/2 sm:right-0 sm:h-[125%]" />
+        </div>
+        <div className="relative p-5 sm:p-7">
+          <h1 className="text-[28px] font-bold leading-tight tracking-[-0.025em] text-label sm:text-[34px]">{title}</h1>
+          {sub && <p className="mt-1 max-w-[62ch] text-[14px] font-medium text-label2 sm:text-[15px]">{sub}</p>}
           {actions && <div className="mt-4 flex flex-wrap gap-2">{actions}</div>}
         </div>
       </div>
