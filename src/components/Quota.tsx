@@ -143,33 +143,35 @@ export function QuotaModal({ project, month, onClose }: { project: Project; mont
       }
     >
       {q.fromTariff && Object.keys(fromTariff).length > 0 && <Banner tone="green">Sonlar tarifdan olindi — kerak bo'lsa o'zgartiring.</Banner>}
-      <table className="w-full text-sm">
-        <thead className="text-left text-xs text-label2">
-          <tr>
-            <th className="py-1.5 font-medium">Turi</th>
-            <th className="py-1.5 text-right font-medium">Tarifda</th>
-            <th className="py-1.5 pl-4 font-medium">Bu oy</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-sep">
-          {allKeys.map((k) => (
-            <tr key={k}>
-              <td className="py-2 text-label">{k === SHOOT_KEY ? SHOOT_LABEL : typeName(state, k)}</td>
-              <td className="tabular py-2 text-right text-label2">{fromTariff[k] ?? "—"}</td>
-              <td className="py-2 pl-4">
-                <Input
-                  type="number"
-                  min={0}
-                  aria-label={`${typeName(state, k)} — bu oy`}
-                  value={counts[k] ?? "0"}
-                  onChange={(e) => setCounts({ ...counts, [k]: e.target.value })}
-                  className="!w-24 !py-1.5"
-                />
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-label2">
+            <tr>
+              <th className="py-1.5 font-medium">Turi</th>
+              <th className="py-1.5 text-right font-medium">Tarifda</th>
+              <th className="py-1.5 pl-4 font-medium">Bu oy</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-sep">
+            {allKeys.map((k) => (
+              <tr key={k}>
+                <td className="py-2 text-label">{k === SHOOT_KEY ? SHOOT_LABEL : typeName(state, k)}</td>
+                <td className="tabular py-2 text-right text-label2">{fromTariff[k] ?? "—"}</td>
+                <td className="py-2 pl-4">
+                  <Input
+                    type="number"
+                    min={0}
+                    aria-label={`${typeName(state, k)} — bu oy`}
+                    value={counts[k] ?? "0"}
+                    onChange={(e) => setCounts({ ...counts, [k]: e.target.value })}
+                    className="!w-24 !py-1.5"
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <div className="mt-3">
         {adding ? (
           <div className="flex flex-wrap items-end gap-2 rounded-[14px] bg-fill p-3">

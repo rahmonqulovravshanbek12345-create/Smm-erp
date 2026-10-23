@@ -341,7 +341,7 @@ function PerformanceKpi({ project: p, svc }: { project: Project; svc: ProjectSer
           <div className="text-xs text-label2">Sarf</div>
           <div className="tabular text-xl font-bold text-label">{fmtMoney(spend)}</div>
         </div>
-        <div className="sm:col-span-3">
+        <div className="overflow-x-auto sm:col-span-3">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-label2">
               <tr>
