@@ -193,6 +193,12 @@
     /* Juda uzun so'z yoki havola (bo'sh joysiz) kartani kengaytirib, sahifani yonga surmasin */
     overflow-wrap: anywhere;
   }
+  /* Jadvalda so'z harflab bo'linmasin: «anywhere» ustunni 1 harf kengligigacha siqib qo'yardi (tor telefon, Telegram).
+     Endi ustun eng uzun so'zcha keng; jadval sig'masa — o'rab turgan blok yonga suriladi. */
+  th,
+  td {
+    overflow-wrap: break-word;
+  }
   h1,
   h2,
   h3 {
