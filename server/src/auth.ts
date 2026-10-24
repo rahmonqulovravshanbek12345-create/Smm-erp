@@ -8,7 +8,7 @@ export const IDLE_DAYS = 14;
 
 /** Sessiya muddati: pul va tizim sozlamalariga kiradigan rollar uchun qisqaroq (7 kun, 1 kun harakatsizlik). */
 export function sessionLife(role: string): { days: number; idleMinutes: number } {
-  return role === "admin" || role === "rahbar" || role === "moliya"
+  return role === "admin" || role === "rahbar" || role === "moliya" || role === "marketolog"
     ? { days: 7, idleMinutes: 24 * 60 }
     : { days: SESSION_DAYS, idleMinutes: IDLE_DAYS * 24 * 60 };
 }

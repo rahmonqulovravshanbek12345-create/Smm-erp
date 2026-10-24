@@ -91,6 +91,8 @@ export function access(role: Role, mod: Module): Access {
   if (role === "admin") return mod === "myday" || mod === "myaccount" ? "none" : "full";
   // Rahbar hamma narsani ko'radi va boshqaradi (tizim sozlamalaridan tashqari).
   if (role === "rahbar") return mod === "admin" || mod === "myday" || mod === "myaccount" ? "none" : "full";
+  // Marketolog — agentlikda ham rahbar, ham moliyachi: rahbar bilan bir xil (pul ham), lekin o'z kuni va hisobi ham bor.
+  if (role === "marketolog") return mod === "admin" ? "none" : mod === "myday" || mod === "myaccount" ? "own" : "full";
   return MATRIX[mod][role] ?? "none";
 }
 
@@ -107,7 +109,7 @@ export const canReassignLead = (role: Role) => role === "admin" || role === "rah
 export const canPayUser = (me: { id: string; role: Role }, userId: string | undefined) => me.role !== "moliya" || userId !== me.id;
 
 /** Moliya loyiha kartasining moliya qismini to'liq tahrirlaydi. */
-export const canEditFinance = (role: Role) => role === "admin" || role === "moliya" || role === "rahbar";
+export const canEditFinance = (role: Role) => role === "admin" || role === "moliya" || role === "rahbar" || role === "marketolog";
 
 /** Matritsa jadvalini ko'rsatish uchun (Admin sahifasi). */
 export const MATRIX_VIEW: { module: Module; label: string }[] = [
