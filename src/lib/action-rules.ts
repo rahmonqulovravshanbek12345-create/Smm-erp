@@ -10,7 +10,7 @@ const is =
   (...roles: Role[]) =>
   (me: User) =>
     roles.includes(me.role);
-const boss = is("admin", "rahbar");
+const boss = is("admin", "rahbar", "marketolog");
 const fin = (me: User) => canEditFinance(me.role);
 const crm = (me: User) => canEdit(me.role, "crm");
 const manage = is("admin", "rahbar", "marketolog");
@@ -28,7 +28,7 @@ const approveOn = (me: User, p: Project | undefined) => {
   const a = access(me.role, "content");
   return Boolean(p) && (a === "approve" || a === "full") && (me.role !== "smm" || p!.smmId === me.id);
 };
-/** Syomka, montaj, dizayn, target topshiriqlari: SMM o'z loyihasida, rahbar, admin. */
+/** Syomka, montaj, dizayn, target topshiriqlari: SMM o'z loyihasida, marketolog, rahbar, admin. */
 const productionOn = (me: User, p: Project | undefined) => Boolean(p) && (boss(me) || (me.role === "smm" && p!.smmId === me.id));
 const reviewer = (me: User, s: ErpState, taskId: unknown) => {
   const t = taskOf(s, taskId);
