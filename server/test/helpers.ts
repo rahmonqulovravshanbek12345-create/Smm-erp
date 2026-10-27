@@ -89,7 +89,10 @@ export async function setup(o: { require2fa?: string; secure?: boolean; staticDi
       if (graph.fail) throw new Error(graph.fail);
       return Object.keys(graph.forms).map((id) => ({ id }));
     },
-    listFormLeads: async (_t, _v, formId) => graph.forms[formId] ?? [],
+    listFormLeads: async (_t, _v, formId, since) => {
+      graph.calls.push(`since:${since}`);
+      return graph.forms[formId] ?? [];
+    },
     pageName: async () => "Friday Agency (test)",
   };
   const leads = createLeadsService(store, fakeGraph, undefined, (o) => notifier.deliver(o));

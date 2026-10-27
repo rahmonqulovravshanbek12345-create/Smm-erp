@@ -110,7 +110,7 @@ export function LeadAdsCard() {
           {cfg.lastLeadAt ? <> · oxirgisi {fmtDateTime(cfg.lastLeadAt)}</> : null}
         </div>
         <div>
-          Zaxira tekshiruvi (har 10 daqiqada): {cfg.lastPollAt ? fmtDateTime(cfg.lastPollAt) : "hali bo'lmagan"}
+          Zaxira tekshiruvi (har 10 daqiqada), oxirgi muvaffaqiyatli: {cfg.lastPollAt ? fmtDateTime(cfg.lastPollAt) : "hali bo'lmagan"}
           {cfg.lastError ? <span className="text-red"> · ⚠ {cfg.lastError}</span> : null}
         </div>
         <details className="pt-1">

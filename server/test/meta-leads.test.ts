@@ -247,6 +247,43 @@ describe("Zaxira tekshiruvi (webhook yetmay qolganda)", () => {
     expect(cfg.lastError).not.toContain(PAGE_TOKEN);
     t.graph.fail = undefined;
   });
+
+  const sinceOf = () =>
+    Number(
+      t.graph.calls
+        .filter((x) => x.startsWith("since:"))
+        .at(-1)!
+        .slice(6),
+    );
+  const setPollAt = (iso: string) => {
+    t.store.current().state.settings.integrations.leads.lastPollAt = iso;
+  };
+
+  it("Meta xato bersa, tekshiruv vaqti oldinga surilmaydi: keyingi muvaffaqiyatli tekshiruv xato davridagi lidlarni ham qidiradi", async () => {
+    const old = new Date(Date.now() - 5 * 3_600_000).toISOString();
+    setPollAt(old);
+    t.graph.fail = "Meta: (#200) Requires pages_manage_ads permission";
+    expect((await t.leads.poll()).error).toBeTruthy();
+    expect((await t.leads.poll()).error).toBeTruthy();
+    expect(t.store.current().state.settings.integrations.leads.lastPollAt).toBe(old);
+    t.graph.fail = undefined;
+    t.graph.calls.length = 0;
+    const r = await t.leads.poll();
+    expect(r.error).toBeUndefined();
+    expect(sinceOf()).toBe(Math.floor((Date.parse(old) - 2 * 3_600_000) / 1000));
+    const cfg = t.store.current().state.settings.integrations.leads;
+    expect(Date.parse(cfg.lastPollAt!)).toBeGreaterThan(Date.parse(old));
+    expect(cfg.lastError).toBeUndefined();
+  });
+
+  it("qidirish oynasi ko'pi bilan 7 kun (uzoq uzilishdan keyin eski lidlar to'lib ketmaydi)", async () => {
+    setPollAt(new Date(Date.now() - 30 * 86_400_000).toISOString());
+    t.graph.calls.length = 0;
+    await t.leads.poll();
+    const ago = Date.now() / 1000 - sinceOf();
+    expect(ago).toBeGreaterThan(7 * 86_400 - 120);
+    expect(ago).toBeLessThan(7 * 86_400 + 120);
+  });
 });
 
 describe("Admin tugmalari va qoidalar", () => {

@@ -643,7 +643,7 @@ export interface Integrations {
     rotateIdx: number;
     /** Oxirgi lid kelgan vaqt. */
     lastLeadAt?: string;
-    /** Zaxira tekshiruvi (har 10 daqiqada) oxirgi bajarilgan vaqt va natijasi. */
+    /** Zaxira tekshiruvi (har 10 daqiqada) oxirgi MUVAFFAQIYATLI vaqti (xatoda surilmaydi) va oxirgi xato matni. */
     lastPollAt?: string;
     lastError?: string;
     /** Jami qabul qilingan lidlar. */

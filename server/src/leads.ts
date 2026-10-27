@@ -133,8 +133,10 @@ export function createLeadsService(
       polling = true;
       const c = cfg();
       try {
-        // Oxirgi tekshiruvdan 2 soat oldindan (webhook yetmay qolgan bo'lsa); birinchi marta — 3 kun
-        const since = Math.floor((c.lastPollAt ? Date.parse(c.lastPollAt) - 2 * 3_600_000 : Date.now() - 3 * 86_400_000) / 1000);
+        // Oxirgi MUVAFFAQIYATLI tekshiruvdan 2 soat oldindan (webhook yetmay qolgan bo'lsa), ko'pi bilan 7 kun; birinchi marta — 3 kun
+        const now = Date.now();
+        const from = c.lastPollAt ? Math.max(Date.parse(c.lastPollAt) - 2 * 3_600_000, now - 7 * 86_400_000) : now - 3 * 86_400_000;
+        const since = Math.floor(from / 1000);
         let found = 0;
         let created = 0;
         for (const f of await graph.listForms(c.pageToken, version(), c.pageId)) {

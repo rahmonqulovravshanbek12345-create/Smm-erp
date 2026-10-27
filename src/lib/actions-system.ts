@@ -388,6 +388,7 @@ export function intakeLead(c: Ctx, input: IntakeLead): "created" | "duplicate" |
 /** Zaxira tekshiruvi tugadi (xato bo'lsa — matni). */
 export function markLeadsPoll(c: Ctx, error?: string) {
   const cfg = c.s.settings.integrations.leads;
-  cfg.lastPollAt = nowISO();
+  // Xatoda vaqt oldinga surilmaydi: Meta/token tiklangach keyingi tekshiruv xato davridagi lidlarni ham oladi
+  if (!error) cfg.lastPollAt = nowISO();
   cfg.lastError = error ? error.slice(0, 300) : undefined;
 }
